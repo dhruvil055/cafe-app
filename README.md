@@ -136,9 +136,10 @@ Scan QR → /menu?table=3
 
 ### Frontend → Vercel
 
-1. Import the repository on Vercel and leave the root directory as the repository root.
-2. Vercel will use `vercel.json` to install nested dependencies and build `client/dist`.
-3. Add these environment variables for Production, Preview, and Development:
+1. Import the repository on Vercel and set **Root Directory** to `client`.
+2. Set Install Command to `npm install` and Build Command to `npm run build`. Do not use the root project's `npm run install:all` command when the root directory is `client`.
+3. The output directory is `dist`. SPA rewrites are configured in the root `vercel.json` when deploying from the repository root; when using `client` as the Root Directory, add a rewrite in Vercel for all paths to `/index.html` if React Router refreshes return 404.
+4. Add these environment variables for Production, Preview, and Development:
   - `VITE_API_URL=https://your-backend.onrender.com/api`
   - `VITE_RAZORPAY_KEY_ID=rzp_live_xxxx`
 
