@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "install": "npm install --ignore-scripts",
     "install:all": "npm install",
     "dev": "vite",
     "build": "vite build",
