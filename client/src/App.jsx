@@ -8,6 +8,9 @@ import CartPage from './pages/customer/CartPage';
 import CheckoutPage from './pages/customer/CheckoutPage';
 import OrderConfirmPage from './pages/customer/OrderConfirmPage';
 import TrackOrderPage from './pages/customer/TrackOrderPage';
+import AboutPage from './pages/customer/AboutPage';
+import OffersPage from './pages/customer/OffersPage';
+import ContactPage from './pages/customer/ContactPage';
 
 // Admin pages
 import AdminLoginPage from './pages/admin/AdminLoginPage';
@@ -51,6 +54,9 @@ export default function App() {
           {/* Customer routes */}
           <Route path="/" element={<Navigate to="/menu" replace />} />
           <Route path="/menu" element={<MenuPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/offers" element={<OffersPage />} />
+          <Route path="/contact" element={<ContactPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/order-confirm/:orderId" element={<OrderConfirmPage />} />

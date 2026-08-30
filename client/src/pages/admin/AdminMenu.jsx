@@ -7,7 +7,7 @@ import api from '../../services/api';
 
 const EMPTY_FORM = {
   name: '', description: '', price: '', category: '',
-  isVeg: true, available: true, popular: false,
+  available: true, popular: false,
   image: '', prepTime: 10, addons: [], variants: [],
 };
 
@@ -59,7 +59,6 @@ export default function AdminMenu() {
       description: product.description || '',
       price: product.price,
       category: product.category?._id || product.category,
-      isVeg: product.isVeg,
       available: product.available,
       popular: product.popular || false,
       image: product.image || '',
@@ -202,12 +201,6 @@ export default function AdminMenu() {
                     <span className="text-white text-xs font-medium bg-black/60 px-2 py-1 rounded-full">Unavailable</span>
                   </div>
                 )}
-                <div className="absolute top-2 left-2 flex gap-1">
-                  <span className={`w-4 h-4 rounded-sm border flex items-center justify-center bg-white
-                    ${product.isVeg ? 'border-green-600' : 'border-red-600'}`}>
-                    <span className={`w-2 h-2 rounded-full ${product.isVeg ? 'bg-green-600' : 'bg-red-600'}`} />
-                  </span>
-                </div>
                 {product.popular && (
                   <div className="absolute top-2 right-2">
                     <Star size={14} className="text-yellow-400 fill-yellow-400" />
@@ -375,7 +368,6 @@ export default function AdminMenu() {
                 {/* Toggles */}
                 <div className="flex flex-wrap gap-3">
                   {[
-                    { key: 'isVeg', label: 'Vegetarian', on: '🟢', off: '🔴' },
                     { key: 'available', label: 'Available', on: '✅', off: '❌' },
                     { key: 'popular', label: 'Popular', on: '⭐', off: '☆' },
                   ].map(t => (

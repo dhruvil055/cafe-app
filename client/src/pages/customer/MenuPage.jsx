@@ -164,6 +164,42 @@ export default function MenuPage() {
         </div>
       </div>
 
+      <div className="relative z-30 -mt-7 px-4 sm:px-6">
+        <nav className="mx-auto flex max-w-2xl items-center justify-between gap-2 rounded-full border border-foam bg-white/90 px-2 py-2 shadow-[0_12px_30px_rgba(26,15,8,0.12)] backdrop-blur-xl">
+          <Link to="/menu" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Menu</Link>
+          <Link to="/about" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">About</Link>
+          <Link to="/offers" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Offers</Link>
+          <Link to="/contact" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Contact</Link>
+
+          <div className="flex items-center gap-2 border-l border-foam pl-2">
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => setShowScanner(true)}
+              aria-label="Scan table QR code"
+              className="relative flex h-10 w-10 items-center justify-center rounded-full bg-espresso-900 text-cream shadow-sm transition hover:bg-espresso-800"
+            >
+              <ScanLine size={16} />
+            </motion.button>
+
+            <Link to="/cart" className="relative flex h-10 w-10 items-center justify-center rounded-full bg-espresso-50 text-espresso-900 transition hover:bg-espresso-100">
+              <ShoppingCart size={17} />
+              {itemCount > 0 && (
+                <motion.span
+                  key={itemCount}
+                  initial={{ scale: 1.4 }}
+                  animate={{ scale: 1 }}
+                  className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brew-500 px-1 text-[9px] font-bold text-white"
+                >
+                  {itemCount}
+                </motion.span>
+              )}
+            </Link>
+          </div>
+        </nav>
+      </div>
+
       {/* Invalid table warning */}
       {tableValid === false && (
         <div className="bg-red-50 border-b border-red-200 px-4 py-3 flex items-center gap-2">

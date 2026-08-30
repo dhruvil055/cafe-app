@@ -42,14 +42,6 @@ const MenuCard = forwardRef(function MenuCard({ product, onSelect }, ref) {
           onError={e => { e.target.src = PLACEHOLDER; }}
         />
 
-        {/* Badges */}
-        <div className="absolute top-2 left-2 flex flex-col gap-1">
-          <span className={`w-4 h-4 rounded-sm border flex items-center justify-center
-            ${product.isVeg ? 'border-green-600 bg-white' : 'border-red-600 bg-white'}`}>
-            <span className={`w-2 h-2 rounded-full ${product.isVeg ? 'bg-green-600' : 'bg-red-600'}`} />
-          </span>
-        </div>
-
         {product.popular && (
           <div className="absolute top-2 right-2">
             <span className="bg-brew-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
@@ -77,8 +69,8 @@ const MenuCard = forwardRef(function MenuCard({ product, onSelect }, ref) {
           <p className="text-espresso-400 text-xs mt-0.5 line-clamp-1">{product.description}</p>
         )}
 
-        <div className="flex items-center justify-between mt-2">
-          <span className="font-display font-semibold text-espresso-900 text-sm">
+        <div className="flex items-center justify-between mt-2 gap-2">
+          <span className="price-tag text-sm sm:text-base">
             ₹{product.price}
           </span>
           <motion.button

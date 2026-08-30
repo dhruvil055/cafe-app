@@ -56,15 +56,6 @@
            placeholder:text-espresso-400 text-espresso-900 transition-all;
   }
 
-  .badge-veg {
-    @apply inline-flex items-center gap-1 text-xs font-medium
-           bg-green-50 text-green-700 border border-green-200 rounded px-1.5 py-0.5;
-  }
-
-  .badge-nonveg {
-    @apply inline-flex items-center gap-1 text-xs font-medium
-           bg-red-50 text-red-700 border border-red-200 rounded px-1.5 py-0.5;
-  }
 }
 
 /* Smooth page transitions */
@@ -109,7 +100,9 @@ canvas {
 
 /* Price tag */
 .price-tag {
-  @apply font-display font-semibold text-espresso-900;
+  @apply font-display font-black tracking-tight text-espresso-900 text-base sm:text-lg leading-none;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 0 rgba(26, 15, 8, 0.08);
 }
 
 /* Status badges */

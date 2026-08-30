@@ -75,10 +75,6 @@ export default function ProductModal({ product, onClose }) {
 
           {/* Badges */}
           <div className="absolute bottom-3 left-4 flex items-center gap-2">
-            <span className={`w-5 h-5 rounded border-2 flex items-center justify-center bg-white
-              ${product.isVeg ? 'border-green-600' : 'border-red-600'}`}>
-              <span className={`w-2.5 h-2.5 rounded-full ${product.isVeg ? 'bg-green-600' : 'bg-red-600'}`} />
-            </span>
             {product.popular && (
               <span className="bg-brew-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                 <Star size={10} fill="white" /> Popular
@@ -97,7 +93,7 @@ export default function ProductModal({ product, onClose }) {
                 <p className="text-espresso-500 text-sm mt-1 leading-relaxed">{product.description}</p>
               )}
               <div className="flex items-center gap-3 mt-2">
-                <span className="font-display text-xl font-bold text-espresso-900">₹{basePrice}</span>
+                <span className="price-tag text-xl sm:text-2xl">₹{basePrice}</span>
                 {product.prepTime && (
                   <span className="flex items-center gap-1 text-xs text-espresso-400">
                     <Clock size={12} /> {product.prepTime} min
@@ -193,7 +189,7 @@ export default function ProductModal({ product, onClose }) {
               <ShoppingBag size={16} />
               <span>Add to Cart</span>
             </div>
-            <span className="font-display font-bold">₹{total}</span>
+            <span className="price-tag text-lg sm:text-xl">₹{total}</span>
           </motion.button>
         </div>
       </motion.div>

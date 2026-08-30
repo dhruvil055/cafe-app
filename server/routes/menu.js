@@ -7,11 +7,10 @@ const router = express.Router();
 // GET /api/menu — public
 router.get('/', async (req, res) => {
   try {
-    const { category, search, veg, sort, popular } = req.query;
+    const { category, search, sort, popular } = req.query;
     let query = {};
 
     if (category && category !== 'all') query.category = category;
-    if (veg === 'true') query.isVeg = true;
     if (popular === 'true') query.popular = true;
     if (search) {
       query.$or = [
