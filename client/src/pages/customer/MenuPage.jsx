@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, Suspense, lazy } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingCart, Search, SlidersHorizontal, Leaf, Star, ChevronDown, X, AlertCircle } from 'lucide-react';
+import { ShoppingCart, Search, SlidersHorizontal, Leaf, Star, ChevronDown, X, AlertCircle, ScanLine } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import useCartStore from '../../context/cartStore';
 import ProductModal from '../../components/menu/ProductModal';
 import MenuCard from '../../components/menu/MenuCard';
 import SkeletonCard from '../../components/ui/SkeletonCard';
+import QrScannerModal from '../../components/ui/QrScannerModal';
 
 const CafeHero3D = lazy(() => import('../../components/3d/CafeHero3D'));
 
@@ -20,6 +21,7 @@ const SORT_OPTIONS = [
 
 export default function MenuPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const tableParam = searchParams.get('table');
 
   const { items, tableNumber, setTable, itemCount } = useCartStore();
@@ -35,6 +37,7 @@ export default function MenuPage() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [tableValid, setTableValid] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
 
   const searchRef = useRef();
   const debounceRef = useRef();
@@ -125,7 +128,19 @@ export default function MenuPage() {
         </div>
 
         {/* Cart button */}
-        <div className="absolute top-4 right-4 z-20">
+        <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowScanner(true)}
+            aria-label="Scan table QR code"
+            title="Scan table QR code"
+            className="glass flex items-center gap-2 rounded-full px-3 py-3 text-sm font-medium text-espresso-900 shadow-lg"
+          >
+            <ScanLine size={19} />
+            <span className="hidden sm:inline">Scan QR</span>
+          </motion.button>
           <Link to="/cart">
             <motion.div
               whileHover={{ scale: 1.05 }}
@@ -345,6 +360,19 @@ export default function MenuPage() {
           <ProductModal
             product={selectedProduct}
             onClose={() => setSelectedProduct(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showScanner && (
+          <QrScannerModal
+            onClose={() => setShowScanner(false)}
+            onTableFound={(tableNumber) => {
+              setShowScanner(false);
+              setTable(tableNumber);
+              navigate(`/menu?table=${tableNumber}`, { replace: true });
+            }}
           />
         )}
       </AnimatePresence>
