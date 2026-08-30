@@ -1,7 +1,7 @@
 import express from 'express';
 import QRCode from 'qrcode';
 import Table from '../models/Table.js';
-import { protect } from '../middleware/auth.js';
+import { adminOnly, protect, staffOrAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -26,8 +26,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET all tables — admin
-router.get('/all', protect, async (req, res) => {
+// GET all tables — admin/staff
+router.get('/all', protect, staffOrAdmin, async (req, res) => {
   try {
     const tables = await Table.find().sort({ tableNumber: 1 });
     res.json({ tables });
@@ -50,8 +50,8 @@ router.get('/:number/validate', async (req, res) => {
   }
 });
 
-// POST /api/tables — admin
-router.post('/', protect, async (req, res) => {
+// POST /api/tables — admin/staff
+router.post('/', protect, staffOrAdmin, async (req, res) => {
   try {
     const { tableNumber, seats, label } = req.body;
     const { qrCode, qrUrl } = await generateQR(tableNumber, req.body.baseUrl);
@@ -63,13 +63,12 @@ router.post('/', protect, async (req, res) => {
   }
 });
 
-// PUT /api/tables/:id — admin
-router.put('/:id', protect, async (req, res) => {
+// PUT /api/tables/:id — admin/staff
+router.put('/:id', protect, staffOrAdmin, async (req, res) => {
   try {
     const table = await Table.findById(req.params.id);
     if (!table) return res.status(404).json({ error: 'Table not found.' });
 
-    // Regenerate QR if table number changed
     if (req.body.tableNumber && req.body.tableNumber !== table.tableNumber) {
       const { qrCode, qrUrl } = await generateQR(req.body.tableNumber, req.body.baseUrl);
       req.body.qrCode = qrCode;
@@ -83,8 +82,8 @@ router.put('/:id', protect, async (req, res) => {
   }
 });
 
-// POST /api/tables/:id/regenerate-qr — admin
-router.post('/:id/regenerate-qr', protect, async (req, res) => {
+// POST /api/tables/:id/regenerate-qr — admin/staff
+router.post('/:id/regenerate-qr', protect, staffOrAdmin, async (req, res) => {
   try {
     const table = await Table.findById(req.params.id);
     if (!table) return res.status(404).json({ error: 'Table not found.' });
@@ -101,7 +100,7 @@ router.post('/:id/regenerate-qr', protect, async (req, res) => {
 });
 
 // DELETE /api/tables/:id — admin
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', protect, adminOnly, async (req, res) => {
   try {
     await Table.findByIdAndDelete(req.params.id);
     res.json({ message: 'Table deleted.' });
@@ -110,8 +109,8 @@ router.delete('/:id', protect, async (req, res) => {
   }
 });
 
-// POST bulk create tables
-router.post('/bulk', protect, async (req, res) => {
+// POST bulk create tables — admin/staff
+router.post('/bulk', protect, staffOrAdmin, async (req, res) => {
   try {
     const { count, baseUrl } = req.body;
     const existing = await Table.find().sort({ tableNumber: -1 }).limit(1);

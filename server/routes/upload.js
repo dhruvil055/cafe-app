@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { protect } from '../middleware/auth.js';
+import { adminOnly, protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -27,7 +27,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // POST /api/upload/image — admin
-router.post('/image', protect, upload.single('image'), (req, res) => {
+router.post('/image', protect, adminOnly, upload.single('image'), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
     const serverUrl = process.env.SERVER_URL || `http://localhost:${process.env.PORT || 5000}`;

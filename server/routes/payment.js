@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import Order from '../models/Order.js';
+import { verifyRazorpaySignature } from '../utils/security.js';
 
 const router = express.Router();
 
@@ -16,16 +17,23 @@ const getRazorpay = () => {
 router.post('/create-order', async (req, res) => {
   try {
     const { orderId } = req.body;
+    if (!orderId) {
+      return res.status(400).json({ error: 'Order ID is required.' });
+    }
 
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ error: 'Order not found.' });
+    if (order.paymentMethod !== 'razorpay') {
+      return res.status(400).json({ error: 'This order is not configured for online payment.' });
+    }
     if (order.paymentStatus === 'paid') {
       return res.status(400).json({ error: 'Order already paid.' });
     }
 
     const razorpay = getRazorpay();
+    const amountInPaise = Math.round(order.total * 100);
     const razorpayOrder = await razorpay.orders.create({
-      amount: Math.round(order.total * 100), // paise
+      amount: amountInPaise,
       currency: 'INR',
       receipt: order.orderNumber,
       notes: {
@@ -35,7 +43,6 @@ router.post('/create-order', async (req, res) => {
       },
     });
 
-    // Save razorpay order id
     order.razorpayOrderId = razorpayOrder.id;
     await order.save();
 
@@ -56,26 +63,37 @@ router.post('/verify', async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
 
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    if (!orderId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return res.status(400).json({ error: 'Missing payment verification data.' });
     }
 
-    // Verify signature
-    const secret = process.env.RAZORPAY_KEY_SECRET || 'placeholder_secret';
-    const body = `${razorpay_order_id}|${razorpay_payment_id}`;
-    const expectedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(body)
-      .digest('hex');
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+    if (order.paymentStatus === 'paid') {
+      return res.status(400).json({ error: 'Order already paid.' });
+    }
+    if (order.razorpayOrderId && order.razorpayOrderId !== razorpay_order_id) {
+      return res.status(400).json({ error: 'Order payment mismatch detected.' });
+    }
 
-    if (expectedSignature !== razorpay_signature) {
-      // Mark payment as failed
+    const secret = process.env.RAZORPAY_KEY_SECRET;
+    if (!secret || secret === 'placeholder_secret') {
+      return res.status(500).json({ error: 'Razorpay secret is not configured.' });
+    }
+
+    const isValid = verifyRazorpaySignature({
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      keySecret: secret,
+    });
+
+    if (!isValid) {
       await Order.findByIdAndUpdate(orderId, { paymentStatus: 'failed' });
       return res.status(400).json({ error: 'Payment verification failed. Invalid signature.' });
     }
 
-    // Update order as paid
-    const order = await Order.findByIdAndUpdate(
+    const updatedOrder = await Order.findByIdAndUpdate(
       orderId,
       {
         paymentStatus: 'paid',
@@ -86,9 +104,7 @@ router.post('/verify', async (req, res) => {
       { new: true }
     );
 
-    if (!order) return res.status(404).json({ error: 'Order not found.' });
-
-    res.json({ success: true, order });
+    res.json({ success: true, order: updatedOrder });
   } catch (error) {
     console.error('Payment verification error:', error);
     res.status(500).json({ error: 'Payment verification failed.' });

@@ -1,6 +1,6 @@
 import express from 'express';
 import Product from '../models/Product.js';
-import { protect } from '../middleware/auth.js';
+import { adminOnly, protect, staffOrAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -45,8 +45,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/menu — admin
-router.post('/', protect, async (req, res) => {
+// POST /api/menu — admin/staff
+router.post('/', protect, staffOrAdmin, async (req, res) => {
   try {
     const product = await Product.create(req.body);
     await product.populate('category', 'name icon');
@@ -56,8 +56,8 @@ router.post('/', protect, async (req, res) => {
   }
 });
 
-// PUT /api/menu/:id — admin
-router.put('/:id', protect, async (req, res) => {
+// PUT /api/menu/:id — admin/staff
+router.put('/:id', protect, staffOrAdmin, async (req, res) => {
   try {
     const product = await Product.findByIdAndUpdate(req.params.id, req.body, {
       new: true, runValidators: true
@@ -70,7 +70,7 @@ router.put('/:id', protect, async (req, res) => {
 });
 
 // DELETE /api/menu/:id — admin
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', protect, adminOnly, async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) return res.status(404).json({ error: 'Item not found.' });

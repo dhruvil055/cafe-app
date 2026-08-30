@@ -1,7 +1,8 @@
 import express from 'express';
 import Order from '../models/Order.js';
-import { protect } from '../middleware/auth.js';
+import { adminOnly, protect, staffOrAdmin } from '../middleware/auth.js';
 import { generateReceipt } from '../services/receipt.js';
+import { calculateOrderTotals, normalizeOrderItems } from '../utils/security.js';
 
 const router = express.Router();
 
@@ -16,39 +17,26 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Missing required order fields.' });
     }
 
-    const normalizedItems = items.map((item) => ({
-      ...item,
-      price: Number(item.price),
-      quantity: Number(item.quantity),
-      itemTotal: Number(item.itemTotal),
-    }));
-
-    if (normalizedItems.some(item =>
-      !Number.isFinite(item.price) || item.price < 0 ||
-      !Number.isInteger(item.quantity) || item.quantity < 1 ||
-      !Number.isFinite(item.itemTotal) || item.itemTotal < 0
-    )) {
-      return res.status(400).json({ error: 'One or more order items are invalid.' });
+    const phone = String(customer.phone).trim();
+    if (!/^[0-9+()\-\s]{7,15}$/.test(phone)) {
+      return res.status(400).json({ error: 'Customer phone number is invalid.' });
     }
 
-    // Calculate totals
-    const subtotal = normalizedItems.reduce((sum, item) => sum + item.itemTotal, 0);
-    const taxRate = 5; // 5% GST
-    const tax = Math.round(subtotal * taxRate / 100);
-    const total = subtotal + tax;
+    const normalizedItems = normalizeOrderItems(items);
+    const { subtotal, tax, total, taxRate } = calculateOrderTotals(normalizedItems);
 
     const order = await Order.create({
       tableNumber: Number(tableNumber),
-      customer,
+      customer: { ...customer, name: String(customer.name).trim(), phone },
       items: normalizedItems,
       subtotal,
       tax,
       total,
       taxRate,
       paymentMethod,
-      paymentStatus: paymentMethod === 'cash' ? 'pending' : 'pending',
+      paymentStatus: 'pending',
       orderStatus: paymentMethod === 'cash' ? 'confirmed' : 'pending',
-      notes: notes || '',
+      notes: String(notes || '').slice(0, 500),
     });
 
     res.status(201).json({ order });
@@ -58,8 +46,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET /api/orders — admin
-router.get('/', protect, async (req, res) => {
+// GET /api/orders — admin/staff
+router.get('/', protect, staffOrAdmin, async (req, res) => {
   try {
     const { status, date, limit = 50 } = req.query;
     let query = {};
@@ -75,7 +63,6 @@ router.get('/', protect, async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(Number(limit));
 
-    // Dashboard stats
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayOrders = await Order.find({ createdAt: { $gte: today } });
@@ -103,8 +90,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// PUT /api/orders/:id/status — admin
-router.put('/:id/status', protect, async (req, res) => {
+// PUT /api/orders/:id/status — admin/staff
+router.put('/:id/status', protect, staffOrAdmin, async (req, res) => {
   try {
     const { orderStatus, paymentStatus } = req.body;
     const update = {};

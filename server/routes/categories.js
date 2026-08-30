@@ -1,6 +1,6 @@
 import express from 'express';
 import Category from '../models/Category.js';
-import { protect } from '../middleware/auth.js';
+import { adminOnly, protect, staffOrAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -14,8 +14,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET all (admin)
-router.get('/all', protect, async (req, res) => {
+// GET all (admin/staff)
+router.get('/all', protect, staffOrAdmin, async (req, res) => {
   try {
     const categories = await Category.find().sort({ sortOrder: 1, name: 1 });
     res.json({ categories });
@@ -24,8 +24,8 @@ router.get('/all', protect, async (req, res) => {
   }
 });
 
-// POST /api/categories — admin
-router.post('/', protect, async (req, res) => {
+// POST /api/categories — admin/staff
+router.post('/', protect, staffOrAdmin, async (req, res) => {
   try {
     const category = await Category.create(req.body);
     res.status(201).json({ category });
@@ -34,8 +34,8 @@ router.post('/', protect, async (req, res) => {
   }
 });
 
-// PUT /api/categories/:id — admin
-router.put('/:id', protect, async (req, res) => {
+// PUT /api/categories/:id — admin/staff
+router.put('/:id', protect, staffOrAdmin, async (req, res) => {
   try {
     const category = await Category.findByIdAndUpdate(req.params.id, req.body, {
       new: true, runValidators: true
@@ -48,7 +48,7 @@ router.put('/:id', protect, async (req, res) => {
 });
 
 // DELETE /api/categories/:id — admin
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', protect, adminOnly, async (req, res) => {
   try {
     const category = await Category.findByIdAndDelete(req.params.id);
     if (!category) return res.status(404).json({ error: 'Category not found.' });

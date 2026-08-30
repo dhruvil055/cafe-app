@@ -6,9 +6,12 @@ import { protect } from '../middleware/auth.js';
 const router = express.Router();
 
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'fallback_secret_change_this', {
-    expiresIn: '7d',
-  });
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error('JWT secret is not configured.');
+  }
+
+  return jwt.sign({ id }, secret, { expiresIn: '7d' });
 };
 
 // POST /api/auth/login
@@ -20,31 +23,33 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail }).select('+password');
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    // Need to get password for comparison
-    const fullUser = await User.findOne({ email: email.toLowerCase() });
-    const isMatch = await fullUser.comparePassword(password);
+    const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    const token = generateToken(fullUser._id);
+    const token = generateToken(user._id);
 
     res.json({
       token,
       user: {
-        id: fullUser._id,
-        name: fullUser.name,
-        email: fullUser.email,
-        role: fullUser.role,
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
       },
     });
   } catch (error) {
     console.error('Login error:', error);
+    if (error.message.includes('JWT secret')) {
+      return res.status(500).json({ error: 'Authentication is not configured on the server.' });
+    }
     res.status(500).json({ error: 'Server error during login.' });
   }
 });
