@@ -53,15 +53,25 @@ export default function CheckoutPage() {
     setLoading(true);
     setError('');
     try {
+      // SECURITY: Convert cart items to secure format (productId, quantity only)
+      // Backend will fetch real prices from database
+      const secureItems = items.map(item => ({
+        productId: item.product,
+        quantity: item.quantity,
+        ...(item.variant && { variantId: item.variant._id }),
+        ...(item.addons.length > 0 && { addonIds: item.addons.map(a => a._id) }),
+      }));
+
       const orderData = {
         tableNumber,
         customer: { name: name.trim(), phone: phone.trim() },
-        items,
+        items: secureItems,
         paymentMethod: 'cash',
       };
       const res = await api.post('/orders', orderData);
+      const { accessToken } = res.data;
       clearCart();
-      navigate(`/order-confirm/${res.data.order._id}`);
+      navigate(`/order-confirm/${res.data.order._id}?token=${accessToken}`);
     } catch (e) {
       setError(e.message || 'Failed to place order. Please try again.');
     } finally {
@@ -77,14 +87,23 @@ export default function CheckoutPage() {
 
     try {
       // 1. Create order in our DB
+      // SECURITY: Convert cart items to secure format (productId, quantity only)
+      const secureItems = items.map(item => ({
+        productId: item.product,
+        quantity: item.quantity,
+        ...(item.variant && { variantId: item.variant._id }),
+        ...(item.addons.length > 0 && { addonIds: item.addons.map(a => a._id) }),
+      }));
+
       const orderData = {
         tableNumber,
         customer: { name: name.trim(), phone: phone.trim() },
-        items,
+        items: secureItems,
         paymentMethod: 'razorpay',
       };
       const orderRes = await api.post('/orders', orderData);
       const order = orderRes.data.order;
+      const { accessToken } = orderRes.data;
 
       // 2. Create Razorpay order
       const rzpRes = await api.post('/payment/create-order', { orderId: order._id });
@@ -120,7 +139,7 @@ export default function CheckoutPage() {
               orderId: order._id,
             });
             clearCart();
-            navigate(`/order-confirm/${order._id}`);
+            navigate(`/order-confirm/${order._id}?token=${accessToken}`);
           } catch (verifyErr) {
             setError('Payment verification failed. Please contact staff.');
             setLoading(false);

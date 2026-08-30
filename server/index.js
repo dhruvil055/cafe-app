@@ -28,17 +28,24 @@ const allowedOrigins = [
   'http://localhost:4173',
 ].filter(Boolean);
 
-// CORS
+// CORS — SECURITY: Strict allowlist, no broad patterns
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || /^https:\/\/[\w-]+\.vercel\.app$/.test(origin)) {
+    // Allow requests without origin (like mobile apps, Postman, etc.)
+    if (!origin) {
       return callback(null, true);
     }
+    // Only allow configured origins
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    // Reject all other origins (including unknown Vercel deployments)
     return callback(new Error('Origin is not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400,
 }));
 
 // Rate limiting
@@ -49,9 +56,9 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Body parsers
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Body parsers — SECURITY: Reduced size limit for normal API requests
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
 // Static files
 app.use('/uploads', express.static('uploads'));

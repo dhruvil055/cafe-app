@@ -25,9 +25,18 @@ router.get('/all', protect, staffOrAdmin, async (req, res) => {
 });
 
 // POST /api/categories — admin/staff
+// SECURITY: Mass assignment protection - explicit field allowlist
 router.post('/', protect, staffOrAdmin, async (req, res) => {
   try {
-    const category = await Category.create(req.body);
+    const allowedFields = ['name', 'description', 'icon', 'active', 'sortOrder'];
+    const update = {};
+    for (const field of allowedFields) {
+      if (req.body.hasOwnProperty(field)) {
+        update[field] = req.body[field];
+      }
+    }
+
+    const category = await Category.create(update);
     res.status(201).json({ category });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -35,9 +44,18 @@ router.post('/', protect, staffOrAdmin, async (req, res) => {
 });
 
 // PUT /api/categories/:id — admin/staff
+// SECURITY: Mass assignment protection - explicit field allowlist
 router.put('/:id', protect, staffOrAdmin, async (req, res) => {
   try {
-    const category = await Category.findByIdAndUpdate(req.params.id, req.body, {
+    const allowedFields = ['name', 'description', 'icon', 'active', 'sortOrder'];
+    const update = {};
+    for (const field of allowedFields) {
+      if (req.body.hasOwnProperty(field)) {
+        update[field] = req.body[field];
+      }
+    }
+
+    const category = await Category.findByIdAndUpdate(req.params.id, update, {
       new: true, runValidators: true
     });
     if (!category) return res.status(404).json({ error: 'Category not found.' });

@@ -64,18 +64,28 @@ router.post('/', protect, staffOrAdmin, async (req, res) => {
 });
 
 // PUT /api/tables/:id — admin/staff
+// SECURITY: Mass assignment protection - explicit field allowlist
 router.put('/:id', protect, staffOrAdmin, async (req, res) => {
   try {
     const table = await Table.findById(req.params.id);
     if (!table) return res.status(404).json({ error: 'Table not found.' });
 
-    if (req.body.tableNumber && req.body.tableNumber !== table.tableNumber) {
-      const { qrCode, qrUrl } = await generateQR(req.body.tableNumber, req.body.baseUrl);
-      req.body.qrCode = qrCode;
-      req.body.qrUrl = qrUrl;
+    // Only allow these fields to be updated
+    const allowedFields = ['tableNumber', 'seats', 'label', 'active'];
+    const update = {};
+    for (const field of allowedFields) {
+      if (req.body.hasOwnProperty(field)) {
+        update[field] = req.body[field];
+      }
     }
 
-    const updated = await Table.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (update.tableNumber && update.tableNumber !== table.tableNumber) {
+      const { qrCode, qrUrl } = await generateQR(update.tableNumber, req.body.baseUrl);
+      update.qrCode = qrCode;
+      update.qrUrl = qrUrl;
+    }
+
+    const updated = await Table.findByIdAndUpdate(req.params.id, update, { new: true });
     res.json({ table: updated });
   } catch (error) {
     res.status(400).json({ error: error.message });

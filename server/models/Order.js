@@ -19,6 +19,8 @@ const orderItemSchema = new mongoose.Schema({
 });
 
 const orderSchema = new mongoose.Schema({
+  // Payment verification must be idempotent: track verification state
+  paymentVerifiedAt: { type: Date, default: null },
   orderNumber: { type: String, required: true, unique: true },
   tableNumber: { type: Number, required: true },
   customer: {
@@ -49,6 +51,7 @@ const orderSchema = new mongoose.Schema({
   razorpayPaymentId: { type: String, default: '' },
   razorpaySignature: { type: String, default: '' },
   notes: { type: String, default: '' },
+  accessTokenHash: { type: String, required: true, unique: true },
 }, { timestamps: true });
 
 // Generate order number before required-field validation runs.

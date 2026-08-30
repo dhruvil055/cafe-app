@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Clock, Loader2 } from 'lucide-react';
 import api from '../../services/api';
@@ -10,15 +10,19 @@ const STATUS_ICONS = { pending: '📋', confirmed: '✅', preparing: '👨‍�
 
 export default function TrackOrderPage() {
   const { orderId } = useParams();
+  const [searchParams] = useSearchParams();
+  const accessToken = searchParams.get('token');
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetch = () => api.get(`/orders/${orderId}`).then(r => { setOrder(r.data.order); setLoading(false); }).catch(() => setLoading(false));
-    fetch();
-    const interval = setInterval(fetch, 10000);
-    return () => clearInterval(interval);
-  }, [orderId]);
+    const fetch = () => api.get(`/orders/${orderId}?accessToken=${accessToken}`).then(r => { setOrder(r.data.order); setLoading(false); }).catch(() => setLoading(false));
+    if (accessToken) {
+      fetch();
+      const interval = setInterval(fetch, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [orderId, accessToken]);
 
   if (loading) return <div className="min-h-screen bg-cream flex items-center justify-center"><Loader2 className="animate-spin text-brew-500" size={32} /></div>;
   if (!order) return <div className="min-h-screen bg-cream flex items-center justify-center flex-col gap-4"><p className="font-display text-xl">Order not found</p><Link to="/menu" className="btn-primary">Back to Menu</Link></div>;

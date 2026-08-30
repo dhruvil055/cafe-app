@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Download, UtensilsCrossed, CheckCircle2, Clock, Loader2 } from 'lucide-react';
 import api from '../../services/api';
@@ -14,26 +14,30 @@ const STATUS_CONFIG = {
 
 export default function OrderConfirmPage() {
   const { orderId } = useParams();
+  const [searchParams] = useSearchParams();
+  const accessToken = searchParams.get('token');
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     const fetchOrder = () => {
-      api.get(`/orders/${orderId}`)
+      api.get(`/orders/${orderId}?accessToken=${accessToken}`)
         .then(res => { setOrder(res.data.order); setLoading(false); })
         .catch(() => setLoading(false));
     };
-    fetchOrder();
-    // Poll for status updates every 15s
-    const interval = setInterval(fetchOrder, 15000);
-    return () => clearInterval(interval);
-  }, [orderId]);
+    if (accessToken) {
+      fetchOrder();
+      // Poll for status updates every 15s
+      const interval = setInterval(fetchOrder, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [orderId, accessToken]);
 
   const handleDownloadReceipt = async () => {
     setDownloading(true);
     try {
-      const res = await api.get(`/orders/${orderId}/receipt`, { responseType: 'blob' });
+      const res = await api.get(`/orders/${orderId}/receipt?accessToken=${accessToken}`, { responseType: 'blob' });
       const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
       const link = document.createElement('a');
       link.href = url;
