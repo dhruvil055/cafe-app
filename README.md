@@ -130,9 +130,10 @@ Scan QR → /menu?table=3
 
 1. Push to GitHub.
 2. Create a new Blueprint on Render and select this repository. Render will read `render.yaml`.
-3. Add the secret values for `MONGO_URI`, `JWT_SECRET`, `RAZORPAY_KEY_ID`, and `RAZORPAY_KEY_SECRET`.
-4. After Vercel creates the frontend, set `CLIENT_URL` to its public URL and `SERVER_URL` to the Render service URL.
-5. Deploy the service and verify `https://your-backend.onrender.com/api/health` returns `{ "status": "ok" }`.
+3. Ensure the Render Build Command is `npm ci` and the Start Command is `npm start`.
+4. Add the secret values for `MONGO_URI`, `JWT_SECRET`, `RAZORPAY_KEY_ID`, and `RAZORPAY_KEY_SECRET`.
+5. After Vercel creates the frontend, set `CLIENT_URL` to its public URL and `SERVER_URL` to the Render service URL.
+6. Deploy the service and verify `https://your-backend.onrender.com/api/health` returns `{ "status": "ok" }`.
 
 ### Frontend → Vercel
 

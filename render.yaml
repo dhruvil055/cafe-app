@@ -3,7 +3,7 @@ services:
     name: brewhaus-cafe-api
     runtime: node
     rootDir: server
-    buildCommand: npm install
+    buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
