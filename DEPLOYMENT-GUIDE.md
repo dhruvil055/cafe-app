@@ -22,8 +22,10 @@ This guide walks through deploying the security-hardened version of the cafe ord
 # Server Configuration
 PORT=5000
 NODE_ENV=production
-SERVER_URL=https://your-cafe-domain.com/api
-CLIENT_URL=https://your-cafe-domain.com
+SERVER_URL=https://your-backend.onrender.com
+CLIENT_URL=https://client-seven-sigma-26.vercel.app
+# Optional: comma-separated exact origins for additional approved deployments.
+# CLIENT_URLS=https://client-seven-sigma-26.vercel.app,https://preview.example.com
 
 # Database
 MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/cafe_db?retryWrites=true&w=majority

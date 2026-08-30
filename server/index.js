@@ -18,6 +18,8 @@ import uploadRoutes from './routes/upload.js';
 
 dotenv.config();
 
+const normalizeOrigin = (value) => String(value || '').trim().replace(/\/+$/, '');
+
 export const createApp = ({ razorpayFactory } = {}) => {
   const app = express();
   if (razorpayFactory) app.locals.razorpayFactory = razorpayFactory;
@@ -25,17 +27,20 @@ export const createApp = ({ razorpayFactory } = {}) => {
   // Security middleware
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-  const allowedOrigins = [
-    process.env.CLIENT_URL,
+  const allowedOrigins = new Set([
+    ...[process.env.CLIENT_URL, process.env.CLIENT_URLS]
+      .flatMap((value) => String(value || '').split(','))
+      .map(normalizeOrigin)
+      .filter(Boolean),
     'http://localhost:5173',
     'http://localhost:4173',
-  ].filter(Boolean);
+  ]);
 
   // Strict CORS allowlist. Requests without an Origin are allowed for native
   // clients and command-line integrations; browser origins must be explicit.
   app.use(cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      if (!origin || allowedOrigins.has(normalizeOrigin(origin))) return callback(null, true);
       const error = new Error('Origin is not allowed by CORS');
       error.status = 403;
       return callback(error);
