@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import Table from '../models/Table.js';
@@ -94,6 +95,7 @@ router.post('/', async (req, res) => {
         tax: order.tax,
         total: order.total,
         paymentMethod: order.paymentMethod,
+        paymentStatus: order.paymentStatus,
         orderStatus: order.orderStatus,
         createdAt: order.createdAt,
       },
@@ -114,6 +116,10 @@ router.get('/:id', async (req, res) => {
       return res.status(401).json({ error: 'Access token is required.' });
     }
 
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid order ID.' });
+    }
+
     const order = await Order.findById(req.params.id);
     if (!order) {
       return res.status(404).json({ error: 'Order not found.' });
@@ -121,7 +127,9 @@ router.get('/:id', async (req, res) => {
 
     // Verify access token
     try {
-      verifyAccessToken(accessToken, order.accessTokenHash);
+      if (!verifyAccessToken(accessToken, order.accessTokenHash)) {
+        return res.status(403).json({ error: 'Invalid access token.' });
+      }
     } catch (e) {
       return res.status(403).json({ error: 'Invalid access token.' });
     }
@@ -206,6 +214,10 @@ router.put('/:id/status', protect, staffOrAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Payment status cannot be modified through this endpoint.' });
     }
 
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid order ID.' });
+    }
+
     const order = await Order.findByIdAndUpdate(
       req.params.id,
       { orderStatus },
@@ -222,6 +234,50 @@ router.put('/:id/status', protect, staffOrAdmin, async (req, res) => {
   }
 });
 
+// PUT /api/orders/:id/cash-payment — staff/admin only
+// Cash settlement is a separate, constrained payment transition. It cannot
+// be used for Razorpay orders or to set arbitrary payment fields.
+router.put('/:id/cash-payment', protect, staffOrAdmin, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid order ID.' });
+    }
+
+    if (req.body.paymentStatus !== 'paid' || Object.keys(req.body).some((key) => key !== 'paymentStatus')) {
+      return res.status(400).json({ error: 'Only paymentStatus=paid is accepted for cash settlement.' });
+    }
+
+    const updated = await Order.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        paymentMethod: 'cash',
+        paymentStatus: 'pending',
+        orderStatus: { $ne: 'cancelled' },
+      },
+      {
+        $set: {
+          paymentStatus: 'paid',
+          paymentVerifiedAt: new Date(),
+          orderStatus: 'confirmed',
+        },
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (updated) return res.json({ order: updated });
+
+    const current = await Order.findById(req.params.id);
+    if (!current) return res.status(404).json({ error: 'Order not found.' });
+    if (current.paymentMethod !== 'cash') {
+      return res.status(400).json({ error: 'Only cash orders can be settled here.' });
+    }
+    if (current.paymentStatus === 'paid') return res.json({ order: current });
+    return res.status(400).json({ error: 'Cash order is not eligible for settlement.' });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // GET /api/orders/:id/receipt — Download receipt (requires access token)
 router.get('/:id/receipt', async (req, res) => {
   try {
@@ -231,6 +287,10 @@ router.get('/:id/receipt', async (req, res) => {
       return res.status(401).json({ error: 'Access token is required.' });
     }
 
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid order ID.' });
+    }
+
     const order = await Order.findById(req.params.id);
     if (!order) {
       return res.status(404).json({ error: 'Order not found.' });
@@ -238,7 +298,9 @@ router.get('/:id/receipt', async (req, res) => {
 
     // Verify access token before generating receipt
     try {
-      verifyAccessToken(accessToken, order.accessTokenHash);
+      if (!verifyAccessToken(accessToken, order.accessTokenHash)) {
+        return res.status(403).json({ error: 'Invalid access token.' });
+      }
     } catch (e) {
       return res.status(403).json({ error: 'Invalid access token.' });
     }

@@ -106,7 +106,7 @@ export default function CheckoutPage() {
       const { accessToken } = orderRes.data;
 
       // 2. Create Razorpay order
-      const rzpRes = await api.post('/payment/create-order', { orderId: order._id });
+      const rzpRes = await api.post('/payment/create-order', { orderId: order._id, accessToken });
       const { razorpayOrderId, amount, keyId } = rzpRes.data;
 
       // 3. Load Razorpay script
@@ -137,6 +137,7 @@ export default function CheckoutPage() {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
               orderId: order._id,
+              accessToken,
             });
             clearCart();
             navigate(`/order-confirm/${order._id}?token=${accessToken}`);

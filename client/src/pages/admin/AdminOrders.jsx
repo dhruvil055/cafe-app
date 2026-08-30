@@ -234,7 +234,7 @@ export default function AdminOrders() {
                                   onClick={async () => {
                                     setUpdating(prev => ({ ...prev, [order._id]: true }));
                                     try {
-                                      const res = await api.put(`/orders/${order._id}/status`, { paymentStatus: 'paid' });
+                                      const res = await api.put(`/orders/${order._id}/cash-payment`, { paymentStatus: 'paid' });
                                       setOrders(prev => prev.map(o => o._id === order._id ? res.data.order : o));
                                       toast.success('Marked as paid');
                                     } catch { toast.error('Failed'); }

@@ -27,13 +27,11 @@ export default function AdminTables() {
 
   useEffect(() => { fetchTables(); }, []);
 
-  const getBaseUrl = () => window.location.origin;
-
   const handleAddTable = async () => {
     if (!addForm.tableNumber) { toast.error('Table number required'); return; }
     setSaving(true);
     try {
-      const res = await api.post('/tables', { ...addForm, tableNumber: Number(addForm.tableNumber), baseUrl: getBaseUrl() });
+      const res = await api.post('/tables', { ...addForm, tableNumber: Number(addForm.tableNumber) });
       setTables(prev => [...prev, res.data.table].sort((a, b) => a.tableNumber - b.tableNumber));
       setShowAdd(false);
       setAddForm({ tableNumber: '', seats: 4 });
@@ -45,7 +43,7 @@ export default function AdminTables() {
   const handleBulkCreate = async () => {
     setSaving(true);
     try {
-      const res = await api.post('/tables/bulk', { count: Number(bulkCount), baseUrl: getBaseUrl() });
+      const res = await api.post('/tables/bulk', { count: Number(bulkCount) });
       fetchTables();
       setShowBulk(false);
       toast.success(`${res.data.count} tables created`);
@@ -67,7 +65,7 @@ export default function AdminTables() {
   const handleRegenQr = async (table) => {
     setRegenerating(table._id);
     try {
-      const res = await api.post(`/tables/${table._id}/regenerate-qr`, { baseUrl: getBaseUrl() });
+      const res = await api.post(`/tables/${table._id}/regenerate-qr`);
       setTables(prev => prev.map(t => t._id === table._id ? res.data.table : t));
       toast.success('QR regenerated');
     } catch { toast.error('Failed to regenerate QR'); }

@@ -1,6 +1,8 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import Product from '../models/Product.js';
 import { adminOnly, protect, staffOrAdmin } from '../middleware/auth.js';
+import { escapeRegex } from '../utils/orderSecurity.js';
 
 const router = express.Router();
 
@@ -17,7 +19,7 @@ router.get('/', async (req, res) => {
       if (String(search).length > 100) {
         return res.status(400).json({ error: 'Search query is too long.' });
       }
-      const escapedSearch = String(search).replace(/[.*+?^${}()|[\\\]]/g, '\\\\$&');
+      const escapedSearch = escapeRegex(search);
       query.$or = [
         { name: { $regex: escapedSearch, $options: 'i' } },
         { description: { $regex: escapedSearch, $options: 'i' } },
@@ -42,6 +44,9 @@ router.get('/', async (req, res) => {
 // GET /api/menu/:id
 router.get('/:id', async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid item ID.' });
+    }
     const product = await Product.findById(req.params.id).populate('category', 'name icon');
     if (!product) return res.status(404).json({ error: 'Item not found.' });
     res.json({ product });

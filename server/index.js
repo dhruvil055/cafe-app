@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import path from 'path';
 import { connectDB } from './config/db.js';
 
 // Routes
@@ -16,90 +18,87 @@ import uploadRoutes from './routes/upload.js';
 
 dotenv.config();
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+export const createApp = ({ razorpayFactory } = {}) => {
+  const app = express();
+  if (razorpayFactory) app.locals.razorpayFactory = razorpayFactory;
 
-// Security middleware
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  // Security middleware
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-const allowedOrigins = [
-  process.env.CLIENT_URL,
-  'http://localhost:5173',
-  'http://localhost:4173',
-].filter(Boolean);
+  const allowedOrigins = [
+    process.env.CLIENT_URL,
+    'http://localhost:5173',
+    'http://localhost:4173',
+  ].filter(Boolean);
 
-// CORS — SECURITY: Strict allowlist, no broad patterns
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests without origin (like mobile apps, Postman, etc.)
-    if (!origin) {
-      return callback(null, true);
-    }
-    // Only allow configured origins
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    // Reject all other origins (including unknown Vercel deployments)
-    return callback(new Error('Origin is not allowed by CORS'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  maxAge: 86400,
-}));
+  // Strict CORS allowlist. Requests without an Origin are allowed for native
+  // clients and command-line integrations; browser origins must be explicit.
+  app.use(cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      const error = new Error('Origin is not allowed by CORS');
+      error.status = 403;
+      return callback(error);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    maxAge: 86400,
+  }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 200,
-  message: { error: 'Too many requests. Please try again later.' }
-});
-app.use('/api/', limiter);
-
-// Body parsers — SECURITY: Reduced size limit for normal API requests
-app.use(express.json({ limit: '100kb' }));
-app.use(express.urlencoded({ extended: true, limit: '100kb' }));
-
-// Static files
-app.use('/uploads', express.static('uploads'));
-
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/menu', menuRoutes);
-app.use('/api/categories', categoryRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/payment', paymentRoutes);
-app.use('/api/tables', tableRoutes);
-app.use('/api/upload', uploadRoutes);
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error('Error:', err.message);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+    message: { error: 'Too many requests. Please try again later.' },
   });
-});
+  app.use('/api/', limiter);
 
-const startServer = async () => {
+  app.use(express.json({ limit: '100kb' }));
+  app.use(express.urlencoded({ extended: true, limit: '100kb' }));
+  app.use('/uploads', express.static('uploads'));
+
+  app.use('/api/auth', authRoutes);
+  app.use('/api/menu', menuRoutes);
+  app.use('/api/categories', categoryRoutes);
+  app.use('/api/orders', orderRoutes);
+  app.use('/api/payment', paymentRoutes);
+  app.use('/api/tables', tableRoutes);
+  app.use('/api/upload', uploadRoutes);
+
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  app.use((req, res) => {
+    res.status(404).json({ error: 'Route not found' });
+  });
+
+  app.use((err, req, res, next) => {
+    console.error('Error:', err.message);
+    res.status(err.status || 500).json({
+      error: err.message || 'Internal server error',
+      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    });
+  });
+
+  return app;
+};
+
+export const app = createApp();
+
+export const startServer = async () => {
+  const port = process.env.PORT || 5000;
   await connectDB();
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  return app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 };
 
-startServer().catch((error) => {
-  console.error('❌ Server startup failed:', error.message);
-  process.exit(1);
-});
+const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMainModule) {
+  startServer().catch((error) => {
+    console.error('Server startup failed:', error.message);
+    process.exit(1);
+  });
+}

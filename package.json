@@ -7,6 +7,7 @@
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
     "build": "cd client && npm run build",
+    "test": "cd server && npm test",
     "seed": "cd server && npm run seed",
     "install:all": "npm install && cd server && npm install && cd ../client && npm install"
   },
@@ -14,4 +15,3 @@
     "concurrently": "^8.2.2"
   }
 }
-  

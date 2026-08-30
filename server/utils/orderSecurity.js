@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 
 /**
  * Generate a cryptographically secure access token for order retrieval.
@@ -19,7 +20,9 @@ export const hashAccessToken = (token) => {
  * Verify an access token against a stored hash.
  */
 export const verifyAccessToken = (suppliedToken, storedHash) => {
+  if (typeof suppliedToken !== 'string' || typeof storedHash !== 'string') return false;
   const suppliedHash = crypto.createHash('sha256').update(suppliedToken).digest('hex');
+  if (suppliedHash.length !== storedHash.length) return false;
   return crypto.timingSafeEqual(
     Buffer.from(suppliedHash),
     Buffer.from(storedHash)
@@ -63,7 +66,7 @@ export const validateAndFetchProductPrices = async (items, Product) => {
     }
 
     // Validate productId
-    if (!productId || typeof productId !== 'string') {
+    if (!productId || typeof productId !== 'string' || !mongoose.isValidObjectId(productId)) {
       throw new Error('Product ID is required and must be a string.');
     }
 
@@ -87,7 +90,9 @@ export const validateAndFetchProductPrices = async (items, Product) => {
       if (!variant) {
         throw new Error(`Invalid variant for product: ${product.name}`);
       }
-      basePrice += variant.price;
+      // Variant prices are the complete price for that choice, as reflected
+      // by the customer menu. Never add a client-provided value here.
+      basePrice = variant.price;
     }
 
     // Validate and fetch addons if provided
@@ -109,6 +114,7 @@ export const validateAndFetchProductPrices = async (items, Product) => {
       productId,
       product: product._id,
       name: product.name,
+      price: Number((basePrice + addonPrice).toFixed(2)),
       image: product.image,
       quantity: qty,
       basePrice,

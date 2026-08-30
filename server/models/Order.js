@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import Counter from './Counter.js';
 
 const orderItemSchema = new mongoose.Schema({
   product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
@@ -21,7 +22,7 @@ const orderItemSchema = new mongoose.Schema({
 const orderSchema = new mongoose.Schema({
   // Payment verification must be idempotent: track verification state
   paymentVerifiedAt: { type: Date, default: null },
-  orderNumber: { type: String, required: true, unique: true },
+  orderNumber: { type: String, required: true },
   tableNumber: { type: Number, required: true },
   customer: {
     name: { type: String, required: true },
@@ -56,11 +57,57 @@ const orderSchema = new mongoose.Schema({
 
 // Generate order number before required-field validation runs.
 orderSchema.pre('validate', async function (next) {
-  if (!this.orderNumber) {
-    const count = await mongoose.model('Order').countDocuments();
-    this.orderNumber = `CAF${String(count + 1001).padStart(4, '0')}`;
+  if (this.orderNumber) return next();
+
+  try {
+    // The counter is the source of truth for new order numbers. The upsert
+    // makes the first allocation safe even when the counter has not existed
+    // in an older database yet.
+    const latest = await mongoose.model('Order')
+      .findOne({ orderNumber: /^CAF\d+$/ })
+      .sort({ orderNumber: -1 })
+      .select('orderNumber')
+      .lean();
+    const latestNumber = latest ? Number(String(latest.orderNumber).slice(3)) : 1000;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await Counter.updateOne(
+          { _id: 'orderNumber' },
+          { $setOnInsert: { seq: Math.max(1000, latestNumber) } },
+          { upsert: true }
+        );
+        const counter = await Counter.findOneAndUpdate(
+          { _id: 'orderNumber' },
+          { $inc: { seq: 1 } },
+          { new: true }
+        );
+        this.orderNumber = `CAF${String(counter.seq).padStart(4, '0')}`;
+        return next();
+      } catch (error) {
+        // Two first-ever orders can race while creating the counter. The
+        // unique counter key makes one retry against the now-existing row.
+        if (error?.code !== 11000 || attempt === 2) throw error;
+      }
+    }
+  } catch (error) {
+    next(error);
   }
-  next();
 });
+
+orderSchema.index({ orderNumber: 1 }, { unique: true });
+
+export const initializeOrderNumberCounter = async () => {
+  const latest = await mongoose.model('Order')
+    .findOne({ orderNumber: /^CAF\d+$/ })
+    .sort({ orderNumber: -1 })
+    .select('orderNumber')
+    .lean();
+  const latestNumber = latest ? Number(String(latest.orderNumber).slice(3)) : 1000;
+  await Counter.findOneAndUpdate(
+    { _id: 'orderNumber' },
+    { $max: { seq: Math.max(1000, latestNumber) } },
+    { upsert: true, setDefaultsOnInsert: true }
+  );
+};
 
 export default mongoose.model('Order', orderSchema);
