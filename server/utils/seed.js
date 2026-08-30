@@ -24,7 +24,8 @@ const categories = [
 
 const seed = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/cafe_db');
+    if (!process.env.MONGO_URI) throw new Error('MONGO_URI is not configured. Add your MongoDB Atlas connection string.');
+    await mongoose.connect(process.env.MONGO_URI);
     console.log('Connected to MongoDB');
 
     // Clear existing data

@@ -30,7 +30,8 @@ const upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024
 router.post('/image', protect, upload.single('image'), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
-    const url = `${process.env.CLIENT_URL?.replace(':5173', ':5000') || 'http://localhost:5000'}/uploads/${req.file.filename}`;
+    const serverUrl = process.env.SERVER_URL || `http://localhost:${process.env.PORT || 5000}`;
+    const url = `${serverUrl.replace(/\/$/, '')}/uploads/${req.file.filename}`;
     res.json({ url, filename: req.file.filename });
   } catch (error) {
     res.status(500).json({ error: error.message });

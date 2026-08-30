@@ -10,20 +10,37 @@ router.post('/', async (req, res) => {
   try {
     const { tableNumber, customer, items, paymentMethod, notes } = req.body;
 
-    if (!tableNumber || !customer?.name || !customer?.phone || !items?.length) {
+    if (!Number.isInteger(Number(tableNumber)) || Number(tableNumber) <= 0 ||
+        !customer?.name?.trim() || !customer?.phone?.trim() || !items?.length ||
+        !['razorpay', 'cash'].includes(paymentMethod)) {
       return res.status(400).json({ error: 'Missing required order fields.' });
     }
 
+    const normalizedItems = items.map((item) => ({
+      ...item,
+      price: Number(item.price),
+      quantity: Number(item.quantity),
+      itemTotal: Number(item.itemTotal),
+    }));
+
+    if (normalizedItems.some(item =>
+      !Number.isFinite(item.price) || item.price < 0 ||
+      !Number.isInteger(item.quantity) || item.quantity < 1 ||
+      !Number.isFinite(item.itemTotal) || item.itemTotal < 0
+    )) {
+      return res.status(400).json({ error: 'One or more order items are invalid.' });
+    }
+
     // Calculate totals
-    const subtotal = items.reduce((sum, item) => sum + item.itemTotal, 0);
+    const subtotal = normalizedItems.reduce((sum, item) => sum + item.itemTotal, 0);
     const taxRate = 5; // 5% GST
     const tax = Math.round(subtotal * taxRate / 100);
     const total = subtotal + tax;
 
     const order = await Order.create({
-      tableNumber,
+      tableNumber: Number(tableNumber),
       customer,
-      items,
+      items: normalizedItems,
       subtotal,
       tax,
       total,

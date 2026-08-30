@@ -51,8 +51,8 @@ const orderSchema = new mongoose.Schema({
   notes: { type: String, default: '' },
 }, { timestamps: true });
 
-// Generate order number
-orderSchema.pre('save', async function (next) {
+// Generate order number before required-field validation runs.
+orderSchema.pre('validate', async function (next) {
   if (!this.orderNumber) {
     const count = await mongoose.model('Order').countDocuments();
     this.orderNumber = `CAF${String(count + 1001).padStart(4, '0')}`;

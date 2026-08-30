@@ -128,21 +128,26 @@ Scan QR → /menu?table=3
 
 ### Backend → Render
 
-1. Push to GitHub
-2. New Web Service on Render → connect repo
-3. Build command: `cd server && npm install`
-4. Start command: `cd server && npm start`
-5. Add all environment variables in Render dashboard
+1. Push to GitHub.
+2. Create a new Blueprint on Render and select this repository. Render will read `render.yaml`.
+3. Add the secret values for `MONGO_URI`, `JWT_SECRET`, `RAZORPAY_KEY_ID`, and `RAZORPAY_KEY_SECRET`.
+4. After Vercel creates the frontend, set `CLIENT_URL` to its public URL and `SERVER_URL` to the Render service URL.
+5. Deploy the service and verify `https://your-backend.onrender.com/api/health` returns `{ "status": "ok" }`.
 
 ### Frontend → Vercel
 
-1. Import repo on Vercel
-2. Root directory: `client`
-3. Build command: `npm run build`
-4. Output dir: `dist`
-5. Add env vars:
-   - `VITE_API_URL=https://your-backend.onrender.com/api`
-   - `VITE_RAZORPAY_KEY_ID=rzp_live_xxxx`
+1. Import the repository on Vercel and leave the root directory as the repository root.
+2. Vercel will use `vercel.json` to install nested dependencies and build `client/dist`.
+3. Add these environment variables for Production, Preview, and Development:
+  - `VITE_API_URL=https://your-backend.onrender.com/api`
+  - `VITE_RAZORPAY_KEY_ID=rzp_live_xxxx`
+
+### MongoDB Atlas
+
+1. Create an Atlas cluster and database user.
+2. In Network Access, allow the Render service to connect. For a quick deployment, Atlas can allow `0.0.0.0/0`; use stronger network restrictions when available.
+3. Set Render's `MONGO_URI` to the Atlas connection string, replacing the username, password, and database name.
+4. Run `npm run seed` locally with the same Atlas `MONGO_URI` and `CLIENT_URL` to create the menu, tables, QR codes, and admin account.
 
 ### After Deployment
 

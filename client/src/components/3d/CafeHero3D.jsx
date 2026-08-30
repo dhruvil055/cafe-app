@@ -168,8 +168,8 @@ export default function CafeHero3D() {
   return (
     <Canvas
       camera={{ position: [0, 0.5, 3.5], fov: 45 }}
-      dpr={[1, 1.5]}
-      shadows
+      dpr={[1, 1.25]}
+      shadows={false}
       gl={{ antialias: true, alpha: true }}
       style={{ background: 'transparent' }}
     >

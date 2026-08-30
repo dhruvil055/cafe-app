@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Star } from 'lucide-react';
 import useCartStore from '../../context/cartStore';
@@ -5,7 +6,7 @@ import toast from 'react-hot-toast';
 
 const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&q=80';
 
-export default function MenuCard({ product, onSelect }) {
+const MenuCard = forwardRef(function MenuCard({ product, onSelect }, ref) {
   const { addItem } = useCartStore();
 
   const handleQuickAdd = (e) => {
@@ -21,6 +22,7 @@ export default function MenuCard({ product, onSelect }) {
 
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -95,4 +97,6 @@ export default function MenuCard({ product, onSelect }) {
       </div>
     </motion.div>
   );
-}
+});
+
+export default MenuCard;
