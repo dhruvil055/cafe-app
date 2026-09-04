@@ -29,6 +29,7 @@ export default function MenuPage() {
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [menuError, setMenuError] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -68,6 +69,7 @@ export default function MenuPage() {
   // Fetch products
   useEffect(() => {
     setLoading(true);
+    setMenuError('');
     const params = new URLSearchParams();
     if (selectedCategory !== 'all') params.append('category', selectedCategory);
     if (debouncedSearch) params.append('search', debouncedSearch);
@@ -76,7 +78,11 @@ export default function MenuPage() {
 
     api.get(`/menu?${params}`)
       .then(res => setProducts(Array.isArray(res.data.products) ? res.data.products : []))
-      .catch(() => toast.error('Failed to load menu'))
+      .catch(error => {
+        setProducts([]);
+        setMenuError(error.message || 'Unable to connect to the menu service.');
+        toast.error('Failed to load menu');
+      })
       .finally(() => setLoading(false));
   }, [selectedCategory, debouncedSearch, vegOnly, sort]);
 
@@ -328,6 +334,12 @@ export default function MenuPage() {
         {loading ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+        ) : menuError ? (
+          <div className="text-center py-16">
+            <AlertCircle size={30} className="mx-auto text-red-500" />
+            <p className="mt-4 font-display text-xl text-espresso-700">Menu unavailable</p>
+            <p className="text-espresso-400 text-sm mt-1">{menuError}</p>
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-16">
