@@ -6,12 +6,12 @@ import { adminOnly, protect, staffOrAdmin } from '../middleware/auth.js';
 const router = express.Router();
 
 const getTrustedClientUrl = () => {
-  const configured = String(process.env.CLIENT_URL || '').trim();
-  if (!configured) throw new Error('CLIENT_URL is not configured.');
+  const configured = String(process.env.CUSTOMER_APP_URL || process.env.CLIENT_URL || '').trim();
+  if (!configured) throw new Error('CUSTOMER_APP_URL or CLIENT_URL is not configured.');
 
   const parsed = new URL(configured);
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) {
-    throw new Error('CLIENT_URL is invalid.');
+    throw new Error('CUSTOMER_APP_URL is invalid.');
   }
 
   return configured.replace(/\/$/, '');

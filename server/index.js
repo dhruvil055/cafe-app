@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { connectDB } from './config/db.js';
@@ -25,15 +26,29 @@ export const createApp = ({ razorpayFactory } = {}) => {
   if (razorpayFactory) app.locals.razorpayFactory = razorpayFactory;
 
   // Security middleware
-  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginOpenerPolicy: { policy: 'same-origin' },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  }));
+  app.use(cookieParser());
 
   const allowedOrigins = new Set([
-    ...[process.env.CLIENT_URL, process.env.CLIENT_URLS]
+    ...[
+      process.env.CLIENT_URL,
+      process.env.CUSTOMER_APP_URL,
+      process.env.ADMIN_CLIENT_URL,
+      process.env.ADMIN_APP_URL,
+      process.env.CLIENT_URLS,
+      process.env.ADMIN_CLIENT_URLS,
+    ]
       .flatMap((value) => String(value || '').split(','))
       .map(normalizeOrigin)
       .filter(Boolean),
     'http://localhost:5173',
     'http://localhost:4173',
+    'http://localhost:5174',
+    'http://localhost:4174',
   ]);
 
   // Strict CORS allowlist. Requests without an Origin are allowed for native

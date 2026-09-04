@@ -6,16 +6,6 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Request interceptor — attach token if present
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('cafe_admin_token');
-    if (token) config.headers.Authorization = `Bearer ${token}`;
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
 // Response interceptor — normalize errors
 api.interceptors.response.use(
   (response) => response,

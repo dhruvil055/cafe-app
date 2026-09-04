@@ -14,6 +14,21 @@ const generateToken = (id) => {
   return jwt.sign({ id }, secret, { expiresIn: '7d' });
 };
 
+const setAuthCookie = (res, token) => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  res.cookie('brewhaus_admin_token', token, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+};
+
+const clearAuthCookie = (res) => {
+  res.clearCookie('brewhaus_admin_token', { path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
+};
+
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
@@ -35,6 +50,7 @@ router.post('/login', async (req, res) => {
     }
 
     const token = generateToken(user._id);
+    setAuthCookie(res, token);
 
     res.json({
       token,
@@ -52,6 +68,11 @@ router.post('/login', async (req, res) => {
     }
     res.status(500).json({ error: 'Server error during login.' });
   }
+});
+
+router.post('/logout', (req, res) => {
+  clearAuthCookie(res);
+  res.json({ success: true });
 });
 
 // GET /api/auth/me

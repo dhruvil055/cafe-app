@@ -163,28 +163,33 @@ router.get(['/', '/list/all'], protect, staffOrAdmin, async (req, res) => {
   try {
     const { status, date, limit = 50 } = req.query;
     let query = {};
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     if (status && ['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'].includes(status)) {
       query.orderStatus = status;
     }
 
     if (date === 'today') {
-      const start = new Date();
-      start.setHours(0, 0, 0, 0);
-      query.createdAt = { $gte: start };
+      query.createdAt = { $gte: today };
+    } else if (date === 'previous') {
+      query.createdAt = { $lt: today };
     }
 
     const orders = await Order.find(query)
       .sort({ createdAt: -1 })
       .limit(Number(limit));
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
     const todayOrders = await Order.find({ createdAt: { $gte: today } });
+    const previousOrders = await Order.find({ createdAt: { $lt: today } });
 
     const stats = {
       todayCount: todayOrders.length,
       todayRevenue: todayOrders
+        .filter(o => o.paymentStatus === 'paid')
+        .reduce((s, o) => s + o.total, 0),
+      previousCount: previousOrders.length,
+      previousRevenue: previousOrders
         .filter(o => o.paymentStatus === 'paid')
         .reduce((s, o) => s + o.total, 0),
       pending: todayOrders.filter(o => ['pending', 'confirmed', 'preparing'].includes(o.orderStatus)).length,
