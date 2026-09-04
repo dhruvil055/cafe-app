@@ -1,5 +1,5 @@
 const defaultApiUrl = import.meta.env.PROD
-  ? 'https://your-render-backend.onrender.com/api'
+  ? 'https://cafe-app-n8mn.onrender.com/api'
   : 'http://localhost:5000/api';
 
 export const env = {

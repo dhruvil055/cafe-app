@@ -16,7 +16,13 @@ services:
       - key: RAZORPAY_KEY_SECRET
         sync: false
       - key: CLIENT_URL
-        value: https://client-seven-sigma-26.vercel.app
+        value: https://client-ten-peach-93.vercel.app
+      - key: CUSTOMER_APP_URL
+        value: https://client-ten-peach-93.vercel.app
+      - key: ADMIN_APP_URL
+        value: https://admin-app-delta-eight.vercel.app
+      - key: ADMIN_CLIENT_URL
+        value: https://admin-app-delta-eight.vercel.app
       - key: SERVER_URL
         sync: false
       - key: NODE_ENV
