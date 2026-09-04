@@ -16,6 +16,7 @@ import orderRoutes from './routes/orders.js';
 import paymentRoutes from './routes/payment.js';
 import tableRoutes from './routes/tables.js';
 import uploadRoutes from './routes/upload.js';
+import galleryRoutes from './routes/gallery.js';
 
 dotenv.config();
 
@@ -84,6 +85,7 @@ export const createApp = ({ razorpayFactory } = {}) => {
   app.use('/api/payment', paymentRoutes);
   app.use('/api/tables', tableRoutes);
   app.use('/api/upload', uploadRoutes);
+  app.use('/api/gallery', galleryRoutes);
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

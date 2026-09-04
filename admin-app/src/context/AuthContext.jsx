@@ -20,7 +20,9 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
     const { user: authUser } = data;
-    localStorage.removeItem('brewhaus_admin_token');
+    if (data.token) {
+      localStorage.setItem('brewhaus_admin_token', data.token);
+    }
     setUser(authUser);
     return authUser;
   };

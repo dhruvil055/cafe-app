@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { LayoutDashboard, LogOut, Menu, ShoppingBag, Tag, UtensilsCrossed, X } from 'lucide-react';
+import { LayoutDashboard, LogOut, Menu, RefreshCw, ShoppingBag, Tag, UtensilsCrossed } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -74,6 +74,12 @@ function Sidebar({ mobile = false, onClose }) {
 
 export default function AdminLayout({ children, title }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const refreshAdmin = () => {
+    setRefreshing(true);
+    window.location.reload();
+  };
 
   return (
     <div className="flex h-screen bg-stone-100 text-stone-800">
@@ -100,7 +106,20 @@ export default function AdminLayout({ children, title }) {
             </button>
             <h1 className="font-display text-2xl font-bold text-espresso-900">{title}</h1>
           </div>
-          <button onClick={() => setSidebarOpen(false)} className="hidden rounded-xl border border-stone-200 px-3 py-2 text-sm text-stone-600 md:inline-flex">Admin</button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={refreshAdmin}
+              disabled={refreshing}
+              title="Refresh all admin data and page"
+              aria-label="Refresh all admin data and page"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-stone-200 px-3 text-sm text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 hover:text-espresso-900 disabled:cursor-wait disabled:opacity-70"
+            >
+              <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+            <button onClick={() => setSidebarOpen(false)} className="hidden rounded-xl border border-stone-200 px-3 py-2 text-sm text-stone-600 md:inline-flex">Admin</button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>

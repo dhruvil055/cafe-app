@@ -10,6 +10,7 @@ import TrackOrderPage from './pages/customer/TrackOrderPage';
 import AboutPage from './pages/customer/AboutPage';
 import OffersPage from './pages/customer/OffersPage';
 import ContactPage from './pages/customer/ContactPage';
+import GalleryPage from './pages/customer/GalleryPage';
 
 export default function App() {
   return (
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/about" element={<AboutPage />} />
         <Route path="/offers" element={<OffersPage />} />
         <Route path="/contact" element={<ContactPage />} />
+        <Route path="/gallery" element={<GalleryPage />} />
         <Route path="/cart" element={<CartPage />} />
         <Route path="/checkout" element={<CheckoutPage />} />
         <Route path="/order-confirm/:orderId" element={<OrderConfirmPage />} />

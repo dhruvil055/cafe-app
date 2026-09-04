@@ -175,6 +175,7 @@ export default function MenuPage() {
           <Link to="/menu" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Menu</Link>
           <Link to="/about" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">About</Link>
           <Link to="/offers" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Offers</Link>
+          <Link to="/gallery" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Gallery</Link>
           <Link to="/contact" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Contact</Link>
 
           <div className="flex items-center gap-2 border-l border-foam pl-2">
