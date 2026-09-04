@@ -19,14 +19,15 @@ const setAuthCookie = (res, token) => {
   res.cookie('brewhaus_admin_token', token, {
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'lax',
+    sameSite: isProduction ? 'none' : 'lax',
     path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 };
 
 const clearAuthCookie = (res) => {
-  res.clearCookie('brewhaus_admin_token', { path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
+  const isProduction = process.env.NODE_ENV === 'production';
+  res.clearCookie('brewhaus_admin_token', { path: '/', httpOnly: true, secure: isProduction, sameSite: isProduction ? 'none' : 'lax' });
 };
 
 // POST /api/auth/login
