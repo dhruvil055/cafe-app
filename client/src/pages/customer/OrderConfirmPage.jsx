@@ -19,6 +19,7 @@ export default function OrderConfirmPage() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const safeItems = Array.isArray(order?.items) ? order.items : [];
 
   useEffect(() => {
     const fetchOrder = () => {
@@ -168,7 +169,7 @@ export default function OrderConfirmPage() {
         {/* Items */}
         <div className="card p-4 space-y-3">
           <h2 className="font-display font-semibold text-espresso-900">Items Ordered</h2>
-          {order.items.map((item, i) => (
+          {safeItems.map((item, i) => (
             <div key={i} className="flex justify-between text-sm">
               <div className="flex-1 pr-2">
                 <span className="text-espresso-800">{item.name}</span>

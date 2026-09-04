@@ -13,11 +13,14 @@ export default function ProductModal({ product, onClose }) {
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [instructions, setInstructions] = useState('');
 
+  const variants = Array.isArray(product?.variants) ? product.variants : [];
+  const addons = Array.isArray(product?.addons) ? product.addons : [];
+
   useEffect(() => {
     document.body.style.overflow = 'hidden';
-    if (product.variants?.length) setSelectedVariant(product.variants[0]);
+    if (variants.length) setSelectedVariant(variants[0]);
     return () => { document.body.style.overflow = ''; };
-  }, []);
+  }, [variants]);
 
   const toggleAddon = (addon) => {
     setSelectedAddons(prev =>
@@ -103,11 +106,11 @@ export default function ProductModal({ product, onClose }) {
             </div>
 
             {/* Variants */}
-            {product.variants?.length > 0 && (
+            {variants.length > 0 && (
               <div>
                 <h3 className="font-medium text-espresso-900 text-sm mb-2">Size</h3>
                 <div className="flex flex-wrap gap-2">
-                  {product.variants.map(v => (
+                  {variants.map(v => (
                     <button
                       key={v.name}
                       onClick={() => setSelectedVariant(v)}
@@ -125,11 +128,11 @@ export default function ProductModal({ product, onClose }) {
             )}
 
             {/* Add-ons */}
-            {product.addons?.length > 0 && (
+            {addons.length > 0 && (
               <div>
                 <h3 className="font-medium text-espresso-900 text-sm mb-2">Add-ons</h3>
                 <div className="space-y-2">
-                  {product.addons.map(addon => {
+                  {addons.map(addon => {
                     const selected = selectedAddons.find(a => a.name === addon.name);
                     return (
                       <button

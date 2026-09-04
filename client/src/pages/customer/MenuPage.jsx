@@ -55,7 +55,7 @@ export default function MenuPage() {
 
   // Fetch categories
   useEffect(() => {
-    api.get('/categories').then(res => setCategories(res.data.categories));
+    api.get('/categories').then(res => setCategories(Array.isArray(res.data.categories) ? res.data.categories : []));
   }, []);
 
   // Debounce search
@@ -75,7 +75,7 @@ export default function MenuPage() {
     if (sort) params.append('sort', sort);
 
     api.get(`/menu?${params}`)
-      .then(res => setProducts(res.data.products))
+      .then(res => setProducts(Array.isArray(res.data.products) ? res.data.products : []))
       .catch(() => toast.error('Failed to load menu'))
       .finally(() => setLoading(false));
   }, [selectedCategory, debouncedSearch, vegOnly, sort]);
