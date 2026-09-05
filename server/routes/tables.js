@@ -13,8 +13,25 @@ const getTrustedClientUrl = () => {
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) {
     throw new Error('CUSTOMER_APP_URL is invalid.');
   }
+  if (process.env.NODE_ENV === 'production' && parsed.hostname === 'localhost') {
+    throw new Error('Production QR codes cannot use localhost. Configure CUSTOMER_APP_URL with the live customer domain.');
+  }
 
   return configured.replace(/\/$/, '');
+};
+
+const refreshStaleQrCodes = async (tables) => {
+  const clientUrl = getTrustedClientUrl();
+  const refreshed = await Promise.all(tables.map(async (table) => {
+    const expectedUrl = `${clientUrl}/menu?table=${encodeURIComponent(table.tableNumber)}`;
+    if (table.qrUrl === expectedUrl && table.qrCode) return table;
+    const { qrCode, qrUrl } = await generateQR(table.tableNumber);
+    table.qrCode = qrCode;
+    table.qrUrl = qrUrl;
+    await table.save();
+    return table;
+  }));
+  return refreshed;
 };
 
 const generateQR = async (tableNumber) => {
@@ -41,7 +58,7 @@ router.get('/', async (req, res) => {
 // GET all tables — admin/staff
 router.get('/all', protect, staffOrAdmin, async (req, res) => {
   try {
-    const tables = await Table.find().sort({ tableNumber: 1 });
+    const tables = await refreshStaleQrCodes(await Table.find().sort({ tableNumber: 1 }));
     res.json({ tables });
   } catch (error) {
     res.status(500).json({ error: error.message });

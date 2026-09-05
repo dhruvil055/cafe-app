@@ -19,7 +19,7 @@ const getRazorpay = (req) => {
 
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
-  if (!keyId || !keySecret || keySecret === 'placeholder_secret') {
+  if (!keyId || !keySecret || keySecret === 'placeholder_secret' || (process.env.NODE_ENV === 'production' && keyId.startsWith('rzp_test_'))) {
     throw new Error('Razorpay credentials are not properly configured.');
   }
 

@@ -8,7 +8,8 @@ import QRCode from 'qrcode';
 
 dotenv.config();
 
-const BASE_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+const BASE_URL = process.env.CUSTOMER_APP_URL || process.env.CLIENT_URL;
+if (!BASE_URL) throw new Error('CUSTOMER_APP_URL or CLIENT_URL must be configured before seeding tables.');
 
 const categories = [
   { name: 'Coffee', icon: '☕', sortOrder: 1 },

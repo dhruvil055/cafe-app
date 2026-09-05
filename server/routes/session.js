@@ -18,6 +18,9 @@ const router = express.Router();
 
 const getRazorpay = (req) => {
   if (typeof req.app.locals.razorpayFactory === 'function') return req.app.locals.razorpayFactory();
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET === 'placeholder_secret' || (process.env.NODE_ENV === 'production' && process.env.RAZORPAY_KEY_ID.startsWith('rzp_test_'))) {
+    throw new Error('Razorpay live credentials are not configured.');
+  }
   return new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET });
 };
 
