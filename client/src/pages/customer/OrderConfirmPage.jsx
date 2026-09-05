@@ -197,17 +197,19 @@ export default function OrderConfirmPage() {
         </div>
 
         {/* Actions */}
-        <div className="grid grid-cols-2 gap-3 pb-6">
-          <button
-            onClick={handleDownloadReceipt}
-            disabled={downloading}
-            className="btn-secondary flex items-center justify-center gap-2 py-3.5 text-sm"
-          >
-            {downloading
-              ? <Loader2 size={16} className="animate-spin" />
-              : <Download size={16} />}
-            {downloading ? 'Generating...' : 'Receipt PDF'}
-          </button>
+        <div className={`grid gap-3 pb-6 ${order.paymentMethod === 'cash' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+          {order.paymentMethod !== 'cash' && (
+            <button
+              onClick={handleDownloadReceipt}
+              disabled={downloading}
+              className="btn-secondary flex items-center justify-center gap-2 py-3.5 text-sm"
+            >
+              {downloading
+                ? <Loader2 size={16} className="animate-spin" />
+                : <Download size={16} />}
+              {downloading ? 'Generating...' : 'Receipt PDF'}
+            </button>
+          )}
           <Link to="/menu">
             <button className="w-full btn-accent flex items-center justify-center gap-2 py-3.5 text-sm">
               <UtensilsCrossed size={16} />

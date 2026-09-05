@@ -75,6 +75,52 @@ const alreadyVerifiedResponse = (res, order) => res.json({
   order: publicPaymentState(order),
 });
 
+// Demo-only payment completion. It is opt-in and must never be enabled on a
+// real payment deployment. The order token and active dining session are still
+// required, and the update is atomic so a retry cannot create a second payment.
+router.post('/demo-complete', async (req, res) => {
+  try {
+    if (process.env.DEMO_PAYMENTS_ENABLED !== 'true') {
+      return res.status(404).json({ error: 'Demo payments are disabled.' });
+    }
+
+    const { orderId, accessToken } = req.body;
+    const validOrderId = getOrderId(orderId);
+    if (!validOrderId) return res.status(400).json({ error: 'A valid order ID is required.' });
+
+    const order = await requireOrderAccess(req, res, validOrderId, accessToken);
+    if (!order) return;
+    if (order.paymentMethod !== 'razorpay') return res.status(400).json({ error: 'This order is not configured for online payment.' });
+    if (order.paymentStatus === 'paid') return alreadyVerifiedResponse(res, order);
+
+    const demoPaymentId = `demo_pay_${order._id}`;
+    const updated = await Order.findOneAndUpdate(
+      { _id: order._id, paymentStatus: 'pending', orderStatus: { $nin: ['cancelled', 'completed'] } },
+      {
+        $set: {
+          paymentStatus: 'paid',
+          paymentVerifiedAt: new Date(),
+          razorpayPaymentId: demoPaymentId,
+          razorpaySignature: 'demo-server-verified',
+          orderStatus: 'confirmed',
+        },
+      },
+      { new: true, runValidators: true },
+    );
+
+    if (!updated) {
+      const current = await Order.findById(order._id);
+      if (current?.paymentStatus === 'paid') return alreadyVerifiedResponse(res, current);
+      return res.status(409).json({ error: 'Order payment was already processed.' });
+    }
+
+    return res.json({ success: true, demo: true, order: publicPaymentState(updated) });
+  } catch (error) {
+    console.error('Demo payment error:', error.message);
+    return res.status(500).json({ error: 'Demo payment completion failed.' });
+  }
+});
+
 // POST /api/payment/create-order
 router.post('/create-order', async (req, res) => {
   try {

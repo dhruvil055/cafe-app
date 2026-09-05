@@ -2,97 +2,119 @@ import PDFDocument from 'pdfkit';
 
 const PAGE_WIDTH = 226.77;
 const SIDE_MARGIN = 24;
-const CONTENT_WIDTH = PAGE_WIDTH - (SIDE_MARGIN * 2);
-const COLORS = { ink: '#24170f', body: '#403832', muted: '#81766d', line: '#d9d1ca', soft: '#f7f2ed', accent: '#9a6031' };
+const CONTENT_WIDTH = PAGE_WIDTH - SIDE_MARGIN * 2;
+const COLORS = {
+  ink: '#24170f',
+  body: '#403832',
+  muted: '#81766d',
+  line: '#d9d1ca',
+  soft: '#f7f2ed',
+  accent: '#9a6031',
+};
 
 const money = (value) => `Rs. ${Number(value || 0).toFixed(2)}`;
 const formatDate = (value) => new Date(value).toLocaleString('en-IN', {
-  day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-});
+  day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
+}).replace(',', '');
 
 export const generateReceipt = (order) => new Promise((resolve, reject) => {
   try {
     const items = order.items || [];
-    const extraHeight = items.reduce((height, item) => height + 18 + ((item.addons?.length || 0) * 9), 0);
-    const doc = new PDFDocument({ margin: SIDE_MARGIN, size: [PAGE_WIDTH, Math.max(575, 500 + extraHeight)] });
+    const itemHeight = items.reduce((height, item) => height + 22 + (item.addons?.length || 0) * 9 + (item.specialInstructions ? 9 : 0), 0);
+    const pageHeight = Math.max(560, 492 + itemHeight);
+    const doc = new PDFDocument({ size: [PAGE_WIDTH, pageHeight], margin: 0 });
     const buffers = [];
     doc.on('data', (chunk) => buffers.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(buffers)));
     doc.on('error', reject);
 
-    const rule = (color = COLORS.line, width = 0.7) => {
-      doc.moveTo(SIDE_MARGIN, doc.y).lineTo(PAGE_WIDTH - SIDE_MARGIN, doc.y).strokeColor(color).lineWidth(width).stroke();
+    const left = SIDE_MARGIN;
+    const right = PAGE_WIDTH - SIDE_MARGIN;
+    const amountWidth = 66;
+    const itemWidth = CONTENT_WIDTH - amountWidth - 8;
+    const line = (color = COLORS.line, width = 0.7) => {
+      doc.moveTo(left, doc.y).lineTo(right, doc.y).strokeColor(color).lineWidth(width).stroke();
     };
-    const detail = (label, value, x, y, width) => {
-      doc.font('Helvetica-Bold').fontSize(7).fillColor(COLORS.muted).text(label.toUpperCase(), x, y, { width });
-      doc.font('Helvetica').fontSize(8.5).fillColor(COLORS.body).text(String(value || '-'), x, y + 9, { width });
-    };
-    const totalRow = (label, value, bold = false) => {
+    const label = (text, x, y, width = 80) => doc.font('Helvetica-Bold').fontSize(7).fillColor(COLORS.muted)
+      .text(String(text).toUpperCase(), x, y, { width, lineBreak: false });
+    const value = (text, x, y, width = 90, options = {}) => doc
+      .font(options.font || 'Helvetica').fontSize(options.size || 8.5).fillColor(options.color || COLORS.body)
+      .text(String(text || '-'), x, y, { width, lineBreak: false, ...options });
+    const row = (name, amount, bold = false) => {
       const y = doc.y;
-      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 10 : 8.5).fillColor(bold ? COLORS.ink : COLORS.body).text(label, SIDE_MARGIN, y, { width: 100 });
-      doc.text(value, PAGE_WIDTH - SIDE_MARGIN - 65, y, { width: 65, align: 'right' });
-      doc.moveDown(bold ? 0.5 : 0.35);
+      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 10 : 8.5).fillColor(bold ? COLORS.ink : COLORS.body)
+        .text(name, left, y, { width: CONTENT_WIDTH - amountWidth - 8, lineBreak: false });
+      doc.text(amount, right - amountWidth, y, { width: amountWidth, align: 'right', lineBreak: false });
+      doc.y = y + (bold ? 16 : 14);
     };
 
-    doc.roundedRect(SIDE_MARGIN, doc.y, CONTENT_WIDTH, 66, 5).fill(COLORS.soft);
-    doc.font('Helvetica-Bold').fontSize(20).fillColor(COLORS.ink).text('BREWHAUS', SIDE_MARGIN, doc.y + 12, { width: CONTENT_WIDTH, align: 'center' });
-    doc.font('Helvetica').fontSize(8.5).fillColor(COLORS.accent).text('FINE COFFEE & DINING', SIDE_MARGIN, doc.y + 3, { width: CONTENT_WIDTH, align: 'center', characterSpacing: 0.6 });
-    doc.font('Helvetica').fontSize(7.5).fillColor(COLORS.muted).text('Surat, Gujarat 395001  |  +91 98765 43210', SIDE_MARGIN, doc.y + 2, { width: CONTENT_WIDTH, align: 'center' });
-    doc.y = 92;
+    doc.roundedRect(left, 24, CONTENT_WIDTH, 70, 6).fill(COLORS.soft);
+    doc.font('Helvetica-Bold').fontSize(20).fillColor(COLORS.ink).text('BREWHAUS', left, 36, { width: CONTENT_WIDTH, align: 'center', lineBreak: false });
+    doc.font('Helvetica').fontSize(8.5).fillColor(COLORS.accent).text('FINE COFFEE & DINING', left, 62, { width: CONTENT_WIDTH, align: 'center', characterSpacing: 0.6, lineBreak: false });
+    doc.font('Helvetica').fontSize(7.5).fillColor(COLORS.muted).text('Surat, Gujarat 395001  |  +91 98765 43210', left, 78, { width: CONTENT_WIDTH, align: 'center', lineBreak: false });
 
-    doc.font('Helvetica-Bold').fontSize(13).fillColor(COLORS.ink).text(`ORDER ${order.orderNumber}`, SIDE_MARGIN, doc.y, { width: CONTENT_WIDTH, align: 'center' });
-    doc.moveDown(0.7);
-    rule(COLORS.ink, 1.2);
-    doc.moveDown(0.65);
-    const columnWidth = (CONTENT_WIDTH - 18) / 2;
-    detail('Table', String(order.tableNumber).padStart(2, '0'), SIDE_MARGIN, doc.y, columnWidth);
-    detail('Date', formatDate(order.createdAt), SIDE_MARGIN + columnWidth + 18, doc.y, columnWidth);
-    doc.moveDown(2.45);
-    detail('Customer', order.customer?.name, SIDE_MARGIN, doc.y, columnWidth);
-    detail('Phone', order.customer?.phone, SIDE_MARGIN + columnWidth + 18, doc.y, columnWidth);
-    doc.moveDown(2.45);
-    rule();
-    doc.moveDown(0.65);
+    doc.font('Helvetica-Bold').fontSize(13).fillColor(COLORS.ink).text(`ORDER ${order.orderNumber}`, left, 108, { width: CONTENT_WIDTH, align: 'center', lineBreak: false });
+    doc.y = 132;
+    line(COLORS.ink, 1.2);
+    doc.y = 145;
 
-    doc.font('Helvetica-Bold').fontSize(8).fillColor(COLORS.ink).text('ITEM', SIDE_MARGIN, doc.y).text('AMOUNT', PAGE_WIDTH - SIDE_MARGIN - 65, doc.y, { width: 65, align: 'right' });
-    doc.moveDown(0.45);
-    rule(COLORS.line, 0.5);
-    doc.moveDown(0.5);
+    const columnGap = 14;
+    const columnWidth = (CONTENT_WIDTH - columnGap) / 2;
+    label('Table', left, doc.y, columnWidth);
+    label('Date', left + columnWidth + columnGap, doc.y, columnWidth);
+    value(String(order.tableNumber || '-').padStart(2, '0'), left, doc.y + 10, columnWidth);
+    value(formatDate(order.createdAt), left + columnWidth + columnGap, doc.y + 10, columnWidth, { size: 7.3 });
+    doc.y = 184;
+    label('Customer', left, doc.y, columnWidth);
+    label('Phone', left + columnWidth + columnGap, doc.y, columnWidth);
+    value(order.customer?.name, left, doc.y + 10, columnWidth);
+    value(order.customer?.phone, left + columnWidth + columnGap, doc.y + 10, columnWidth);
+    doc.y = 222;
+    line();
+    doc.y = 236;
+
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(COLORS.ink).text('ITEM', left, doc.y, { lineBreak: false });
+    doc.text('AMOUNT', right - amountWidth, doc.y, { width: amountWidth, align: 'right', lineBreak: false });
+    doc.y += 13;
+    line(COLORS.line, 0.5);
+    doc.y += 11;
+
     items.forEach((item) => {
       const y = doc.y;
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(COLORS.body).text(`${item.name || 'Item'}  x${item.quantity || 1}`, SIDE_MARGIN, y, { width: 108 });
-      doc.font('Helvetica').fontSize(8.5).fillColor(COLORS.body).text(money(item.itemTotal), PAGE_WIDTH - SIDE_MARGIN - 65, y, { width: 65, align: 'right' });
-      doc.y = Math.max(doc.y, y + 11);
-      item.addons?.forEach((addon) => doc.font('Helvetica').fontSize(7.5).fillColor(COLORS.muted).text(`+ ${addon.name}`, SIDE_MARGIN + 7, doc.y, { width: 125 }));
-      if (item.specialInstructions) doc.font('Helvetica-Oblique').fontSize(7.5).fillColor(COLORS.muted).text(`Note: ${item.specialInstructions}`, SIDE_MARGIN + 7, doc.y, { width: 125 });
-      doc.moveDown(0.55);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(COLORS.body).text(`${item.name || 'Item'}  x${item.quantity || 1}`, left, y, { width: itemWidth, lineBreak: false });
+      doc.font('Helvetica').fontSize(8.5).fillColor(COLORS.body).text(money(item.itemTotal), right - amountWidth, y, { width: amountWidth, align: 'right', lineBreak: false });
+      doc.y = y + 13;
+      item.addons?.forEach((addon) => { value(`+ ${addon.name}`, left + 7, doc.y, itemWidth - 7, { size: 7.2, color: COLORS.muted }); doc.y += 9; });
+      if (item.specialInstructions) { value(`Note: ${item.specialInstructions}`, left + 7, doc.y, itemWidth - 7, { size: 7.2, color: COLORS.muted, font: 'Helvetica-Oblique' }); doc.y += 9; }
+      doc.y += 5;
     });
 
-    rule();
-    doc.moveDown(0.7);
-    totalRow('Subtotal', money(order.subtotal));
-    totalRow(`GST (${order.taxRate || 5}%)`, money(order.tax));
-    doc.moveDown(0.15);
-    rule(COLORS.ink, 1.5);
-    doc.moveDown(0.55);
-    totalRow('TOTAL', money(order.total), true);
+    line();
+    doc.y += 12;
+    row('Subtotal', money(order.subtotal));
+    row(`GST (${order.taxRate || 5}%)`, money(order.tax));
+    doc.y += 2;
+    line(COLORS.ink, 1.4);
+    doc.y += 10;
+    row('TOTAL', money(order.total), true);
 
-    const paymentHeight = order.razorpayPaymentId ? 48 : 36;
-    doc.moveDown(0.35);
-    doc.roundedRect(SIDE_MARGIN, doc.y, CONTENT_WIDTH, paymentHeight, 4).fill(COLORS.soft);
-    const paymentY = doc.y + 9;
-    doc.font('Helvetica-Bold').fontSize(7).fillColor(COLORS.muted).text('PAYMENT', SIDE_MARGIN + 10, paymentY);
-    doc.font('Helvetica').fontSize(8.5).fillColor(COLORS.body).text(order.paymentMethod === 'razorpay' ? 'Online payment' : 'Cash at counter', SIDE_MARGIN + 10, paymentY + 9);
-    doc.font('Helvetica-Bold').fontSize(7).fillColor(COLORS.muted).text('STATUS', PAGE_WIDTH - SIDE_MARGIN - 70, paymentY, { width: 60, align: 'right' });
-    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(COLORS.accent).text(String(order.paymentStatus || 'pending').toUpperCase(), PAGE_WIDTH - SIDE_MARGIN - 70, paymentY + 9, { width: 60, align: 'right' });
-    if (order.razorpayPaymentId) doc.font('Helvetica').fontSize(7).fillColor(COLORS.muted).text(`Txn: ${order.razorpayPaymentId}`, SIDE_MARGIN + 10, paymentY + 25, { width: CONTENT_WIDTH - 20 });
+    const paymentY = doc.y + 5;
+    const paymentHeight = order.razorpayPaymentId ? 47 : 38;
+    doc.roundedRect(left, paymentY, CONTENT_WIDTH, paymentHeight, 5).fill(COLORS.soft);
+    label('Payment', left + 10, paymentY + 9, 72);
+    value(order.paymentMethod === 'razorpay' ? 'Online payment' : 'Cash at counter', left + 10, paymentY + 19, 105);
+    label('Status', right - 70, paymentY + 9, 60);
+    value(String(order.paymentStatus || 'pending').toUpperCase(), right - 70, paymentY + 19, 60, { font: 'Helvetica-Bold', size: 8.5, color: COLORS.accent, align: 'right' });
+    if (order.razorpayPaymentId) value(`Txn: ${order.razorpayPaymentId}`, left + 10, paymentY + 34, CONTENT_WIDTH - 20, { size: 7, color: COLORS.muted });
+    doc.y = paymentY + paymentHeight + 24;
 
-    doc.y += paymentHeight + 15;
-    rule(COLORS.line, 0.5);
-    doc.moveDown(0.8);
-    doc.font('Helvetica-Bold').fontSize(9.5).fillColor(COLORS.accent).text('Thank you for visiting Brewhaus!', SIDE_MARGIN, doc.y, { width: CONTENT_WIDTH, align: 'center' });
-    doc.moveDown(0.25);
-    doc.font('Helvetica').fontSize(7.5).fillColor(COLORS.muted).text('Please visit again. Have a great day!', SIDE_MARGIN, doc.y, { width: CONTENT_WIDTH, align: 'center' }).text('www.brewhauscafe.com', SIDE_MARGIN, doc.y + 2, { width: CONTENT_WIDTH, align: 'center' });
+    line(COLORS.line, 0.5);
+    doc.y += 13;
+    value('Thank you for visiting Brewhaus!', left, doc.y, CONTENT_WIDTH, { font: 'Helvetica-Bold', size: 9.5, color: COLORS.accent, align: 'center' });
+    doc.y += 16;
+    value('Please visit again. Have a great day!', left, doc.y, CONTENT_WIDTH, { size: 7.5, color: COLORS.muted, align: 'center' });
+    doc.y += 11;
+    value('www.brewhauscafe.com', left, doc.y, CONTENT_WIDTH, { size: 7.5, color: COLORS.muted, align: 'center' });
     doc.end();
   } catch (error) {
     reject(error);

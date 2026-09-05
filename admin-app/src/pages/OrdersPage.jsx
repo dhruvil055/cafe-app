@@ -77,6 +77,19 @@ export default function OrdersPage() {
     }
   };
 
+  const settleCashPayment = async (orderId) => {
+    setUpdating((current) => ({ ...current, [orderId]: true }));
+    try {
+      const { data } = await api.put(`/orders/${orderId}/cash-payment`, { paymentStatus: 'paid' });
+      setOrders((current) => current.map((order) => order._id === orderId ? data.order : order));
+      toast.success('Cash payment marked as paid');
+    } catch (error) {
+      toast.error(error.message || 'Failed to update cash payment');
+    } finally {
+      setUpdating((current) => ({ ...current, [orderId]: false }));
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center">
@@ -139,6 +152,7 @@ export default function OrdersPage() {
                       {order.orderStatus}
                     </span>
                     {order.paymentStatus === 'paid' && <span className="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">PAID</span>}
+                    {order.paymentMethod === 'cash' && order.paymentStatus !== 'paid' && <span className="inline-flex rounded-full bg-orange-50 px-2 py-1 text-[10px] font-semibold text-orange-700">CASH NOT PAID</span>}
                     {order.paymentMethod === 'cash' && order.cashVerificationStatus === 'pending' && <span className="inline-flex rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700">CASH VERIFY</span>}
                   </div>
                   <div className="mt-1 text-xs text-stone-500">{order.customer?.name || 'Walk-in guest'} • {order.items?.length || 0} items • ₹{order.total}</div>
@@ -189,6 +203,11 @@ export default function OrdersPage() {
                               <button onClick={() => verifyCashOrder(order._id, 'confirm')} disabled={updating[order._id]} className="btn-primary rounded-full px-3 py-2 text-xs">Verify & Confirm</button>
                               <button onClick={() => verifyCashOrder(order._id, 'reject')} disabled={updating[order._id]} className="btn-secondary rounded-full px-3 py-2 text-xs text-red-600">Reject Cash Order</button>
                             </>
+                          )}
+                          {order.paymentMethod === 'cash' && order.paymentStatus !== 'paid' && order.cashVerificationStatus === 'confirmed' && (
+                            <button onClick={() => settleCashPayment(order._id)} disabled={updating[order._id]} className="btn-primary rounded-full px-3 py-2 text-xs">
+                              {updating[order._id] ? <Loader2 size={12} className="animate-spin" /> : 'Confirm Cash Paid'}
+                            </button>
                           )}
                           {NEXT_STATUS[order.orderStatus] && (
                             <button onClick={() => updateStatus(order._id, NEXT_STATUS[order.orderStatus])} disabled={updating[order._id]} className="btn-primary rounded-full px-3 py-2 text-xs">

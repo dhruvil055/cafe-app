@@ -106,6 +106,13 @@ export default function CheckoutPage() {
       const order = orderRes.data.order;
       const { accessToken } = orderRes.data;
 
+      if (import.meta.env.VITE_DEMO_PAYMENTS === 'true') {
+        await api.post('/payment/demo-complete', { orderId: order._id, accessToken, diningSessionToken });
+        clearCart();
+        navigate(`/order-confirm/${order._id}?token=${accessToken}`);
+        return;
+      }
+
       // 2. Create Razorpay order
       const rzpRes = await api.post('/payment/create-order', { orderId: order._id, accessToken, diningSessionToken });
       const { razorpayOrderId, amount, keyId } = rzpRes.data;
