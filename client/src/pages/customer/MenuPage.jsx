@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, Search, SlidersHorizontal, Leaf, Star, ChevronDown, X, AlertCircle, ScanLine } from 'lucide-react';
@@ -9,8 +9,6 @@ import ProductModal from '../../components/menu/ProductModal';
 import MenuCard from '../../components/menu/MenuCard';
 import SkeletonCard from '../../components/ui/SkeletonCard';
 import QrScannerModal from '../../components/ui/QrScannerModal';
-
-const CafeHero3D = lazy(() => import('../../components/3d/CafeHero3D'));
 
 const SORT_OPTIONS = [
   { value: '', label: 'Default' },
@@ -24,7 +22,7 @@ export default function MenuPage() {
   const navigate = useNavigate();
   const tableParam = searchParams.get('table');
 
-  const { items, tableNumber, setTable, itemCount } = useCartStore();
+  const { items, tableNumber, setTable, setDiningSession, diningSessionToken, itemCount } = useCartStore();
 
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
@@ -39,6 +37,7 @@ export default function MenuPage() {
   const [tableValid, setTableValid] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [presenceError, setPresenceError] = useState('');
 
   const searchRef = useRef();
   const debounceRef = useRef();
@@ -47,12 +46,30 @@ export default function MenuPage() {
   useEffect(() => {
     if (tableParam) {
       setTable(tableParam);
-      // Validate table
+      setPresenceError('');
       api.get(`/tables/${tableParam}/validate`)
-        .then(() => setTableValid(true))
+        .then(() => {
+          setTableValid(true);
+          if (!navigator.geolocation) throw new Error('Location verification is unavailable in this browser.');
+          navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+            try {
+              const response = await api.post('/session', {
+                tableNumber: Number(tableParam),
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+                accuracy: coords.accuracy,
+              });
+              setDiningSession(response.data.diningSessionToken);
+            } catch (error) {
+              setPresenceError(error.message || 'We could not verify that you are inside the cafe.');
+            }
+          }, () => {
+            setPresenceError('Ordering is available only inside the cafe. Allow location access to verify your visit.');
+          }, { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 });
+        })
         .catch(() => setTableValid(false));
     }
-  }, [tableParam]);
+  }, [tableParam, setDiningSession, setTable]);
 
   // Fetch categories
   useEffect(() => {
@@ -92,16 +109,18 @@ export default function MenuPage() {
     <div className="min-h-screen bg-cream">
       {/* Hero Section */}
       <div className="relative bg-espresso-950 overflow-hidden" style={{ height: '340px' }}>
-        {/* 3D canvas */}
-        <div className="absolute inset-0">
-          <Suspense fallback={
-            <div className="w-full h-full flex items-center justify-center">
-              <span className="text-7xl animate-float">☕</span>
-            </div>
-          }>
-            <CafeHero3D />
-          </Suspense>
-        </div>
+        {/* Branded motion backdrop */}
+        <video
+          className="absolute inset-0 z-0 h-full w-full object-cover"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          aria-hidden="true"
+        >
+          <source src="/BrewHaus.mp4" type="video/mp4" />
+        </video>
 
         {/* Overlay content */}
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-espresso-950/20 to-espresso-950/70" />
@@ -177,6 +196,7 @@ export default function MenuPage() {
           <Link to="/offers" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Offers</Link>
           <Link to="/gallery" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Gallery</Link>
           <Link to="/contact" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Contact</Link>
+          <Link to="/bill" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Bill</Link>
 
           <div className="flex items-center gap-2 border-l border-foam pl-2">
             <motion.button
@@ -214,6 +234,13 @@ export default function MenuPage() {
           <p className="text-red-700 text-sm">
             Invalid table number. Please scan your table's QR code again.
           </p>
+        </div>
+      )}
+
+      {presenceError && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center gap-2">
+          <AlertCircle size={16} className="text-amber-600 flex-shrink-0" />
+          <p className="text-amber-700 text-sm">{presenceError}</p>
         </div>
       )}
 

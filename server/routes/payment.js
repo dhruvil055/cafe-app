@@ -6,6 +6,7 @@ import {
   verifyAccessToken,
   verifyRazorpaySignature,
 } from '../utils/orderSecurity.js';
+import { requireActiveDiningSession } from '../utils/diningSession.js';
 
 const router = express.Router();
 
@@ -44,6 +45,13 @@ const requireOrderAccess = async (req, res, orderId, accessToken) => {
 
   if (!verifyAccessToken(accessToken, order.accessTokenHash)) {
     res.status(403).json({ error: 'Invalid order access token.' });
+    return null;
+  }
+
+  try {
+    await requireActiveDiningSession(req.body.diningSessionToken);
+  } catch (error) {
+    res.status(403).json({ error: error.message, code: error.code });
     return null;
   }
 

@@ -11,6 +11,7 @@ import AboutPage from './pages/customer/AboutPage';
 import OffersPage from './pages/customer/OffersPage';
 import ContactPage from './pages/customer/ContactPage';
 import GalleryPage from './pages/customer/GalleryPage';
+import BillPage from './pages/customer/BillPage';
 
 export default function App() {
   return (
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/gallery" element={<GalleryPage />} />
         <Route path="/cart" element={<CartPage />} />
         <Route path="/checkout" element={<CheckoutPage />} />
+        <Route path="/bill" element={<BillPage />} />
         <Route path="/order-confirm/:orderId" element={<OrderConfirmPage />} />
         <Route path="/track/:orderId" element={<TrackOrderPage />} />
 
