@@ -23,8 +23,7 @@ const orderSchema = new mongoose.Schema({
   // Payment verification must be idempotent: track verification state
   paymentVerifiedAt: { type: Date, default: null },
   orderNumber: { type: String, required: true },
-  diningSessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'DiningSession', required: true, index: true },
-  tableNumber: { type: Number, required: true },
+  tableNumber: { type: Number, default: null },
   customer: {
     name: { type: String, required: true },
     phone: { type: String, required: true },
@@ -96,7 +95,6 @@ orderSchema.pre('validate', async function (next) {
 });
 
 orderSchema.index({ orderNumber: 1 }, { unique: true });
-orderSchema.index({ diningSessionId: 1, createdAt: -1 });
 
 export const initializeOrderNumberCounter = async () => {
   const latest = await mongoose.model('Order')

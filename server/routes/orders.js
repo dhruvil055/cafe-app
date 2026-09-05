@@ -12,7 +12,6 @@ import {
   validateAndFetchProductPrices,
   calculateServerTotals,
 } from '../utils/orderSecurity.js';
-import { requireActiveDiningSession } from '../utils/diningSession.js';
 
 const router = express.Router();
 
@@ -21,12 +20,13 @@ const router = express.Router();
 // Backend fetches real prices from MongoDB
 router.post('/', async (req, res) => {
   try {
-    const { tableNumber, customer, items, paymentMethod, notes, diningSessionToken } = req.body;
-
-    const diningSession = await requireActiveDiningSession(diningSessionToken);
+    const { tableNumber, customer, items, paymentMethod, notes } = req.body;
 
     // Validate required fields
-    if (!Number.isInteger(Number(tableNumber)) || Number(tableNumber) <= 0) {
+    const normalizedTableNumber = tableNumber === undefined || tableNumber === null || tableNumber === ''
+      ? null
+      : Number(tableNumber);
+    if (normalizedTableNumber !== null && (!Number.isInteger(normalizedTableNumber) || normalizedTableNumber <= 0)) {
       return res.status(400).json({ error: 'Invalid table number.' });
     }
 
@@ -42,17 +42,14 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Invalid payment method.' });
     }
 
-    // Validate table exists and is active
-    const table = await Table.findOne({
-      tableNumber: Number(tableNumber),
+    // A table is optional for takeaway or counter orders. When supplied,
+    // it must still refer to an active table.
+    const table = normalizedTableNumber === null ? null : await Table.findOne({
+      tableNumber: normalizedTableNumber,
       active: true,
     });
-    if (!table) {
+    if (normalizedTableNumber !== null && !table) {
       return res.status(400).json({ error: 'Invalid or inactive table.' });
-    }
-
-    if (diningSession.tableNumber !== Number(tableNumber)) {
-      return res.status(403).json({ error: 'Dining session is not valid for this table.', code: 'SESSION_INVALID' });
     }
 
     // Validate and fetch all product prices from database
@@ -73,8 +70,7 @@ router.post('/', async (req, res) => {
 
     // Create order with server-calculated totals only
     const order = await Order.create({
-      tableNumber: Number(tableNumber),
-      diningSessionId: diningSession._id,
+      tableNumber: normalizedTableNumber,
       customer: {
         name: String(customer.name).trim(),
         phone,
@@ -111,10 +107,7 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Order creation error:', error);
-    const status = ['SESSION_REQUIRED', 'SESSION_INVALID', 'SESSION_EXPIRED', 'SESSION_CLOSED'].includes(error.code)
-      ? 403
-      : 400;
-    res.status(status).json({ error: error.message, code: error.code });
+    res.status(400).json({ error: error.message });
   }
 });
 

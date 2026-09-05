@@ -6,10 +6,8 @@ const useCartStore = create(
     (set, get) => ({
       items: [],
       tableNumber: null,
-      diningSessionToken: null,
 
       setTable: (num) => set({ tableNumber: Number(num) }),
-      setDiningSession: (token) => set({ diningSessionToken: token || null }),
 
       addItem: (product, quantity = 1, addons = [], variant = null, specialInstructions = '') => {
         const { items } = get();
@@ -82,7 +80,7 @@ const useCartStore = create(
     }),
     {
       name: 'brewhaus-cart',
-      partialize: (state) => ({ items: state.items, tableNumber: state.tableNumber, diningSessionToken: state.diningSessionToken }),
+      partialize: (state) => ({ items: state.items, tableNumber: state.tableNumber }),
     }
   )
 );
