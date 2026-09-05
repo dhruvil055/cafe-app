@@ -19,6 +19,8 @@ const { default: Category } = await import('../models/Category.js');
 const { default: Product } = await import('../models/Product.js');
 const { default: Table } = await import('../models/Table.js');
 const { default: Order } = await import('../models/Order.js');
+const { default: DiningSession } = await import('../models/DiningSession.js');
+const { default: DiningBill } = await import('../models/DiningBill.js');
 const { default: Counter } = await import('../models/Counter.js');
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -104,14 +106,17 @@ const login = async (email, password) => {
 };
 
 const createPublicOrder = async ({ productId, tableNumber = 1, name, paymentMethod = 'cash' }) => {
+  const session = await json('/api/session', { tableNumber });
+  assert.equal(session.status, 201, JSON.stringify(session.data));
   const result = await json('/api/orders', {
     tableNumber,
     customer: { name, phone: '9876543210' },
     items: [{ productId: String(productId), quantity: 1 }],
     paymentMethod,
+    diningSessionToken: session.data.diningSessionToken,
   });
   assert.equal(result.status, 201, JSON.stringify(result.data));
-  return result.data;
+  return { ...result.data, diningSessionToken: session.data.diningSessionToken };
 };
 
 const upload = async (token, bytes, filename, mime) => {
@@ -128,6 +133,8 @@ test('real security integration suite', async (t) => {
     Product.deleteMany({}),
     Table.deleteMany({}),
     Order.deleteMany({}),
+    DiningSession.deleteMany({}),
+    DiningBill.deleteMany({}),
     Counter.deleteMany({}),
   ]);
 
@@ -171,6 +178,7 @@ test('real security integration suite', async (t) => {
     });
 
     await t.test('server-side pricing ignores malicious client totals', async () => {
+      const session = await json('/api/session', { tableNumber: 1 });
       const result = await json('/api/orders', {
         tableNumber: 1,
         customer: { name: 'Price Test', phone: '9876543210' },
@@ -181,6 +189,7 @@ test('real security integration suite', async (t) => {
         paymentStatus: 'paid',
         orderStatus: 'confirmed',
         paymentMethod: 'cash',
+        diningSessionToken: session.data.diningSessionToken,
       });
       assert.equal(result.status, 201);
       assert.equal(result.data.order.subtotal, 299);
@@ -219,7 +228,7 @@ test('real security integration suite', async (t) => {
       const other = await createPublicOrder({ productId: product._id, name: 'Other Customer', paymentMethod: 'cash' });
       assert.equal((await json('/api/payment/create-order', { orderId, accessToken: other.accessToken })).status, 403);
 
-      const created = await json('/api/payment/create-order', { orderId, accessToken: paymentOrder.accessToken });
+      const created = await json('/api/payment/create-order', { orderId, accessToken: paymentOrder.accessToken, diningSessionToken: paymentOrder.diningSessionToken });
       assert.equal(created.status, 200);
       assert.equal(created.data.currency, 'INR');
       assert.equal(created.data.amount, 299 * 105); // ₹299 + 5% GST
@@ -228,7 +237,7 @@ test('real security integration suite', async (t) => {
 
     const paymentOrder = await createPublicOrder({ productId: product._id, name: 'Verification Customer', paymentMethod: 'razorpay' });
     const paymentOrderId = paymentOrder.order._id;
-    const paymentCreate = await json('/api/payment/create-order', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken });
+    const paymentCreate = await json('/api/payment/create-order', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, diningSessionToken: paymentOrder.diningSessionToken });
     assert.equal(paymentCreate.status, 200);
     const razorpayOrderId = paymentCreate.data.razorpayOrderId;
     const expectedAmount = paymentCreate.data.amount;
@@ -239,23 +248,23 @@ test('real security integration suite', async (t) => {
       assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: 'wrong', razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_auth_test', razorpay_signature: validSignature })).status, 403);
       const wrongCustomer = await createPublicOrder({ productId: product._id, name: 'Wrong Payment Customer', paymentMethod: 'cash' });
       assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: wrongCustomer.accessToken, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_auth_test', razorpay_signature: validSignature })).status, 403);
-      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, razorpay_order_id: 'wrong_order', razorpay_payment_id: 'pay_auth_test', razorpay_signature: validSignature })).status, 400);
+      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, diningSessionToken: paymentOrder.diningSessionToken, razorpay_order_id: 'wrong_order', razorpay_payment_id: 'pay_auth_test', razorpay_signature: validSignature })).status, 400);
 
       const missingLocal = await createPublicOrder({ productId: product._id, name: 'Uninitialized Payment', paymentMethod: 'razorpay' });
       const missingSig = signPayment('order_missing_local', 'pay_missing_local');
-      assert.equal((await json('/api/payment/verify', { orderId: missingLocal.order._id, accessToken: missingLocal.accessToken, razorpay_order_id: 'order_missing_local', razorpay_payment_id: 'pay_missing_local', razorpay_signature: missingSig })).status, 400);
+      assert.equal((await json('/api/payment/verify', { orderId: missingLocal.order._id, accessToken: missingLocal.accessToken, diningSessionToken: missingLocal.diningSessionToken, razorpay_order_id: 'order_missing_local', razorpay_payment_id: 'pay_missing_local', razorpay_signature: missingSig })).status, 400);
 
       fakeGateway.paymentDetails.set('pay_wrong_signature', { order_id: razorpayOrderId, amount: expectedAmount, currency: 'INR', status: 'captured' });
-      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_wrong_signature', razorpay_signature: 'not-a-valid-signature' })).status, 400);
+      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, diningSessionToken: paymentOrder.diningSessionToken, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_wrong_signature', razorpay_signature: 'not-a-valid-signature' })).status, 400);
 
       fakeGateway.paymentDetails.set('pay_wrong_amount', { order_id: razorpayOrderId, amount: expectedAmount + 1, currency: 'INR', status: 'captured' });
-      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_wrong_amount', razorpay_signature: signPayment(razorpayOrderId, 'pay_wrong_amount') })).status, 400);
+      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, diningSessionToken: paymentOrder.diningSessionToken, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_wrong_amount', razorpay_signature: signPayment(razorpayOrderId, 'pay_wrong_amount') })).status, 400);
 
       fakeGateway.paymentDetails.set('pay_wrong_currency', { order_id: razorpayOrderId, amount: expectedAmount, currency: 'USD', status: 'captured' });
-      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_wrong_currency', razorpay_signature: signPayment(razorpayOrderId, 'pay_wrong_currency') })).status, 400);
+      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, diningSessionToken: paymentOrder.diningSessionToken, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_wrong_currency', razorpay_signature: signPayment(razorpayOrderId, 'pay_wrong_currency') })).status, 400);
 
       fakeGateway.paymentDetails.set('pay_not_captured', { order_id: razorpayOrderId, amount: expectedAmount, currency: 'INR', status: 'authorized' });
-      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_not_captured', razorpay_signature: signPayment(razorpayOrderId, 'pay_not_captured') })).status, 400);
+      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, diningSessionToken: paymentOrder.diningSessionToken, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_not_captured', razorpay_signature: signPayment(razorpayOrderId, 'pay_not_captured') })).status, 400);
     });
 
     await t.test('payment verification is idempotent and atomic under a race', async () => {
@@ -264,6 +273,7 @@ test('real security integration suite', async (t) => {
       const verification = {
         orderId: paymentOrderId,
         accessToken: paymentOrder.accessToken,
+        diningSessionToken: paymentOrder.diningSessionToken,
         razorpay_order_id: razorpayOrderId,
         razorpay_payment_id: paymentId,
         razorpay_signature: signPayment(razorpayOrderId, paymentId),
@@ -275,13 +285,14 @@ test('real security integration suite', async (t) => {
       assert.equal(duplicate.data.success, true);
 
       const raceOrder = await createPublicOrder({ productId: product._id, name: 'Race Customer', paymentMethod: 'razorpay' });
-      const raceCreate = await json('/api/payment/create-order', { orderId: raceOrder.order._id, accessToken: raceOrder.accessToken });
+      const raceCreate = await json('/api/payment/create-order', { orderId: raceOrder.order._id, accessToken: raceOrder.accessToken, diningSessionToken: raceOrder.diningSessionToken });
       const racePaymentId = 'pay_race';
       fakeGateway.paymentDetails.set(racePaymentId, { order_id: raceCreate.data.razorpayOrderId, amount: raceCreate.data.amount, currency: 'INR', status: 'captured' });
       fakeGateway.fetchDelay = 25;
       const racePayload = {
         orderId: raceOrder.order._id,
         accessToken: raceOrder.accessToken,
+        diningSessionToken: raceOrder.diningSessionToken,
         razorpay_order_id: raceCreate.data.razorpayOrderId,
         razorpay_payment_id: racePaymentId,
         razorpay_signature: signPayment(raceCreate.data.razorpayOrderId, racePaymentId),
@@ -305,6 +316,9 @@ test('real security integration suite', async (t) => {
       assert.equal(attack.status, 400);
       const before = await Order.findById(cashOrder.order._id);
       assert.equal(before.paymentStatus, 'pending');
+      const verified = await putJson(`/api/orders/${cashOrder.order._id}/cash-confirmation`, { decision: 'confirm' }, { token: adminToken });
+      assert.equal(verified.status, 200);
+      assert.equal(verified.data.order.paymentStatus, 'pending');
       const paid = await putJson(`/api/orders/${cashOrder.order._id}/cash-payment`, { paymentStatus: 'paid' }, { token: adminToken });
       assert.equal(paid.status, 200);
       assert.equal(paid.data.order.paymentStatus, 'paid');
@@ -342,9 +356,11 @@ test('real security integration suite', async (t) => {
       assert.deepEqual(injection.data.products, []);
       assert.equal((await request(`/api/menu?search=${'x'.repeat(101)}`)).status, 400);
       assert.equal((await request('/api/menu/not-an-object-id')).status, 400);
-      assert.equal((await json('/api/orders', { tableNumber: 1, customer: { name: 'Bad Quantity', phone: '9876543210' }, items: [{ productId: String(product._id), quantity: 1000 }], paymentMethod: 'cash' })).status, 400);
-      assert.equal((await json('/api/orders', { tableNumber: 1, customer: { name: 'Bad Product', phone: '9876543210' }, items: [{ productId: 'not-an-object-id', quantity: 1 }], paymentMethod: 'cash' })).status, 400);
-      const oversizedOrder = await json('/api/orders', { tableNumber: 1, customer: { name: 'Large Notes', phone: '9876543210' }, items: [{ productId: String(product._id), quantity: 1 }], paymentMethod: 'cash', notes: 'x'.repeat(110 * 1024) });
+      const session = await json('/api/session', { tableNumber: 1 });
+      const diningSessionToken = session.data.diningSessionToken;
+      assert.equal((await json('/api/orders', { tableNumber: 1, customer: { name: 'Bad Quantity', phone: '9876543210' }, items: [{ productId: String(product._id), quantity: 1000 }], paymentMethod: 'cash', diningSessionToken })).status, 400);
+      assert.equal((await json('/api/orders', { tableNumber: 1, customer: { name: 'Bad Product', phone: '9876543210' }, items: [{ productId: 'not-an-object-id', quantity: 1 }], paymentMethod: 'cash', diningSessionToken })).status, 400);
+      const oversizedOrder = await json('/api/orders', { tableNumber: 1, customer: { name: 'Large Notes', phone: '9876543210' }, items: [{ productId: String(product._id), quantity: 1 }], paymentMethod: 'cash', diningSessionToken, notes: 'x'.repeat(110 * 1024) });
       assert.equal(oversizedOrder.status, 413);
     });
 

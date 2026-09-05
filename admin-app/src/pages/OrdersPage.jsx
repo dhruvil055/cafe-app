@@ -64,6 +64,19 @@ export default function OrdersPage() {
     }
   };
 
+  const verifyCashOrder = async (orderId, decision) => {
+    setUpdating((current) => ({ ...current, [orderId]: true }));
+    try {
+      const { data } = await api.put(`/orders/${orderId}/cash-confirmation`, { decision });
+      setOrders((current) => current.map((order) => order._id === orderId ? data.order : order));
+      toast.success(decision === 'confirm' ? 'Cash order confirmed for preparation' : 'Cash order rejected');
+    } catch (error) {
+      toast.error(error.message || 'Failed to verify cash order');
+    } finally {
+      setUpdating((current) => ({ ...current, [orderId]: false }));
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center">
@@ -126,6 +139,7 @@ export default function OrdersPage() {
                       {order.orderStatus}
                     </span>
                     {order.paymentStatus === 'paid' && <span className="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">PAID</span>}
+                    {order.paymentMethod === 'cash' && order.cashVerificationStatus === 'pending' && <span className="inline-flex rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700">CASH VERIFY</span>}
                   </div>
                   <div className="mt-1 text-xs text-stone-500">{order.customer?.name || 'Walk-in guest'} • {order.items?.length || 0} items • ₹{order.total}</div>
                 </div>
@@ -170,6 +184,12 @@ export default function OrdersPage() {
                       <div>
                         <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500">Status actions</div>
                         <div className="flex flex-wrap gap-2">
+                          {order.paymentMethod === 'cash' && order.cashVerificationStatus === 'pending' && (
+                            <>
+                              <button onClick={() => verifyCashOrder(order._id, 'confirm')} disabled={updating[order._id]} className="btn-primary rounded-full px-3 py-2 text-xs">Verify & Confirm</button>
+                              <button onClick={() => verifyCashOrder(order._id, 'reject')} disabled={updating[order._id]} className="btn-secondary rounded-full px-3 py-2 text-xs text-red-600">Reject Cash Order</button>
+                            </>
+                          )}
                           {NEXT_STATUS[order.orderStatus] && (
                             <button onClick={() => updateStatus(order._id, NEXT_STATUS[order.orderStatus])} disabled={updating[order._id]} className="btn-primary rounded-full px-3 py-2 text-xs">
                               {updating[order._id] ? <Loader2 size={12} className="animate-spin" /> : `Mark as ${NEXT_STATUS[order.orderStatus]}`}

@@ -12,6 +12,7 @@ import {
   validateAndFetchProductPrices,
   calculateServerTotals,
 } from '../utils/orderSecurity.js';
+import { requireActiveDiningSession } from '../utils/diningSession.js';
 
 const router = express.Router();
 
@@ -20,13 +21,13 @@ const router = express.Router();
 // Backend fetches real prices from MongoDB
 router.post('/', async (req, res) => {
   try {
-    const { tableNumber, customer, items, paymentMethod, notes } = req.body;
+    const { tableNumber, customer, items, paymentMethod, notes, diningSessionToken } = req.body;
+
+    const diningSession = await requireActiveDiningSession(diningSessionToken);
 
     // Validate required fields
-    const normalizedTableNumber = tableNumber === undefined || tableNumber === null || tableNumber === ''
-      ? null
-      : Number(tableNumber);
-    if (normalizedTableNumber !== null && (!Number.isInteger(normalizedTableNumber) || normalizedTableNumber <= 0)) {
+    const normalizedTableNumber = Number(tableNumber);
+    if (!Number.isInteger(normalizedTableNumber) || normalizedTableNumber <= 0) {
       return res.status(400).json({ error: 'Invalid table number.' });
     }
 
@@ -44,12 +45,15 @@ router.post('/', async (req, res) => {
 
     // A table is optional for takeaway or counter orders. When supplied,
     // it must still refer to an active table.
-    const table = normalizedTableNumber === null ? null : await Table.findOne({
+    const table = await Table.findOne({
       tableNumber: normalizedTableNumber,
       active: true,
     });
-    if (normalizedTableNumber !== null && !table) {
+    if (!table) {
       return res.status(400).json({ error: 'Invalid or inactive table.' });
+    }
+    if (diningSession.tableNumber !== normalizedTableNumber) {
+      return res.status(403).json({ error: 'Dining session is not valid for this table.', code: 'SESSION_INVALID' });
     }
 
     // Validate and fetch all product prices from database
@@ -71,6 +75,7 @@ router.post('/', async (req, res) => {
     // Create order with server-calculated totals only
     const order = await Order.create({
       tableNumber: normalizedTableNumber,
+      diningSessionId: diningSession._id,
       customer: {
         name: String(customer.name).trim(),
         phone,
@@ -82,6 +87,7 @@ router.post('/', async (req, res) => {
       taxRate,
       paymentMethod,
       paymentStatus: 'pending',
+      cashVerificationStatus: paymentMethod === 'cash' ? 'pending' : 'not_required',
       orderStatus: 'pending',
       notes: String(notes || '').slice(0, 500),
       accessTokenHash,
@@ -100,6 +106,7 @@ router.post('/', async (req, res) => {
         total: order.total,
         paymentMethod: order.paymentMethod,
         paymentStatus: order.paymentStatus,
+        cashVerificationStatus: order.cashVerificationStatus,
         orderStatus: order.orderStatus,
         createdAt: order.createdAt,
       },
@@ -107,7 +114,8 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Order creation error:', error);
-    res.status(400).json({ error: error.message });
+    const status = ['SESSION_REQUIRED', 'SESSION_INVALID', 'SESSION_EXPIRED', 'SESSION_CLOSED'].includes(error.code) ? 403 : 400;
+    res.status(status).json({ error: error.message, code: error.code });
   }
 });
 
@@ -152,6 +160,7 @@ router.get('/:id([0-9a-fA-F]{24})', async (req, res) => {
         paymentMethod: order.paymentMethod,
         orderStatus: order.orderStatus,
         paymentStatus: order.paymentStatus,
+        cashVerificationStatus: order.cashVerificationStatus,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
       },
@@ -261,6 +270,7 @@ router.put('/:id/cash-payment', protect, staffOrAdmin, async (req, res) => {
         _id: req.params.id,
         paymentMethod: 'cash',
         paymentStatus: 'pending',
+        cashVerificationStatus: 'confirmed',
         orderStatus: { $ne: 'cancelled' },
       },
       {
@@ -284,6 +294,25 @@ router.put('/:id/cash-payment', protect, staffOrAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Cash order is not eligible for settlement.' });
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+// PUT /api/orders/:id/cash-confirmation — staff verifies the customer/order,
+// but this does not mean that cash has been received.
+router.put('/:id/cash-confirmation', protect, staffOrAdmin, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order ID.' });
+    const { decision } = req.body;
+    if (!['confirm', 'reject'].includes(decision)) return res.status(400).json({ error: 'Decision must be confirm or reject.' });
+    const updated = await Order.findOneAndUpdate(
+      { _id: req.params.id, paymentMethod: 'cash', cashVerificationStatus: 'pending', paymentStatus: 'pending', orderStatus: 'pending' },
+      { $set: { cashVerificationStatus: decision === 'confirm' ? 'confirmed' : 'rejected', orderStatus: decision === 'confirm' ? 'confirmed' : 'cancelled' } },
+      { new: true, runValidators: true },
+    );
+    if (!updated) return res.status(409).json({ error: 'Cash order is no longer awaiting verification.' });
+    return res.json({ order: updated });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
   }
 });
 

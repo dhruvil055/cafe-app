@@ -19,7 +19,7 @@ const loadRazorpay = () => {
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, tableNumber, clearCart } = useCartStore();
+  const { items, tableNumber, diningSessionToken, clearCart } = useCartStore();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
@@ -43,6 +43,7 @@ export default function CheckoutPage() {
   const validate = () => {
     if (!name.trim()) return 'Please enter your name.';
     if (!phone.trim() || !/^\d{10}$/.test(phone)) return 'Please enter a valid 10-digit phone number.';
+    if (!tableNumber || !diningSessionToken) return 'Please scan the QR code at your table to start ordering.';
     return null;
   };
 
@@ -66,6 +67,7 @@ export default function CheckoutPage() {
         customer: { name: name.trim(), phone: phone.trim() },
         items: secureItems,
         paymentMethod: 'cash',
+        diningSessionToken,
       };
       const res = await api.post('/orders', orderData);
       const { accessToken } = res.data;
@@ -105,7 +107,7 @@ export default function CheckoutPage() {
       const { accessToken } = orderRes.data;
 
       // 2. Create Razorpay order
-      const rzpRes = await api.post('/payment/create-order', { orderId: order._id, accessToken });
+      const rzpRes = await api.post('/payment/create-order', { orderId: order._id, accessToken, diningSessionToken });
       const { razorpayOrderId, amount, keyId } = rzpRes.data;
 
       // 3. Load Razorpay script
@@ -137,6 +139,7 @@ export default function CheckoutPage() {
               razorpay_signature: response.razorpay_signature,
               orderId: order._id,
               accessToken,
+              diningSessionToken,
             });
             clearCart();
             navigate(`/order-confirm/${order._id}?token=${accessToken}`);

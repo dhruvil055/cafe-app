@@ -22,7 +22,7 @@ export default function MenuPage() {
   const navigate = useNavigate();
   const tableParam = searchParams.get('table');
 
-  const { items, tableNumber, setTable, itemCount } = useCartStore();
+  const { items, tableNumber, setTable, setDiningSession, itemCount } = useCartStore();
 
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
@@ -46,10 +46,15 @@ export default function MenuPage() {
     if (tableParam) {
       setTable(tableParam);
       api.get(`/tables/${tableParam}/validate`)
-        .then(() => setTableValid(true))
+        .then(async () => {
+          setTableValid(true);
+          const currentToken = useCartStore.getState().diningSessionToken;
+          const response = await api.post('/session', { tableNumber: Number(tableParam), diningSessionToken: currentToken });
+          setDiningSession(response.data.diningSessionToken);
+        })
         .catch(() => setTableValid(false));
     }
-  }, [tableParam, setTable]);
+  }, [tableParam, setDiningSession, setTable]);
 
   // Fetch categories
   useEffect(() => {
@@ -176,6 +181,7 @@ export default function MenuPage() {
           <Link to="/offers" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Offers</Link>
           <Link to="/gallery" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Gallery</Link>
           <Link to="/contact" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Contact</Link>
+          <Link to="/bill" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Bill</Link>
 
           <div className="flex items-center gap-2 border-l border-foam pl-2">
             <motion.button
