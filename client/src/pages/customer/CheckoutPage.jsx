@@ -101,6 +101,7 @@ export default function CheckoutPage() {
         customer: { name: name.trim(), phone: phone.trim() },
         items: secureItems,
         paymentMethod: 'razorpay',
+        diningSessionToken,
       };
       const orderRes = await api.post('/orders', orderData);
       const order = orderRes.data.order;
