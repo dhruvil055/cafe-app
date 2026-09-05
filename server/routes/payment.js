@@ -20,7 +20,10 @@ const getRazorpay = (req) => {
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
   if (!keyId || !keySecret || keySecret === 'placeholder_secret' || (process.env.NODE_ENV === 'production' && keyId.startsWith('rzp_test_'))) {
-    throw new Error('Razorpay credentials are not properly configured.');
+    const error = new Error('Online payments are not configured. Add valid live Razorpay credentials to the server.');
+    error.code = 'PAYMENT_CONFIG_INVALID';
+    error.status = 503;
+    throw error;
   }
 
   return new Razorpay({ key_id: keyId, key_secret: keySecret });
@@ -201,7 +204,11 @@ router.post('/create-order', async (req, res) => {
     });
   } catch (error) {
     console.error('Razorpay create order error:', error.message);
-    return res.status(500).json({ error: 'Payment initialization failed. Please try again.' });
+    const status = error.status || (error.code === 'PAYMENT_CONFIG_INVALID' ? 503 : 502);
+    const message = error.code === 'PAYMENT_CONFIG_INVALID'
+      ? error.message
+      : 'Payment gateway could not initialize the order. Please try again.';
+    return res.status(status).json({ error: message, ...(error.code && { code: error.code }) });
   }
 });
 

@@ -27,3 +27,5 @@ services:
         sync: false
       - key: NODE_ENV
         value: production
+      - key: DEMO_PAYMENTS_ENABLED
+        value: "true"

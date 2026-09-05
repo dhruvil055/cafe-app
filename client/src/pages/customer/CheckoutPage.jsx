@@ -107,7 +107,7 @@ export default function CheckoutPage() {
       const order = orderRes.data.order;
       const { accessToken } = orderRes.data;
 
-      if (import.meta.env.VITE_DEMO_PAYMENTS === 'true') {
+      if (import.meta.env.VITE_DEMO_PAYMENTS !== 'false') {
         await api.post('/payment/demo-complete', { orderId: order._id, accessToken, diningSessionToken });
         clearCart();
         navigate(`/order-confirm/${order._id}?token=${accessToken}`);
