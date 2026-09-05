@@ -104,7 +104,7 @@ export default function AdminLayout({ children, title }) {
             <button onClick={() => setSidebarOpen(true)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-stone-200 text-stone-600 md:hidden">
               <Menu size={18} />
             </button>
-            <h1 className="font-display text-2xl font-bold text-espresso-900">{title}</h1>
+            <h1 className="min-w-0 truncate font-display text-lg font-bold text-espresso-900 sm:text-2xl">{title}</h1>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -122,7 +122,7 @@ export default function AdminLayout({ children, title }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 md:p-6">{children}</main>
       </div>
     </div>
   );

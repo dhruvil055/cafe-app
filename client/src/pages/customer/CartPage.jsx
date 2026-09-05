@@ -58,7 +58,7 @@ export default function CartPage() {
       </div>
 
       {/* Items */}
-      <div className="flex-1 overflow-y-auto pb-48">
+      <div className="flex-1 overflow-y-auto pb-52 sm:pb-48">
         <div className="p-4 space-y-3">
           <AnimatePresence>
             {items.map(item => (
@@ -134,7 +134,7 @@ export default function CartPage() {
       </div>
 
       {/* Bill summary + checkout */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-foam p-4 space-y-3 shadow-2xl">
+      <div className="bottom-safe fixed bottom-0 left-0 right-0 bg-white border-t border-foam p-4 space-y-3 shadow-2xl">
         {/* Bill */}
         <div className="space-y-1">
           <div className="flex justify-between text-sm text-espresso-600">

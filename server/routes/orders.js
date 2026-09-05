@@ -3,8 +3,9 @@ import mongoose from 'mongoose';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import Table from '../models/Table.js';
+import DiningBill from '../models/DiningBill.js';
 import { adminOnly, protect, staffOrAdmin } from '../middleware/auth.js';
-import { generateReceipt } from '../services/receipt.js';
+import { createReceiptData, ensureReceiptNumber, generateReceiptPdf } from '../services/receipt.js';
 import {
   generateOrderAccessToken,
   hashAccessToken,
@@ -15,6 +16,48 @@ import {
 import { requireActiveDiningSession } from '../utils/diningSession.js';
 
 const router = express.Router();
+
+const publicReceiptUrl = (req, orderId, accessToken) => {
+  const baseUrl = process.env.PUBLIC_APP_URL || process.env.CUSTOMER_APP_URL || process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? `https://${req.get('host')}` : '');
+  if (!baseUrl) return '';
+  return `${baseUrl.replace(/\/$/, '')}/receipt/${orderId}?accessToken=${encodeURIComponent(accessToken)}`;
+};
+
+const getAuthorizedReceipt = async (req) => {
+  const { accessToken } = req.query;
+  if (!accessToken) {
+    const error = new Error('Access token is required.');
+    error.status = 401;
+    throw error;
+  }
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    const error = new Error('Invalid order ID.');
+    error.status = 400;
+    throw error;
+  }
+  const order = await Order.findById(req.params.id).lean();
+  if (!order) {
+    const error = new Error('Order not found.');
+    error.status = 404;
+    throw error;
+  }
+  if (!verifyAccessToken(accessToken, order.accessTokenHash)) {
+    const error = new Error('Invalid access token.');
+    error.status = 403;
+    throw error;
+  }
+  let bill = await DiningBill.findOne({ diningSessionId: order.diningSessionId });
+  if (!bill) bill = await DiningBill.create({ diningSessionId: order.diningSessionId });
+  await ensureReceiptNumber(bill);
+  const orders = await Order.find({ diningSessionId: order.diningSessionId, orderStatus: { $ne: 'cancelled' } }).sort({ createdAt: 1 }).lean();
+  const receipt = await createReceiptData({
+    orders,
+    bill,
+    tableNumber: order.tableNumber,
+    receiptUrl: publicReceiptUrl(req, order._id, accessToken),
+  });
+  return { order, bill, receipt };
+};
 
 // POST /api/orders — Create order (public)
 // SECURITY: Accepts only productId, quantity, variantId, addonIds
@@ -317,40 +360,47 @@ router.put('/:id/cash-confirmation', protect, staffOrAdmin, async (req, res) => 
 });
 
 // GET /api/orders/:id/receipt — Download receipt (requires access token)
+router.get('/admin/:id/receipt', protect, staffOrAdmin, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order ID.' });
+    const order = await Order.findById(req.params.id).lean();
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+    let bill = await DiningBill.findOne({ diningSessionId: order.diningSessionId });
+    if (!bill) bill = await DiningBill.create({ diningSessionId: order.diningSessionId });
+    await ensureReceiptNumber(bill);
+    const orders = await Order.find({ diningSessionId: order.diningSessionId, orderStatus: { $ne: 'cancelled' } }).sort({ createdAt: 1 }).lean();
+    const receipt = await createReceiptData({ orders, bill, tableNumber: order.tableNumber });
+    const pdfBuffer = await generateReceiptPdf(receipt);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="receipt-${receipt.receiptNumber}.pdf"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Admin receipt error:', error);
+    return res.status(500).json({ error: 'Unable to generate receipt. Please try again.' });
+  }
+});
+
 router.get('/:id/receipt', async (req, res) => {
   try {
-    const { accessToken } = req.query;
-
-    if (!accessToken) {
-      return res.status(401).json({ error: 'Access token is required.' });
-    }
-
-    if (!mongoose.isValidObjectId(req.params.id)) {
-      return res.status(400).json({ error: 'Invalid order ID.' });
-    }
-
-    const order = await Order.findById(req.params.id);
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found.' });
-    }
-
-    // Verify access token before generating receipt
-    try {
-      if (!verifyAccessToken(accessToken, order.accessTokenHash)) {
-        return res.status(403).json({ error: 'Invalid access token.' });
-      }
-    } catch (e) {
-      return res.status(403).json({ error: 'Invalid access token.' });
-    }
-
-    const pdfBuffer = await generateReceipt(order);
+    const { order, receipt } = await getAuthorizedReceipt(req);
+    const pdfBuffer = await generateReceiptPdf(receipt);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="receipt-${order.orderNumber}.pdf"`);
     res.send(pdfBuffer);
   } catch (error) {
     console.error('Receipt error:', error);
-    res.status(500).json({ error: 'Failed to generate receipt.' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Unable to generate receipt. Please try again.' });
+  }
+});
+
+// GET /api/orders/:id/receipt-data — Live receipt data for the customer view.
+router.get('/:id/receipt-data', async (req, res) => {
+  try {
+    const { receipt } = await getAuthorizedReceipt(req);
+    return res.json({ receipt });
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.status ? error.message : 'Unable to load receipt. Please try again.' });
   }
 });
 

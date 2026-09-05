@@ -12,6 +12,8 @@ import OffersPage from './pages/customer/OffersPage';
 import ContactPage from './pages/customer/ContactPage';
 import GalleryPage from './pages/customer/GalleryPage';
 import BillPage from './pages/customer/BillPage';
+import ReceiptPage from './pages/customer/ReceiptPage';
+import OrdersPage from './pages/customer/OrdersPage';
 
 export default function App() {
   return (
@@ -42,6 +44,9 @@ export default function App() {
         <Route path="/cart" element={<CartPage />} />
         <Route path="/checkout" element={<CheckoutPage />} />
         <Route path="/bill" element={<BillPage />} />
+        <Route path="/receipt" element={<ReceiptPage />} />
+        <Route path="/receipt/:orderId" element={<ReceiptPage />} />
+        <Route path="/orders" element={<OrdersPage />} />
         <Route path="/order-confirm/:orderId" element={<OrderConfirmPage />} />
         <Route path="/track/:orderId" element={<TrackOrderPage />} />
 

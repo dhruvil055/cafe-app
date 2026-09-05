@@ -5,6 +5,7 @@ import Table from '../models/Table.js';
 import Order from '../models/Order.js';
 import DiningBill from '../models/DiningBill.js';
 import DiningSession from '../models/DiningSession.js';
+import { createReceiptData, ensureReceiptNumber, generateReceiptPdf } from '../services/receipt.js';
 import { protect, staffOrAdmin } from '../middleware/auth.js';
 import { verifyRazorpaySignature } from '../utils/orderSecurity.js';
 import {
@@ -31,15 +32,19 @@ const refreshBill = async (sessionId) => {
   const grandTotal = orders.reduce((sum, order) => sum + order.total, 0);
   const paidAmount = orders.filter((order) => order.paymentStatus === 'paid').reduce((sum, order) => sum + order.total, 0);
   const dueAmount = Math.max(0, grandTotal - paidAmount);
-  const existing = await DiningBill.findOne({ diningSessionId: sessionId }).select('status').lean();
+  const existing = await DiningBill.findOne({ diningSessionId: sessionId }).select('status receiptNumber').lean();
   const status = existing?.status === 'CASH_PENDING' && dueAmount > 0
     ? 'CASH_PENDING'
     : dueAmount === 0 && grandTotal > 0 ? 'PAID' : 'OPEN';
-  return DiningBill.findOneAndUpdate(
+  const bill = await DiningBill.findOneAndUpdate(
     { diningSessionId: sessionId },
     { $set: { subtotal, taxTotal, grandTotal, paidAmount, dueAmount, status } },
     { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true },
   );
+
+  await ensureReceiptNumber(bill);
+
+  return bill;
 };
 
 router.post('/', async (req, res) => {
@@ -86,6 +91,33 @@ router.get('/bill', async (req, res) => {
     return res.json({ bill: { ...bill.toObject(), tableNumber: session.tableNumber }, orders });
   } catch (error) {
     return res.status(403).json({ error: error.message, code: error.code });
+  }
+});
+
+router.get('/bill/receipt-data', async (req, res) => {
+  try {
+    const session = await requireActiveDiningSession(req.query.diningSessionToken);
+    const bill = await refreshBill(session._id);
+    const orders = await Order.find({ diningSessionId: session._id, orderStatus: { $ne: 'cancelled' } }).sort({ createdAt: 1 }).lean();
+    const receipt = await createReceiptData({ orders, bill, tableNumber: session.tableNumber });
+    return res.json({ receipt });
+  } catch (error) {
+    return res.status(403).json({ error: error.message || 'Unable to load receipt.', code: error.code });
+  }
+});
+
+router.get('/bill/receipt', async (req, res) => {
+  try {
+    const session = await requireActiveDiningSession(req.query.diningSessionToken);
+    const bill = await refreshBill(session._id);
+    const orders = await Order.find({ diningSessionId: session._id, orderStatus: { $ne: 'cancelled' } }).sort({ createdAt: 1 }).lean();
+    const receipt = await createReceiptData({ orders, bill, tableNumber: session.tableNumber });
+    const pdfBuffer = await generateReceiptPdf(receipt);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="receipt-${receipt.receiptNumber}.pdf"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    return res.status(403).json({ error: error.message || 'Unable to generate receipt.', code: error.code });
   }
 });
 
@@ -158,6 +190,10 @@ router.put('/bill/:billId/confirm-cash', protect, staffOrAdmin, async (req, res)
     if (!bill) return res.status(409).json({ error: 'Bill is no longer awaiting cash payment.' });
     bill.paidAmount = bill.grandTotal;
     await bill.save();
+    await Order.updateMany(
+      { diningSessionId: bill.diningSessionId, paymentStatus: { $ne: 'paid' }, orderStatus: { $ne: 'cancelled' } },
+      { $set: { paymentStatus: 'paid', paymentVerifiedAt: new Date() } },
+    );
     await DiningSession.findOneAndUpdate({ _id: bill.diningSessionId, status: { $ne: 'CLOSED' } }, { $set: { status: 'CLOSED', closedAt: new Date(), closedBy: req.user._id } });
     return res.json({ bill });
   } catch (error) {

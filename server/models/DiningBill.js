@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const diningBillSchema = new mongoose.Schema({
   diningSessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'DiningSession', required: true, unique: true, index: true },
+  receiptNumber: { type: String, unique: true, sparse: true, index: true },
   subtotal: { type: Number, min: 0, default: 0 },
   taxTotal: { type: Number, min: 0, default: 0 },
   grandTotal: { type: Number, min: 0, default: 0 },

@@ -109,7 +109,7 @@ export default function MenuPage() {
 
         {/* Overlay content */}
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-espresso-950/20 to-espresso-950/70" />
-        <div className="absolute bottom-0 left-0 right-0 p-6 z-10">
+        <div className="absolute bottom-0 left-0 right-0 z-10 p-4 sm:p-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -175,13 +175,14 @@ export default function MenuPage() {
       </div>
 
       <div className="relative z-30 -mt-7 px-4 sm:px-6">
-        <nav className="mx-auto flex max-w-2xl items-center justify-between gap-2 rounded-full border border-foam bg-white/90 px-2 py-2 shadow-[0_12px_30px_rgba(26,15,8,0.12)] backdrop-blur-xl">
-          <Link to="/menu" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Menu</Link>
-          <Link to="/about" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">About</Link>
-          <Link to="/offers" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Offers</Link>
-          <Link to="/gallery" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Gallery</Link>
-          <Link to="/contact" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Contact</Link>
-          <Link to="/bill" className="rounded-full px-3 py-2 text-xs font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4">Bill</Link>
+        <nav className="mx-auto flex max-w-2xl items-center justify-between gap-1 overflow-x-auto rounded-full border border-foam bg-white/90 px-2 py-2 shadow-[0_12px_30px_rgba(26,15,8,0.12)] backdrop-blur-xl">
+          <Link to="/menu" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Menu</Link>
+          <Link to="/about" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">About</Link>
+          <Link to="/offers" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Offers</Link>
+          <Link to="/gallery" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Gallery</Link>
+          <Link to="/contact" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Contact</Link>
+          <Link to="/bill" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Bill</Link>
+          <Link to="/orders" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Orders</Link>
 
           <div className="flex items-center gap-2 border-l border-foam pl-2">
             <motion.button

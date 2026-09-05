@@ -8,9 +8,14 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  img, video, canvas {
+    max-width: 100%;
+  }
+
   body {
     @apply bg-cream font-body text-espresso-900 antialiased;
     overscroll-behavior: none;
+    overflow-x: hidden;
   }
 
   ::-webkit-scrollbar {
@@ -21,6 +26,10 @@
   }
   ::-webkit-scrollbar-thumb {
     @apply bg-brew-400 rounded-full;
+  }
+
+  .bottom-safe {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -72,6 +81,84 @@
 /* Canvas hover disables pointer-events to prevent interference */
 canvas {
   outline: none;
+}
+
+.about-page {
+  background: linear-gradient(180deg, #faf6f0 0%, #f7f0e7 52%, #faf6f0 100%);
+}
+
+.about-hero::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  content: '';
+  opacity: 0.13;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+}
+
+.about-hero-cup {
+  animation: about-photo-float 8s ease-in-out infinite;
+  filter: drop-shadow(0 28px 35px rgba(0, 0, 0, 0.3));
+}
+
+@keyframes about-photo-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+
+.about-depth {
+  --about-x: 0;
+  --about-y: 0;
+  perspective: 1100px;
+}
+
+.about-depth-layer {
+  will-change: transform;
+  transform: translate3d(calc(var(--about-x) * 8px), calc(var(--about-y) * 8px), 0) rotateX(calc(var(--about-y) * -1deg)) rotateY(calc(var(--about-x) * 1deg));
+  transition: transform 650ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.about-depth:hover .about-depth-layer {
+  transition-duration: 120ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .about-depth-layer {
+    transform: none;
+    transition: none;
+  }
+
+  .about-hero-cup {
+    animation: none;
+  }
+}
+
+@media print {
+  @page {
+    margin: 0;
+    size: 80mm auto;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  .receipt-page {
+    min-height: auto !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  .receipt-actions {
+    display: none !important;
+  }
+
+  .receipt-sheet {
+    max-width: 80mm !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
 }
 
 /* Skeleton shimmer */

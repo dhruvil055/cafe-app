@@ -180,7 +180,7 @@ export default function CheckoutPage() {
         <h1 className="font-display text-xl font-bold text-espresso-900">Checkout</h1>
       </div>
 
-      <div className="p-4 space-y-4 pb-32">
+      <div className="p-4 space-y-4 pb-40 sm:pb-32">
         {/* Table badge */}
         <div className="card p-4 flex items-center gap-3">
           <div className="w-10 h-10 bg-espresso-900 rounded-xl flex items-center justify-center">
@@ -265,7 +265,7 @@ export default function CheckoutPage() {
         {/* Payment method */}
         <div className="card p-4 space-y-3">
           <h2 className="font-display font-semibold text-espresso-900">Payment Method</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 min-[380px]:grid-cols-2">
             {[
               { id: 'razorpay', icon: <CreditCard size={20} />, label: 'Online Payment', sub: 'UPI, Card, Net Banking' },
               { id: 'cash', icon: <Banknote size={20} />, label: 'Cash at Counter', sub: 'Pay when you leave' },
@@ -303,7 +303,7 @@ export default function CheckoutPage() {
       </div>
 
       {/* Fixed bottom button */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-foam shadow-2xl">
+      <div className="bottom-safe fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-foam shadow-2xl">
         <motion.button
           whileTap={{ scale: 0.98 }}
           onClick={handleSubmit}

@@ -3,6 +3,7 @@ import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Download, UtensilsCrossed, CheckCircle2, Clock, Loader2 } from 'lucide-react';
 import api from '../../services/api';
+import { downloadPdf } from '../../utils/download';
 
 const STATUS_CONFIG = {
   pending:   { label: 'Order Received',    color: 'text-yellow-600', bg: 'bg-yellow-50', icon: '📋' },
@@ -39,12 +40,7 @@ export default function OrderConfirmPage() {
     setDownloading(true);
     try {
       const res = await api.get(`/orders/${orderId}/receipt?accessToken=${accessToken}`, { responseType: 'blob' });
-      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `receipt-${order.orderNumber}.pdf`;
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadPdf(res.data, `receipt-${order.orderNumber}.pdf`);
     } catch (e) {
       console.error('Receipt download failed:', e);
     } finally {
@@ -118,7 +114,7 @@ export default function OrderConfirmPage() {
       <div className="p-4 space-y-4">
         {/* Order meta */}
         <div className="card p-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 min-[380px]:grid-cols-2">
             {[
               { label: 'Order #', value: order.orderNumber },
               { label: 'Table', value: `Table ${String(order.tableNumber).padStart(2, '0')}` },
@@ -197,7 +193,13 @@ export default function OrderConfirmPage() {
         </div>
 
         {/* Actions */}
-        <div className={`grid gap-3 pb-6 ${order.paymentMethod === 'cash' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+          <div className={`grid gap-3 pb-6 ${order.paymentMethod === 'cash' ? 'grid-cols-1' : 'grid-cols-1 min-[380px]:grid-cols-2'}`}>
+          <Link to={`/receipt/${orderId}?accessToken=${encodeURIComponent(accessToken)}`} className="btn-secondary flex items-center justify-center gap-2 py-3.5 text-sm">
+            View Receipt
+          </Link>
+          <Link to="/orders" className="btn-accent flex items-center justify-center gap-2 py-3.5 text-sm">
+            View Order Status
+          </Link>
           {order.paymentMethod !== 'cash' && (
             <button
               onClick={handleDownloadReceipt}
@@ -207,7 +209,7 @@ export default function OrderConfirmPage() {
               {downloading
                 ? <Loader2 size={16} className="animate-spin" />
                 : <Download size={16} />}
-              {downloading ? 'Generating...' : 'Receipt PDF'}
+              {downloading ? 'Generating...' : 'Download Receipt'}
             </button>
           )}
           <Link to="/menu">

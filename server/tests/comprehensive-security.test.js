@@ -22,6 +22,7 @@ const { default: Order } = await import('../models/Order.js');
 const { default: DiningSession } = await import('../models/DiningSession.js');
 const { default: DiningBill } = await import('../models/DiningBill.js');
 const { default: Counter } = await import('../models/Counter.js');
+const { default: ContactMessage } = await import('../models/ContactMessage.js');
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -136,6 +137,7 @@ test('real security integration suite', async (t) => {
     DiningSession.deleteMany({}),
     DiningBill.deleteMany({}),
     Counter.deleteMany({}),
+    ContactMessage.deleteMany({}),
   ]);
 
   const category = await Category.create({ name: 'Integration Category' });
@@ -175,6 +177,28 @@ test('real security integration suite', async (t) => {
       assert.equal((await json('/api/categories', { name: 'Nope' }, { token: customerToken })).status, 403);
       assert.equal((await json('/api/tables', { tableNumber: 3 }, { token: customerToken })).status, 403);
       assert.equal((await upload(staffToken, pngBytes, 'staff.png', 'image/png')).status, 403);
+    });
+
+    await t.test('contact messages are validated, persisted, and protected from duplicates', async () => {
+      const invalid = await json('/api/contact', { name: '', contact: 'not-valid', message: 'Hi' });
+      assert.equal(invalid.status, 400);
+
+      const payload = {
+        name: 'Contact Customer',
+        contact: 'customer@example.com',
+        subject: 'Catering enquiry',
+        message: 'Could you please share your catering options?',
+      };
+      const submitted = await json('/api/contact', payload);
+      assert.equal(submitted.status, 201, JSON.stringify(submitted.data));
+      const duplicate = await json('/api/contact', payload);
+      assert.equal(duplicate.status, 409);
+
+      const stored = await ContactMessage.findOne({ contact: payload.contact }).lean();
+      assert.equal(stored.name, payload.name);
+      assert.equal(stored.subject, payload.subject);
+      assert.equal(stored.status, 'new');
+      assert.ok(stored.createdAt);
     });
 
     await t.test('server-side pricing ignores malicious client totals', async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Loader2, RefreshCw, Search } from 'lucide-react';
+import { ChevronDown, Loader2, Printer, RefreshCw, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 
@@ -90,9 +90,20 @@ export default function OrdersPage() {
     }
   };
 
+  const printReceipt = async (orderId) => {
+    try {
+      const response = await api.get(`/orders/admin/${orderId}/receipt`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+      toast.error(error.message || 'Unable to generate receipt');
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center">
+      <div className="flex flex-col gap-3">
         <div className="relative flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
           <input
@@ -127,7 +138,7 @@ export default function OrdersPage() {
           ))}
         </div>
 
-        <button onClick={fetchOrders} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600">
+        <button onClick={fetchOrders} className="inline-flex h-10 w-10 self-start items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600 sm:self-auto">
           <RefreshCw size={16} />
         </button>
       </div>
@@ -140,7 +151,7 @@ export default function OrdersPage() {
         <div className="space-y-3">
           {filteredOrders.map((order) => (
             <div key={order._id} className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-soft">
-              <div onClick={() => setExpanded((current) => current === order._id ? null : order._id)} className="flex cursor-pointer items-center gap-3 p-4">
+              <div onClick={() => setExpanded((current) => current === order._id ? null : order._id)} className="flex cursor-pointer items-start gap-3 p-3 sm:items-center sm:p-4">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-espresso-900 font-display text-sm font-bold text-white">
                   {String(order.tableNumber).padStart(2, '0')}
                 </div>
@@ -158,7 +169,7 @@ export default function OrdersPage() {
                   <div className="mt-1 text-xs text-stone-500">{order.customer?.name || 'Walk-in guest'} • {order.items?.length || 0} items • ₹{order.total}</div>
                 </div>
 
-                <div className="flex items-center gap-2 text-xs text-stone-400">
+                <div className="hidden items-center gap-2 text-xs text-stone-400 sm:flex">
                   <span>{new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
                   <ChevronDown size={16} className={`transition ${expanded === order._id ? 'rotate-180' : ''}`} />
                 </div>
@@ -198,6 +209,9 @@ export default function OrdersPage() {
                       <div>
                         <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500">Status actions</div>
                         <div className="flex flex-wrap gap-2">
+                          <button onClick={(event) => { event.stopPropagation(); printReceipt(order._id); }} className="btn-secondary inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs">
+                            <Printer size={13} /> Print receipt
+                          </button>
                           {order.paymentMethod === 'cash' && order.cashVerificationStatus === 'pending' && (
                             <>
                               <button onClick={() => verifyCashOrder(order._id, 'confirm')} disabled={updating[order._id]} className="btn-primary rounded-full px-3 py-2 text-xs">Verify & Confirm</button>
