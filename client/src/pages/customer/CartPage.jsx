@@ -1,17 +1,27 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Trash2, Plus, Minus, ShoppingBag, QrCode, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import useCartStore from '../../context/cartStore';
 
 const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=200&q=70';
 
 export default function CartPage() {
   const navigate = useNavigate();
-  const { items, tableNumber, removeItem, updateQuantity, clearCart } = useCartStore();
+  const { items, tableNumber, removeItem, updateQuantity, clearCart, openScanner } = useCartStore();
 
   const subtotal = items.reduce((s, i) => s + i.itemTotal, 0);
   const tax = Math.round(subtotal * 0.05);
   const total = subtotal + tax;
+
+  const handleProceedCheckout = () => {
+    if (!tableNumber) {
+      toast.error('Please scan your table QR code to place your order.');
+      openScanner();
+      return;
+    }
+    navigate('/checkout');
+  };
 
   if (items.length === 0) {
     return (
@@ -43,19 +53,47 @@ export default function CartPage() {
           <h1 className="font-display text-xl font-bold text-espresso-900">Your Cart</h1>
         </div>
         <div className="flex items-center gap-2">
-          {tableNumber && (
-            <span className="text-xs text-espresso-500 bg-foam px-2 py-1 rounded-full">
+          {tableNumber ? (
+            <span className="text-xs text-espresso-700 font-semibold bg-foam px-2.5 py-1 rounded-full">
               Table {String(tableNumber).padStart(2, '0')}
             </span>
+          ) : (
+            <button
+              type="button"
+              onClick={openScanner}
+              className="inline-flex items-center gap-1.5 rounded-full bg-brew-600 px-3 py-1 text-xs font-bold uppercase text-white shadow-sm hover:bg-brew-700 transition active:scale-95"
+            >
+              <QrCode size={13} />
+              <span>Scan Table</span>
+            </button>
           )}
           <button
             onClick={clearCart}
-            className="text-xs text-red-500 font-medium hover:text-red-700 transition-colors"
+            className="text-xs text-red-500 font-medium hover:text-red-700 transition-colors ml-1"
           >
             Clear All
           </button>
         </div>
       </div>
+
+      {/* Warning if table not set */}
+      {!tableNumber && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} className="text-amber-700 flex-shrink-0" />
+            <p className="text-amber-900 text-xs font-medium">
+              Please scan your table QR code to place your order.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={openScanner}
+            className="rounded-full bg-brew-600 px-3 py-1 text-xs font-bold uppercase text-white shadow-sm hover:bg-brew-700 transition active:scale-95 whitespace-nowrap"
+          >
+            Scan QR
+          </button>
+        </div>
+      )}
 
       {/* Items */}
       <div className="flex-1 overflow-y-auto pb-52 sm:pb-48">
@@ -151,15 +189,14 @@ export default function CartPage() {
           </div>
         </div>
 
-        <Link to="/checkout">
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            className="w-full btn-primary flex items-center justify-center gap-2 py-4"
-          >
-            <ShoppingBag size={18} />
-            Proceed to Checkout
-          </motion.button>
-        </Link>
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={handleProceedCheckout}
+          className="w-full btn-primary flex items-center justify-center gap-2 py-4"
+        >
+          <ShoppingBag size={18} />
+          Proceed to Checkout
+        </motion.button>
       </div>
     </div>
   );

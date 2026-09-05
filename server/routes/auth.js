@@ -81,6 +81,60 @@ router.get('/me', protect, async (req, res) => {
   res.json({ user: req.user });
 });
 
+// PUT /api/auth/profile
+router.put('/profile', protect, async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Name and email are required.' });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const existing = await User.findOne({ email: normalizedEmail, _id: { $ne: req.user._id } });
+    if (existing) {
+      return res.status(400).json({ error: 'Email is already in use by another account.' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { name: String(name).trim(), email: normalizedEmail },
+      { new: true, runValidators: true }
+    );
+
+    res.json({ user: { id: user._id, name: user.name, email: user.email, role: user.role } });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    res.status(500).json({ error: 'Failed to update profile.' });
+  }
+});
+
+// PUT /api/auth/password
+router.put('/password', protect, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required.' });
+    }
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters.' });
+    }
+
+    const user = await User.findById(req.user._id).select('+password');
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Current password is incorrect.' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ success: true, message: 'Password changed successfully.' });
+  } catch (error) {
+    console.error('Password change error:', error);
+    res.status(500).json({ error: 'Failed to change password.' });
+  }
+});
+
 // POST /api/auth/setup (first-time admin setup)
 // SECURITY: Requires ADMIN_SETUP_SECRET to prevent unauthorized admin creation
 router.post('/setup', async (req, res) => {

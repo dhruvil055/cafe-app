@@ -38,11 +38,16 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const updateUser = (updatedUser) => {
+    setUser(updatedUser);
+  };
+
   const value = useMemo(() => ({
     user,
     loading,
     login,
     logout,
+    updateUser,
     isAuthenticated: Boolean(user),
   }), [user, loading]);
 

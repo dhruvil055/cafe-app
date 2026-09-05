@@ -7,6 +7,8 @@ import OrdersPage from './pages/OrdersPage';
 import ProductsPage from './pages/ProductsPage';
 import CategoriesPage from './pages/CategoriesPage';
 import TablesPage from './pages/TablesPage';
+import ProfilePage from './pages/ProfilePage';
+import AnalyticsPage from './pages/AnalyticsPage';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -35,6 +37,8 @@ export default function App() {
       <Route path="/products" element={<ProtectedRoute><AdminLayout title="Products"><ProductsPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/categories" element={<ProtectedRoute><AdminLayout title="Categories"><CategoriesPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/tables" element={<ProtectedRoute><AdminLayout title="Tables"><TablesPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/profile" element={<ProtectedRoute><AdminLayout title="My Profile"><ProfilePage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/analytics" element={<ProtectedRoute><AdminLayout title="Analytics"><AnalyticsPage /></AdminLayout></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

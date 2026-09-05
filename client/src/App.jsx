@@ -1,6 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
+import QuickCartPopup from './components/ui/QuickCartPopup';
+import QrScannerModal from './components/ui/QrScannerModal';
+import useCartStore from './context/cartStore';
+
 // Customer pages
 import MenuPage from './pages/customer/MenuPage';
 import CartPage from './pages/customer/CartPage';
@@ -16,8 +20,12 @@ import ReceiptPage from './pages/customer/ReceiptPage';
 import OrdersPage from './pages/customer/OrdersPage';
 
 export default function App() {
+  const { isScannerOpen, closeScanner } = useCartStore();
+
   return (
     <BrowserRouter>
+      <QuickCartPopup />
+      {isScannerOpen && <QrScannerModal onClose={closeScanner} />}
       <Toaster
         position="top-center"
         toastOptions={{

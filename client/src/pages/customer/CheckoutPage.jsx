@@ -19,7 +19,7 @@ const loadRazorpay = () => {
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, tableNumber, diningSessionToken, clearCart } = useCartStore();
+  const { items, tableNumber, diningSessionToken, clearCart, openScanner } = useCartStore();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
@@ -43,7 +43,10 @@ export default function CheckoutPage() {
   const validate = () => {
     if (!name.trim()) return 'Please enter your name.';
     if (!phone.trim() || !/^\d{10}$/.test(phone)) return 'Please enter a valid 10-digit phone number.';
-    if (!tableNumber || !diningSessionToken) return 'Please scan the QR code at your table to start ordering.';
+    if (!tableNumber || !diningSessionToken) {
+      openScanner();
+      return 'Please scan the QR code at your table to start ordering.';
+    }
     return null;
   };
 
@@ -182,22 +185,34 @@ export default function CheckoutPage() {
 
       <div className="p-4 space-y-4 pb-40 sm:pb-32">
         {/* Table badge */}
-        <div className="card p-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-espresso-900 rounded-xl flex items-center justify-center">
-            <span className="text-cream font-display font-bold text-sm">
-              {String(tableNumber || '—').padStart(2, '0')}
+        <div className="card p-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-espresso-900 rounded-xl flex items-center justify-center">
+              <span className="text-cream font-display font-bold text-sm">
+                {String(tableNumber || '—').padStart(2, '0')}
+              </span>
+            </div>
+            <div>
+              <p className="text-xs text-espresso-400">Your Table</p>
+              <p className="font-medium text-espresso-900">
+                {tableNumber ? `Table ${String(tableNumber).padStart(2, '0')}` : 'Not Connected'}
+              </p>
+            </div>
+          </div>
+          {tableNumber ? (
+            <span className="flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200">
+              <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+              Dine In
             </span>
-          </div>
-          <div>
-            <p className="text-xs text-espresso-400">Your Table</p>
-            <p className="font-medium text-espresso-900">
-              Table {String(tableNumber || '—').padStart(2, '0')}
-            </p>
-          </div>
-          <span className="ml-auto flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200">
-            <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
-            Dine In
-          </span>
+          ) : (
+            <button
+              type="button"
+              onClick={openScanner}
+              className="rounded-full bg-brew-600 px-3.5 py-1 text-xs font-bold uppercase text-white shadow-sm hover:bg-brew-700 transition active:scale-95"
+            >
+              Scan Table QR
+            </button>
+          )}
         </div>
 
         {/* Customer info */}

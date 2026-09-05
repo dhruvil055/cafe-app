@@ -7,17 +7,26 @@ import toast from 'react-hot-toast';
 const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&q=80';
 
 const MenuCard = forwardRef(function MenuCard({ product, onSelect }, ref) {
-  const { addItem } = useCartStore();
+  const { addItem, tableNumber, openScanner } = useCartStore();
 
   const handleQuickAdd = (e) => {
     e.stopPropagation();
     if (!product.available) return;
+
+    if (!tableNumber) {
+      toast.error('Please scan your table QR code to add items & order.');
+      openScanner();
+      return;
+    }
+
     if (product.addons?.length > 0 || product.variants?.length > 0) {
       onSelect();
       return;
     }
-    addItem(product, 1, [], null, '');
-    toast.success(`${product.name} added!`);
+    const added = addItem(product, 1, [], null, '');
+    if (added) {
+      toast.success(`${product.name} added!`);
+    }
   };
 
   return (

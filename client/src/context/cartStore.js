@@ -7,12 +7,27 @@ const useCartStore = create(
       items: [],
       tableNumber: null,
       diningSessionToken: null,
+      isQuickCartOpen: false,
+      lastAddedItemKey: null,
+      isScannerOpen: false,
 
       setTable: (num) => set({ tableNumber: Number(num) }),
       setDiningSession: (token) => set({ diningSessionToken: token || null }),
+      openQuickCart: () => set({ isQuickCartOpen: true }),
+      closeQuickCart: () => set({ isQuickCartOpen: false }),
+      toggleQuickCart: () => set((state) => ({ isQuickCartOpen: !state.isQuickCartOpen })),
+      openScanner: () => set({ isScannerOpen: true }),
+      closeScanner: () => set({ isScannerOpen: false }),
 
       addItem: (product, quantity = 1, addons = [], variant = null, specialInstructions = '') => {
-        const { items } = get();
+        const { items, tableNumber } = get();
+
+        // Enforce table QR scan requirement before adding to cart
+        if (!tableNumber) {
+          set({ isScannerOpen: true });
+          return false;
+        }
+
         const key = `${product._id}-${JSON.stringify(addons)}-${variant?.name || ''}`;
 
         const basePrice = variant ? variant.price : product.price;
@@ -22,6 +37,8 @@ const useCartStore = create(
         const existing = items.find(i => i.key === key);
         if (existing) {
           set({
+            isQuickCartOpen: true,
+            lastAddedItemKey: key,
             items: items.map(i =>
               i.key === key
                 ? { ...i, quantity: i.quantity + quantity, itemTotal: (i.quantity + quantity) * unitPrice }
@@ -30,6 +47,8 @@ const useCartStore = create(
           });
         } else {
           set({
+            isQuickCartOpen: true,
+            lastAddedItemKey: key,
             items: [...items, {
               key,
               product: product._id,
@@ -44,6 +63,7 @@ const useCartStore = create(
             }]
           });
         }
+        return true;
       },
 
       removeItem: (key) =>

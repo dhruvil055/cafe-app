@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { LayoutDashboard, LogOut, Menu, RefreshCw, ShoppingBag, Tag, UtensilsCrossed } from 'lucide-react';
+import { LayoutDashboard, LogOut, Menu, RefreshCw, ShoppingBag, Tag, UtensilsCrossed, BarChart2 } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -10,6 +10,7 @@ const NAV = [
   { to: '/products', icon: UtensilsCrossed, label: 'Products' },
   { to: '/categories', icon: Tag, label: 'Categories' },
   { to: '/tables', icon: 'T', label: 'Tables' },
+  { to: '/analytics', icon: BarChart2, label: 'Analytics' },
 ];
 
 function Sidebar({ mobile = false, onClose }) {
@@ -55,7 +56,15 @@ function Sidebar({ mobile = false, onClose }) {
       </nav>
 
       <div className="border-t border-espresso-700 p-4">
-        <div className="mb-3 flex items-center gap-3">
+        <NavLink
+          to="/profile"
+          className={({ isActive }) =>
+            `mb-3 flex items-center gap-3 rounded-xl px-2 py-1.5 transition ${
+              isActive ? 'bg-brew-500/15' : 'hover:bg-espresso-800'
+            }`
+          }
+          onClick={onClose}
+        >
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brew-500/20 font-semibold text-brew-100">
             {user?.name?.charAt(0)?.toUpperCase() || 'A'}
           </div>
@@ -63,7 +72,7 @@ function Sidebar({ mobile = false, onClose }) {
             <div className="truncate text-sm font-medium text-white">{user?.name || 'Admin'}</div>
             <div className="truncate text-[10px] text-espresso-300">{user?.email || ''}</div>
           </div>
-        </div>
+        </NavLink>
         <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-espresso-200 transition hover:bg-red-500/10 hover:text-red-200">
           <LogOut size={15} /> Sign out
         </button>

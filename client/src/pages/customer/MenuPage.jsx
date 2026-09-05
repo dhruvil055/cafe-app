@@ -22,7 +22,7 @@ export default function MenuPage() {
   const navigate = useNavigate();
   const tableParam = searchParams.get('table');
 
-  const { items, tableNumber, setTable, setDiningSession, itemCount } = useCartStore();
+  const { items, tableNumber, setTable, setDiningSession, itemCount, openQuickCart, openScanner } = useCartStore();
 
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
@@ -151,26 +151,27 @@ export default function MenuPage() {
             <ScanLine size={19} />
             <span className="hidden sm:inline">Scan QR</span>
           </motion.button>
-          <Link to="/cart">
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="relative glass rounded-full p-3 shadow-lg"
-            >
-              <ShoppingCart size={20} className="text-espresso-900" />
-              {itemCount > 0 && (
-                <motion.span
-                  key={itemCount}
-                  initial={{ scale: 1.4 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-1 -right-1 bg-brew-500 text-white text-xs
-                             font-bold w-5 h-5 rounded-full flex items-center justify-center"
-                >
-                  {itemCount}
-                </motion.span>
-              )}
-            </motion.div>
-          </Link>
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={openQuickCart}
+            aria-label="Open Cart Quick View"
+            className="relative glass rounded-full p-3 shadow-lg text-espresso-900"
+          >
+            <ShoppingCart size={20} className="text-espresso-900" />
+            {itemCount > 0 && (
+              <motion.span
+                key={itemCount}
+                initial={{ scale: 1.4 }}
+                animate={{ scale: 1 }}
+                className="absolute -top-1 -right-1 bg-brew-500 text-white text-xs
+                           font-bold w-5 h-5 rounded-full flex items-center justify-center"
+              >
+                {itemCount}
+              </motion.span>
+            )}
+          </motion.button>
         </div>
       </div>
 
@@ -196,7 +197,14 @@ export default function MenuPage() {
               <ScanLine size={16} />
             </motion.button>
 
-            <Link to="/cart" className="relative flex h-10 w-10 items-center justify-center rounded-full bg-espresso-50 text-espresso-900 transition hover:bg-espresso-100">
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={openQuickCart}
+              aria-label="Open quick cart"
+              className="relative flex h-10 w-10 items-center justify-center rounded-full bg-espresso-50 text-espresso-900 transition hover:bg-espresso-100"
+            >
               <ShoppingCart size={17} />
               {itemCount > 0 && (
                 <motion.span
@@ -208,28 +216,46 @@ export default function MenuPage() {
                   {itemCount}
                 </motion.span>
               )}
-            </Link>
+            </motion.button>
           </div>
         </nav>
       </div>
 
       {/* Invalid table warning */}
       {tableValid === false && (
-        <div className="bg-red-50 border-b border-red-200 px-4 py-3 flex items-center gap-2">
-          <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
-          <p className="text-red-700 text-sm">
-            Invalid table number. Please scan your table's QR code again.
-          </p>
+        <div className="bg-red-50 border-b border-red-200 px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
+            <p className="text-red-700 text-xs sm:text-sm font-medium">
+              Invalid table number. Please scan your table QR code again.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={openScanner}
+            className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold uppercase text-white shadow-sm hover:bg-red-700 transition active:scale-95 whitespace-nowrap"
+          >
+            Scan QR
+          </button>
         </div>
       )}
 
       {/* No table warning */}
       {!activeTable && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center gap-2">
-          <AlertCircle size={16} className="text-amber-600 flex-shrink-0" />
-          <p className="text-amber-700 text-sm">
-            Scan your table's QR code to place an order and get it delivered to your seat.
-          </p>
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} className="text-amber-700 flex-shrink-0" />
+            <p className="text-amber-900 text-xs sm:text-sm font-medium">
+              Please scan your table QR code to start adding items & place an order.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={openScanner}
+            className="rounded-full bg-brew-600 px-3.5 py-1.5 text-xs font-bold uppercase text-white shadow-sm hover:bg-brew-700 transition active:scale-95 whitespace-nowrap"
+          >
+            Scan Table QR
+          </button>
         </div>
       )}
 
@@ -386,27 +412,29 @@ export default function MenuPage() {
           className="fixed bottom-0 left-0 right-0 p-4 bg-cream/95 backdrop-blur-sm
                      border-t border-foam bottom-safe z-40"
         >
-          <Link to="/cart">
-            <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full bg-espresso-900 text-cream rounded-2xl px-6 py-4
-                         flex items-center justify-between font-medium shadow-xl"
-            >
-              <div className="flex items-center gap-2">
-                <span className="bg-brew-500 text-white text-xs font-bold w-6 h-6
-                                rounded-full flex items-center justify-center">
-                  {itemCount}
-                </span>
-                <span>View Cart</span>
-              </div>
-              <span className="font-display text-brew-300">
-                ₹{useCartStore.getState().items.reduce((s, i) => s + i.itemTotal, 0) +
-                   Math.round(useCartStore.getState().items.reduce((s, i) => s + i.itemTotal, 0) * 0.05)}
+        <Link to="/cart">
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+            aria-label="View Full Cart"
+            className="w-full bg-espresso-900 text-cream rounded-2xl px-6 py-4
+                       flex items-center justify-between font-medium shadow-xl"
+          >
+            <div className="flex items-center gap-2">
+              <span className="bg-brew-500 text-white text-xs font-bold w-6 h-6
+                              rounded-full flex items-center justify-center">
+                {itemCount}
               </span>
-            </motion.button>
-          </Link>
-        </motion.div>
+              <span>View Cart</span>
+            </div>
+            <span className="font-display text-brew-300">
+              ₹{useCartStore.getState().items.reduce((s, i) => s + i.itemTotal, 0) +
+                 Math.round(useCartStore.getState().items.reduce((s, i) => s + i.itemTotal, 0) * 0.05)}
+            </span>
+          </motion.button>
+        </Link>
+      </motion.div>
       )}
 
       {/* Product modal */}

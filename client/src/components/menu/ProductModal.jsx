@@ -7,7 +7,7 @@ import useCartStore from '../../context/cartStore';
 const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=600&q=80';
 
 export default function ProductModal({ product, onClose }) {
-  const { addItem } = useCartStore();
+  const { addItem, tableNumber, openScanner } = useCartStore();
   const [quantity, setQuantity] = useState(1);
   const [selectedAddons, setSelectedAddons] = useState([]);
   const [selectedVariant, setSelectedVariant] = useState(null);
@@ -36,9 +36,16 @@ export default function ProductModal({ product, onClose }) {
   const total = unitPrice * quantity;
 
   const handleAdd = () => {
-    addItem(product, quantity, selectedAddons, selectedVariant, instructions);
-    toast.success(`${product.name} added to cart!`);
-    onClose();
+    if (!tableNumber) {
+      toast.error('Please scan your table QR code to start ordering.');
+      openScanner();
+      return;
+    }
+    const added = addItem(product, quantity, selectedAddons, selectedVariant, instructions);
+    if (added) {
+      toast.success(`${product.name} added to cart!`);
+      onClose();
+    }
   };
 
   return (
