@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, Search, SlidersHorizontal, Leaf, Star, ChevronDown, X, AlertCircle, ScanLine, CheckCircle2, RefreshCw } from 'lucide-react';
@@ -236,46 +236,10 @@ export default function MenuPage() {
           <Link to="/offers" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Offers</Link>
           <Link to="/gallery" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Gallery</Link>
           <Link to="/contact" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Contact</Link>
-          <Link to="/bill" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Bill</Link>
+
           <Link to="/orders" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Orders</Link>
 
-          <div className="flex items-center gap-2 border-l border-foam pl-2">
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.96 }}
-              onClick={() => setShowScanner(true)}
-              aria-label="Scan table QR code"
-              className="relative flex h-10 w-10 items-center justify-center rounded-full bg-espresso-900 text-cream shadow-sm transition hover:bg-espresso-800"
-            >
-              <ScanLine size={16} />
-            </motion.button>
 
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.96 }}
-              onClick={openQuickCart}
-              aria-label="Open quick cart"
-              className="relative flex h-10 w-10 items-center justify-center rounded-full bg-espresso-50 text-espresso-900 transition hover:bg-espresso-100"
-            >
-              <ShoppingCart size={17} />
-              <AnimatePresence>
-                {itemCount > 0 && (
-                  <motion.span
-                    key={itemCount}
-                    initial={{ scale: 1.6, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-                    className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brew-500 px-1 text-[9px] font-bold text-white"
-                  >
-                    {itemCount}
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </motion.button>
-          </div>
         </nav>
       </div>
 
@@ -444,7 +408,7 @@ export default function MenuPage() {
       </div>
 
       {/* Products grid */}
-      <div className="px-4 py-4">
+      <div className={`px-4 py-4 ${itemCount > 0 ? 'pb-28' : ''}`}>
         {loading ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
@@ -488,38 +452,37 @@ export default function MenuPage() {
       {/* Sticky cart bar */}
       {itemCount > 0 && (
         <motion.div
-          initial={{ y: 100 }}
-          animate={{ y: 0 }}
-          className="fixed bottom-0 left-0 right-0 p-4 bg-cream/95 backdrop-blur-sm
-                     border-t border-foam bottom-safe z-40"
+          initial={{ y: 100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="fixed bottom-5 right-4 z-40"
         >
-        <Link to="/cart">
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.98 }}
-            aria-label="View Full Cart"
-            className="w-full bg-espresso-900 text-cream rounded-2xl px-6 py-4
-                       flex items-center justify-between font-medium shadow-xl"
-          >
-            <div className="flex items-center gap-2">
-              <motion.span
-                key={itemCount}
-                initial={{ scale: 1.4 }}
-                animate={{ scale: 1 }}
-                className="bg-brew-500 text-white text-xs font-bold w-6 h-6
-                            rounded-full flex items-center justify-center"
-              >
-                {itemCount}
-              </motion.span>
-              <span>View Cart</span>
-            </div>
-            <span className="font-display text-brew-300">
-              {String.fromCharCode(8377)}{grandTotal}
-            </span>
-          </motion.button>
-        </Link>
-      </motion.div>
+          <Link to="/cart">
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.96 }}
+              aria-label="View Full Cart"
+              className="flex items-center justify-between gap-4 bg-espresso-900 text-cream
+                         rounded-2xl pl-3 pr-5 py-3 font-medium shadow-2xl min-w-[180px]"
+            >
+              <div className="flex items-center gap-2">
+                <motion.span
+                  key={itemCount}
+                  initial={{ scale: 1.4 }}
+                  animate={{ scale: 1 }}
+                  className="bg-brew-500 text-white text-xs font-bold w-6 h-6
+                             rounded-full flex items-center justify-center flex-shrink-0"
+                >
+                  {itemCount}
+                </motion.span>
+                <span className="text-sm">View Cart</span>
+              </div>
+              <span className="font-mono text-sm font-semibold text-brew-300">
+                {String.fromCharCode(8377)}{grandTotal}
+              </span>
+            </motion.button>
+          </Link>
+        </motion.div>
       )}
 
       {/* Product modal */}

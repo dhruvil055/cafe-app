@@ -70,12 +70,53 @@ export const createApp = ({ razorpayFactory } = {}) => {
     maxAge: 86400,
   }));
 
-  const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 200,
-    message: { error: 'Too many requests. Please try again later.' },
-  });
-  app.use('/api/', limiter);
+  // ── Rate limiting ──────────────────────────────────────────────────────────
+  // In development ALL traffic comes from 127.0.0.1, so IP-based rate limiting
+  // exhausts instantly across hot-reloads and multiple browser tabs.
+  // Only enable rate limiting in production.
+  if (process.env.NODE_ENV === 'production') {
+    // General baseline — covers all /api/ routes
+    const apiLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 500,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Too many requests. Please try again later.' },
+    });
+
+    // Relaxed limiter for read-heavy public endpoints
+    const publicLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 1000,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Too many requests. Please try again later.' },
+    });
+
+    // Strict limiter for sensitive mutation endpoints
+    const strictLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 30,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Too many requests. Please try again later.' },
+    });
+
+    app.use('/api/', apiLimiter);
+
+    // Relaxed on public read-heavy routes
+    app.use('/api/menu', publicLimiter);
+    app.use('/api/categories', publicLimiter);
+    app.use('/api/session', publicLimiter);
+    app.use('/api/orders', publicLimiter);
+    app.use('/api/tables', publicLimiter);
+    app.use('/api/gallery', publicLimiter);
+
+    // Strict on sensitive endpoints
+    app.use('/api/auth', strictLimiter);
+    app.use('/api/payment', strictLimiter);
+    app.use('/api/contact', strictLimiter);
+  }
 
   app.use(express.json({ limit: '100kb' }));
   app.use(express.urlencoded({ extended: true, limit: '100kb' }));

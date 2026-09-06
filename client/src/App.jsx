@@ -1,4 +1,4 @@
-﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 import QuickCartPopup from './components/ui/QuickCartPopup';
@@ -16,7 +16,7 @@ import AboutPage from './pages/customer/AboutPage';
 import OffersPage from './pages/customer/OffersPage';
 import ContactPage from './pages/customer/ContactPage';
 import GalleryPage from './pages/customer/GalleryPage';
-import BillPage from './pages/customer/BillPage';
+
 import ReceiptPage from './pages/customer/ReceiptPage';
 import OrdersPage from './pages/customer/OrdersPage';
 
@@ -66,7 +66,7 @@ export default function App() {
         <Route path="/gallery" element={<GalleryPage />} />
         <Route path="/cart" element={<CartPage />} />
         <Route path="/checkout" element={<CheckoutPage />} />
-        <Route path="/bill" element={<BillPage />} />
+
         <Route path="/receipt" element={<ReceiptPage />} />
         <Route path="/receipt/:orderId" element={<ReceiptPage />} />
         <Route path="/orders" element={<OrdersPage />} />

@@ -1,4 +1,4 @@
-﻿import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Trash2, Plus, Minus, ShoppingBag, QrCode, AlertCircle, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -187,7 +187,7 @@ export default function CartPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="font-display font-semibold text-espresso-900 text-sm">
+                      <span className="price-tag text-sm">
                         {String.fromCharCode(8377)}{item.itemTotal}
                       </span>
                       <button
@@ -217,15 +217,15 @@ export default function CartPage() {
         <div className="space-y-1">
           <div className="flex justify-between text-sm text-espresso-600">
             <span>Subtotal</span>
-            <span>{String.fromCharCode(8377)}{subtotal}</span>
+            <span className="price-tag text-sm">{String.fromCharCode(8377)}{subtotal}</span>
           </div>
           <div className="flex justify-between text-sm text-espresso-600">
             <span>GST (5%)</span>
-            <span>{String.fromCharCode(8377)}{tax}</span>
+            <span className="price-tag text-sm">{String.fromCharCode(8377)}{tax}</span>
           </div>
-          <div className="flex justify-between font-display font-bold text-espresso-900 text-base pt-1 border-t border-foam">
+          <div className="flex justify-between font-bold text-espresso-900 text-base pt-1 border-t border-foam">
             <span>Total</span>
-            <span>{String.fromCharCode(8377)}{total}</span>
+            <span className="price-tag text-base">{String.fromCharCode(8377)}{total}</span>
           </div>
         </div>
 

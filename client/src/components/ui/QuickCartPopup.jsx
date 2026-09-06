@@ -268,7 +268,7 @@ export default function QuickCartPopup() {
             <div className="border-t border-foam bg-cream/60 p-4">
               <div className="flex items-center justify-between pb-3 text-xs">
                 <span className="text-espresso-600 font-medium">Cart Total (incl. tax)</span>
-                <span className="font-display text-lg font-bold text-espresso-950">₹{total}</span>
+                <span className="font-mono text-lg font-bold text-espresso-950">₹{total}</span>
               </div>
 
               <div className="grid grid-cols-2 gap-2">

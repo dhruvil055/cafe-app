@@ -33,7 +33,9 @@ export default function DashboardPage() {
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500">{label}</div>
                 <div className="mt-2 text-3xl font-bold text-stone-900">
-                  {key === 'todayRevenue' ? `₹${Number(stats[key] || 0)}` : Number(stats[key] || 0)}
+                  {key === 'todayRevenue'
+                    ? `₹${Number(stats[key] || 0).toFixed(2)}`
+                    : Number(stats[key] || 0)}
                 </div>
               </div>
               <div className={`flex h-11 w-11 items-center justify-center rounded-xl bg-stone-100 ${tone}`}>
@@ -63,7 +65,7 @@ export default function DashboardPage() {
                   <div className="text-sm text-stone-500">Table {order.tableNumber} • {order.customer?.name}</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-semibold text-stone-900">₹{order.total}</div>
+                  <div className="font-semibold text-stone-900">₹{Number(order.total || 0).toFixed(2)}</div>
                   <div className={`mt-1 inline-flex rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] status-${order.orderStatus}`}>
                     {order.orderStatus}
                   </div>

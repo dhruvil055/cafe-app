@@ -235,11 +235,19 @@ canvas {
          transition-all duration-150 text-sm font-bold active:scale-90;
 }
 
-/* Price tag */
-.price-tag {
-  @apply font-body font-semibold tracking-normal text-espresso-900 text-base sm:text-lg leading-none;
+/* ─── Unified price / number style ─────────────────────────────────────────
+   Use .price-tag on explicit price spans.
+   .num is a lightweight helper for inline numbers anywhere.
+   The global rule targets every ₹ character so even un-classed spots are
+   rendered consistently.
+────────────────────────────────────────────────────────────────────────── */
+.price-tag,
+.num {
+  font-family: 'JetBrains Mono', monospace;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  @apply leading-none text-espresso-900;
 }
 
 /* Status badges */

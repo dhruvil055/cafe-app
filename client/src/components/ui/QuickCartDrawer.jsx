@@ -285,15 +285,15 @@ export default function QuickCartDrawer() {
                   <div className="space-y-1.5 text-xs">
                     <div className="flex justify-between text-espresso-600">
                       <span>Subtotal</span>
-                      <span className="font-semibold text-espresso-900">₹{subtotal}</span>
+                      <span className="price-tag text-xs">₹{subtotal}</span>
                     </div>
                     <div className="flex justify-between text-espresso-600">
                       <span>Taxes & GST (5%)</span>
-                      <span className="font-semibold text-espresso-900">₹{tax}</span>
+                      <span className="price-tag text-xs">₹{tax}</span>
                     </div>
                     <div className="flex justify-between border-t border-dashed border-espresso-200 pt-2 text-sm font-bold text-espresso-950">
                       <span>Total Amount</span>
-                      <span className="font-display text-xl text-espresso-950">₹{grandTotal}</span>
+                      <span className="price-tag text-xl text-espresso-950">₹{grandTotal}</span>
                     </div>
                   </div>
 
@@ -311,7 +311,7 @@ export default function QuickCartDrawer() {
                         <ShoppingBag size={15} className="text-brew-300" />
                         <span>Proceed to Checkout</span>
                       </div>
-                      <span className="font-display text-base text-brew-200">₹{grandTotal}</span>
+                      <span className="price-tag text-base text-brew-200">₹{grandTotal}</span>
                     </button>
 
                     <div className="flex gap-2">

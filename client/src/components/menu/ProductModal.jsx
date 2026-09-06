@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Plus, Minus, ShoppingBag, Star, Clock, ScanLine, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -265,7 +265,7 @@ export default function ProductModal({ product, onClose }) {
               </span>
             </div>
             {product.available && (
-              <span className="font-display text-lg">{String.fromCharCode(8377)}{total}</span>
+              <span className="font-mono text-base font-semibold text-brew-300">{String.fromCharCode(8377)}{total}</span>
             )}
           </motion.button>
         </div>

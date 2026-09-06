@@ -25,7 +25,10 @@ export default function ReceiptPage() {
 
   useEffect(() => {
     const loadReceipt = async () => {
-      if ((sessionReceipt && !diningSessionToken) || (!sessionReceipt && !accessToken)) { setLoading(false); return; }
+      if ((sessionReceipt && !diningSessionToken) || (!sessionReceipt && !accessToken)) {
+        setLoading(false);
+        return;
+      }
       try {
         const endpoint = sessionReceipt
           ? `/session/bill/receipt-data?diningSessionToken=${encodeURIComponent(diningSessionToken)}`
@@ -41,7 +44,8 @@ export default function ReceiptPage() {
     loadReceipt();
   }, [accessToken, diningSessionToken, orderId, sessionReceipt]);
 
-  const downloadPdf = async () => {
+  // Renamed from downloadPdf to avoid shadowing the imported downloadPdf utility
+  const handleDownload = async () => {
     setDownloading(true);
     try {
       const endpoint = sessionReceipt
@@ -75,7 +79,7 @@ export default function ReceiptPage() {
         <Link to="/menu" className="inline-flex items-center gap-2 rounded-full border border-espresso-200 bg-white px-3 py-2 text-sm font-medium text-espresso-700"><ArrowLeft size={16} /> Back to Order</Link>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-full border border-espresso-200 bg-white px-3 py-2 text-sm font-medium text-espresso-700"><Printer size={16} /> Print Receipt</button>
-          <button onClick={downloadPdf} disabled={downloading} className="inline-flex items-center gap-2 rounded-full bg-espresso-900 px-3 py-2 text-sm font-medium text-cream disabled:opacity-60"><Download size={16} /> {downloading ? 'Preparing...' : 'Download Receipt'}</button>
+          <button onClick={handleDownload} disabled={downloading} className="inline-flex items-center gap-2 rounded-full bg-espresso-900 px-3 py-2 text-sm font-medium text-cream disabled:opacity-60"><Download size={16} /> {downloading ? 'Preparing...' : 'Download Receipt'}</button>
           <button onClick={shareReceipt} className="inline-flex items-center gap-2 rounded-full border border-espresso-200 bg-white px-3 py-2 text-sm font-medium text-espresso-700"><Share2 size={16} /> Share</button>
         </div>
       </div>
@@ -83,7 +87,7 @@ export default function ReceiptPage() {
       <article className="receipt-sheet mx-auto max-w-md bg-white px-5 py-7 shadow-xl sm:px-7 sm:py-8">
         <header className="border-b border-espresso-200 pb-6 text-center">
           <p className="font-display text-3xl font-bold tracking-[0.12em] text-espresso-950">BREWHAUS</p>
-          <p className="mt-1 text-xs font-semibold tracking-[0.24em] text-brew-600">FINE COFFEE & DINING</p>
+          <p className="mt-1 text-xs font-semibold tracking-[0.24em] text-brew-600">FINE COFFEE &amp; DINING</p>
           <p className="mt-3 text-xs text-espresso-500">Surat, Gujarat 395001 | +91 98765 43210</p>
           <p className="mt-5 font-mono text-sm font-semibold text-espresso-900">{receipt.receiptNumber}</p>
         </header>
@@ -96,7 +100,18 @@ export default function ReceiptPage() {
         <section className="py-6">
           <div className="grid grid-cols-[1fr_2.5rem_5rem] border-b border-espresso-200 pb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-espresso-500"><span>Item</span><span className="text-center">Qty</span><span className="text-right">Amount</span></div>
           <div className="divide-y divide-espresso-100">
-            {receipt.items.map((item, index) => <div key={`${item.orderNumber}-${item.name}-${index}`} className="grid grid-cols-[1fr_2.5rem_5rem] gap-2 py-3 text-sm"><div><p className="font-semibold text-espresso-900">{item.name}</p>{item.variant && <p className="mt-1 text-xs text-espresso-500">+ Size: {item.variant.name}</p>}{item.addons?.map((addon) => <p key={addon.name} className="text-xs text-espresso-500">+ Add-on: {addon.name}</p>)}{item.specialInstructions && <p className="text-xs italic text-espresso-500">Note: {item.specialInstructions}</p>}</div><span className="text-center text-espresso-700">{item.quantity}</span><span className="text-right font-medium text-espresso-900">{money(item.itemTotal)}</span></div>)}
+            {receipt.items.map((item, index) => (
+              <div key={`${item.orderNumber}-${item.name}-${index}`} className="grid grid-cols-[1fr_2.5rem_5rem] gap-2 py-3 text-sm">
+                <div>
+                  <p className="font-semibold text-espresso-900">{item.name}</p>
+                  {item.variant && <p className="mt-1 text-xs text-espresso-500">+ Size: {item.variant.name}</p>}
+                  {item.addons?.map((addon) => <p key={addon.name} className="text-xs text-espresso-500">+ Add-on: {addon.name}</p>)}
+                  {item.specialInstructions && <p className="text-xs italic text-espresso-500">Note: {item.specialInstructions}</p>}
+                </div>
+                <span className="text-center text-espresso-700">{item.quantity}</span>
+                <span className="text-right font-medium text-espresso-900">{money(item.itemTotal)}</span>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -115,7 +130,12 @@ export default function ReceiptPage() {
         </section>
 
         {receipt.paymentStatus !== 'PAID' && <div className="mt-5 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><CheckCircle2 size={17} className="mt-0.5 shrink-0" />Payment pending - receipt will be finalized after payment confirmation.</div>}
-        <footer className="mt-8 border-t border-espresso-200 pt-6 text-center"><p className="font-display text-lg font-semibold text-brew-700">Thank you for visiting Brewhaus!</p><p className="mt-1 text-sm text-espresso-500">Please visit again. Have a great day!</p><p className="mt-3 text-xs text-espresso-400">www.brewhauscafe.com</p></footer>
+
+        <footer className="mt-8 border-t border-espresso-200 pt-6 text-center">
+          <p className="font-display text-lg font-semibold text-brew-700">Thank you for visiting Brewhaus!</p>
+          <p className="mt-1 text-sm text-espresso-500">Please visit again. Have a great day!</p>
+          <p className="mt-3 text-xs text-espresso-400">www.brewhauscafe.com</p>
+        </footer>
       </article>
     </div>
   );

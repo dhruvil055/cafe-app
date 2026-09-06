@@ -10,16 +10,44 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Response interceptor — normalize errors, preserve backend error code
+// Retry config — only retry on transient 5xx server errors, NOT on 429
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 500;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+api.interceptors.request.use((config) => {
+  config._retryCount = config._retryCount ?? 0;
+  return config;
+});
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const config = error.config;
+    const status = error.response?.status;
+
+    // Only retry GET requests on 5xx server errors (NOT 429 — retrying rate-limit makes it worse)
+    const shouldRetry =
+      config &&
+      config.method === 'get' &&
+      status >= 500 &&
+      status < 600 &&
+      config._retryCount < MAX_RETRIES;
+
+    if (shouldRetry) {
+      config._retryCount += 1;
+      const delay = RETRY_DELAY_MS * config._retryCount;
+      await sleep(delay);
+      return api(config);
+    }
+
+    // Normalize error message
     const data = error.response?.data;
     const msg = data?.error || error.message || 'Network error. Please try again.';
     const err = new Error(msg);
-    // Preserve backend session error codes (SESSION_EXPIRED, SESSION_INVALID, etc.)
     if (data?.code) err.code = data.code;
-    err.status = error.response?.status;
+    err.status = status;
     return Promise.reject(err);
   }
 );
