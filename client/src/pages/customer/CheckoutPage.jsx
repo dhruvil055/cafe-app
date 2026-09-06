@@ -1,10 +1,13 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, CreditCard, Banknote, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, CreditCard, Banknote, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import useCartStore from '../../context/cartStore';
+import { useSessionValidator } from '../../hooks/useSessionValidator';
+
+const SESSION_CODES = new Set(['SESSION_REQUIRED', 'SESSION_INVALID', 'SESSION_EXPIRED', 'SESSION_CLOSED']);
 
 const loadRazorpay = () => {
   return new Promise((resolve) => {
@@ -19,16 +22,21 @@ const loadRazorpay = () => {
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, tableNumber, diningSessionToken, clearCart, openScanner } = useCartStore();
+  const { items, tableNumber, diningSessionToken, sessionExpired, clearCart, openScanner, invalidateSession } = useCartStore();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Validate session on every visit
+  useSessionValidator();
+
   const subtotal = items.reduce((s, i) => s + i.itemTotal, 0);
   const tax = Math.round(subtotal * 0.05);
   const total = subtotal + tax;
+
+  const hasValidSession = Boolean(tableNumber && diningSessionToken && !sessionExpired);
 
   if (items.length === 0) {
     return (
@@ -40,12 +48,24 @@ export default function CheckoutPage() {
     );
   }
 
+  const handleSessionError = (err) => {
+    if (err.code && SESSION_CODES.has(err.code)) {
+      invalidateSession();
+      setError('Your table session has expired. Please scan the table QR code again.');
+      openScanner();
+    } else {
+      setError(err.message || 'Failed to place order. Please try again.');
+    }
+  };
+
   const validate = () => {
     if (!name.trim()) return 'Please enter your name.';
     if (!phone.trim() || !/^\d{10}$/.test(phone)) return 'Please enter a valid 10-digit phone number.';
-    if (!tableNumber || !diningSessionToken) {
+    if (!hasValidSession) {
       openScanner();
-      return 'Please scan the QR code at your table to start ordering.';
+      return sessionExpired
+        ? 'Your table session has expired. Please scan the table QR code again.'
+        : 'Please scan the QR code at your table to start ordering.';
     }
     return null;
   };
@@ -56,8 +76,6 @@ export default function CheckoutPage() {
     setLoading(true);
     setError('');
     try {
-      // SECURITY: Convert cart items to secure format (productId, quantity only)
-      // Backend will fetch real prices from database
       const secureItems = items.map(item => ({
         productId: item.product,
         quantity: item.quantity,
@@ -77,7 +95,7 @@ export default function CheckoutPage() {
       clearCart();
       navigate(`/order-confirm/${res.data.order._id}?token=${accessToken}`);
     } catch (e) {
-      setError(e.message || 'Failed to place order. Please try again.');
+      handleSessionError(e);
     } finally {
       setLoading(false);
     }
@@ -90,8 +108,6 @@ export default function CheckoutPage() {
     setError('');
 
     try {
-      // 1. Create order in our DB
-      // SECURITY: Convert cart items to secure format (productId, quantity only)
       const secureItems = items.map(item => ({
         productId: item.product,
         quantity: item.quantity,
@@ -117,20 +133,17 @@ export default function CheckoutPage() {
         return;
       }
 
-      // 2. Create Razorpay order
       const rzpRes = await api.post('/payment/create-order', { orderId: order._id, accessToken, diningSessionToken });
       const { razorpayOrderId, amount, keyId } = rzpRes.data;
 
-      // 3. Load Razorpay script
       const loaded = await loadRazorpay();
       if (!loaded) throw new Error('Payment gateway failed to load. Check your internet connection.');
 
-      // 4. Open Razorpay checkout
       const rzp = new window.Razorpay({
         key: keyId || import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount,
         currency: 'INR',
-        name: 'Brewhaus Café',
+        name: 'Brewhaus Cafe',
         description: `Order ${order.orderNumber} · Table ${tableNumber}`,
         order_id: razorpayOrderId,
         prefill: { name: name.trim(), contact: phone.trim() },
@@ -143,7 +156,6 @@ export default function CheckoutPage() {
         },
         handler: async (response) => {
           try {
-            // 5. Verify payment on backend
             await api.post('/payment/verify', {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
@@ -155,7 +167,7 @@ export default function CheckoutPage() {
             clearCart();
             navigate(`/order-confirm/${order._id}?token=${accessToken}`);
           } catch (verifyErr) {
-            setError('Payment verification failed. Please contact staff.');
+            handleSessionError(verifyErr);
             setLoading(false);
           }
         },
@@ -163,7 +175,7 @@ export default function CheckoutPage() {
 
       rzp.open();
     } catch (e) {
-      setError(e.message || 'Payment failed. Please try again.');
+      handleSessionError(e);
       setLoading(false);
     }
   };
@@ -184,11 +196,33 @@ export default function CheckoutPage() {
       </div>
 
       <div className="p-4 space-y-4 pb-40 sm:pb-32">
+        {/* Session expired inline warning */}
+        {sessionExpired && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl bg-red-50 border border-red-200 p-4 flex items-start gap-3"
+          >
+            <RefreshCw size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-red-800 font-semibold text-sm">Table session expired</p>
+              <p className="text-red-600 text-xs mt-0.5">Please scan the QR code at your table again to continue.</p>
+            </div>
+            <button
+              type="button"
+              onClick={openScanner}
+              className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white hover:bg-red-700 transition whitespace-nowrap"
+            >
+              Scan QR
+            </button>
+          </motion.div>
+        )}
+
         {/* Table badge */}
         <div className="card p-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-espresso-900 rounded-xl flex items-center justify-center">
-              <span className="text-cream font-display font-bold text-sm">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${hasValidSession ? 'bg-espresso-900' : 'bg-red-100'}`}>
+              <span className={`font-display font-bold text-sm ${hasValidSession ? 'text-cream' : 'text-red-600'}`}>
                 {String(tableNumber || '—').padStart(2, '0')}
               </span>
             </div>
@@ -199,7 +233,7 @@ export default function CheckoutPage() {
               </p>
             </div>
           </div>
-          {tableNumber ? (
+          {hasValidSession ? (
             <span className="flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200">
               <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
               Dine In
@@ -210,7 +244,7 @@ export default function CheckoutPage() {
               onClick={openScanner}
               className="rounded-full bg-brew-600 px-3.5 py-1 text-xs font-bold uppercase text-white shadow-sm hover:bg-brew-700 transition active:scale-95"
             >
-              Scan Table QR
+              {sessionExpired ? 'Re-scan QR' : 'Scan Table QR'}
             </button>
           )}
         </div>
@@ -253,26 +287,26 @@ export default function CheckoutPage() {
             {items.map(item => (
               <div key={item.key} className="flex justify-between text-sm">
                 <span className="text-espresso-700 flex-1 pr-2 truncate">
-                  {item.name} × {item.quantity}
+                  {item.name} {String.fromCharCode(215)} {item.quantity}
                   {item.addons?.length > 0 && (
                     <span className="text-espresso-400 text-xs ml-1">
                       (+{item.addons.map(a => a.name).join(', ')})
                     </span>
                   )}
                 </span>
-                <span className="font-medium text-espresso-900 flex-shrink-0">₹{item.itemTotal}</span>
+                <span className="font-medium text-espresso-900 flex-shrink-0">{String.fromCharCode(8377)}{item.itemTotal}</span>
               </div>
             ))}
           </div>
           <div className="border-t border-foam pt-2 space-y-1">
             <div className="flex justify-between text-sm text-espresso-500">
-              <span>Subtotal</span><span>₹{subtotal}</span>
+              <span>Subtotal</span><span>{String.fromCharCode(8377)}{subtotal}</span>
             </div>
             <div className="flex justify-between text-sm text-espresso-500">
-              <span>GST (5%)</span><span>₹{tax}</span>
+              <span>GST (5%)</span><span>{String.fromCharCode(8377)}{tax}</span>
             </div>
             <div className="flex justify-between font-display font-bold text-espresso-900 text-base">
-              <span>Total</span><span>₹{total}</span>
+              <span>Total</span><span>{String.fromCharCode(8377)}{total}</span>
             </div>
           </div>
         </div>
@@ -333,7 +367,7 @@ export default function CheckoutPage() {
           ) : (
             <>
               {paymentMethod === 'razorpay' ? <CreditCard size={18} /> : <Banknote size={18} />}
-              {paymentMethod === 'razorpay' ? `Pay ₹${total}` : `Place Order · ₹${total}`}
+              {paymentMethod === 'razorpay' ? `Pay ${String.fromCharCode(8377)}${total}` : `Place Order · ${String.fromCharCode(8377)}${total}`}
             </>
           )}
         </motion.button>

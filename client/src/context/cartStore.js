@@ -7,12 +7,31 @@ const useCartStore = create(
       items: [],
       tableNumber: null,
       diningSessionToken: null,
+      sessionExpired: false,
       isQuickCartOpen: false,
       lastAddedItemKey: null,
       isScannerOpen: false,
 
       setTable: (num) => set({ tableNumber: Number(num) }),
-      setDiningSession: (token) => set({ diningSessionToken: token || null }),
+
+      setDiningSession: (token) => set({
+        diningSessionToken: token || null,
+        // Receiving a fresh token clears the expired state
+        sessionExpired: false,
+      }),
+
+      setSessionExpired: (flag) => set({ sessionExpired: Boolean(flag) }),
+
+      /**
+       * Invalidates the session (e.g. on expiry detected from backend).
+       * Clears the token and marks expired, but keeps cart items so the user
+       * can re-scan and continue without re-adding everything.
+       */
+      invalidateSession: () => set({
+        diningSessionToken: null,
+        sessionExpired: true,
+      }),
+
       openQuickCart: () => set({ isQuickCartOpen: true }),
       closeQuickCart: () => set({ isQuickCartOpen: false }),
       toggleQuickCart: () => set((state) => ({ isQuickCartOpen: !state.isQuickCartOpen })),
@@ -20,10 +39,10 @@ const useCartStore = create(
       closeScanner: () => set({ isScannerOpen: false }),
 
       addItem: (product, quantity = 1, addons = [], variant = null, specialInstructions = '') => {
-        const { items, tableNumber } = get();
+        const { items, tableNumber, diningSessionToken, sessionExpired } = get();
 
         // Enforce table QR scan requirement before adding to cart
-        if (!tableNumber) {
+        if (!tableNumber || !diningSessionToken || sessionExpired) {
           set({ isScannerOpen: true });
           return false;
         }
@@ -82,29 +101,32 @@ const useCartStore = create(
       },
 
       clearCart: () => set({ items: [] }),
-
-      get subtotal() {
-        return get().items.reduce((s, i) => s + i.itemTotal, 0);
-      },
-
-      get tax() {
-        return Math.round(get().items.reduce((s, i) => s + i.itemTotal, 0) * 0.05);
-      },
-
-      get total() {
-        const sub = get().items.reduce((s, i) => s + i.itemTotal, 0);
-        return sub + Math.round(sub * 0.05);
-      },
-
-      get itemCount() {
-        return get().items.reduce((s, i) => s + i.quantity, 0);
-      },
     }),
     {
       name: 'brewhaus-cart',
-      partialize: (state) => ({ items: state.items, tableNumber: state.tableNumber, diningSessionToken: state.diningSessionToken }),
+      partialize: (state) => ({
+        items: state.items,
+        tableNumber: state.tableNumber,
+        diningSessionToken: state.diningSessionToken,
+        // sessionExpired is NOT persisted — always recheck on fresh load
+      }),
     }
   )
 );
+
+/**
+ * Reactive item count selector — use this in components for always-correct count.
+ * Usage: const count = useCartStore(cartItemCount);
+ */
+export const cartItemCount = (state) =>
+  state.items.reduce((s, i) => s + i.quantity, 0);
+
+/**
+ * Reactive subtotal selector
+ * Usage: const sub = useCartStore(cartSubtotal);
+ */
+export const cartSubtotal = (state) =>
+  state.items.reduce((s, i) => s + i.itemTotal, 0);
+
 
 export default useCartStore;

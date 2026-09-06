@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { QrCode, X, Sparkles } from 'lucide-react';
+import { QrCode, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import useCartStore from '../../context/cartStore';
@@ -20,10 +20,11 @@ const extractTableNumber = (value) => {
 
 export default function QrScannerModal({ onClose, onTableFound }) {
   const scannerRef = useRef(null);
-  const [manualValue, setManualValue] = useState('');
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
-  const { setTable, setDiningSession, closeScanner } = useCartStore();
+  // Pending-confirm state for different-table detection
+  const [pendingTable, setPendingTable] = useState(null);
+  const { setTable, setDiningSession, closeScanner, tableNumber, items, clearCart } = useCartStore();
 
   useEffect(() => {
     const scanner = new Html5Qrcode('qr-reader');
@@ -37,7 +38,7 @@ export default function QrScannerModal({ onClose, onTableFound }) {
       },
       () => {}
     ).catch(() => {
-      setError('Camera access is unavailable. Enter the table number below or grant camera permissions.');
+      setError('Camera access is unavailable. Please grant camera permissions and try again.');
     });
 
     return () => {
@@ -49,26 +50,41 @@ export default function QrScannerModal({ onClose, onTableFound }) {
   }, []);
 
   const handleTableValue = async (value) => {
-    const tableNumber = extractTableNumber(value);
-    if (!tableNumber) {
+    const tableNum = extractTableNumber(value);
+    if (!tableNum) {
       setError('That QR code is not a Brewhaus table code.');
       return;
     }
+    const num = Number(tableNum);
 
+    // If customer already has items for a different table, ask for confirmation
+    if (tableNumber && tableNumber !== num && items.length > 0) {
+      setPendingTable(num);
+      return;
+    }
+
+    await connectToTable(num);
+  };
+
+  const connectToTable = async (num) => {
     setChecking(true);
     setError('');
     try {
-      await api.get(`/tables/${tableNumber}/validate`);
+      await api.get(`/tables/${num}/validate`);
       const currentToken = useCartStore.getState().diningSessionToken;
+      // Only pass the current token if it is for the same table
+      const tokenForSession = useCartStore.getState().tableNumber === num ? currentToken : null;
       const response = await api.post('/session', {
-        tableNumber: Number(tableNumber),
-        diningSessionToken: currentToken,
+        tableNumber: num,
+        diningSessionToken: tokenForSession,
       });
 
-      const num = Number(tableNumber);
       setTable(num);
       setDiningSession(response.data.diningSessionToken);
-      toast.success(`Table ${String(num).padStart(2, '0')} connected! You can now order.`);
+      toast.success(`Table ${String(num).padStart(2, '0')} connected! You can now order.`, {
+        icon: '✅',
+        duration: 4000,
+      });
 
       if (onTableFound) {
         onTableFound(num);
@@ -81,13 +97,16 @@ export default function QrScannerModal({ onClose, onTableFound }) {
     }
   };
 
-  const handleManualSubmit = (event) => {
-    event.preventDefault();
-    if (!manualValue.trim()) {
-      setError('Please enter your table number.');
-      return;
-    }
-    handleTableValue(manualValue);
+  const handleConfirmNewTable = async () => {
+    if (!pendingTable) return;
+    clearCart();
+    setPendingTable(null);
+    await connectToTable(pendingTable);
+  };
+
+  const handleCancelNewTable = () => {
+    setPendingTable(null);
+    setError('');
   };
 
   const handleClose = () => {
@@ -131,10 +150,47 @@ export default function QrScannerModal({ onClose, onTableFound }) {
         </div>
 
         <div className="p-5 sm:p-6">
-          <div id="qr-reader" className="overflow-hidden rounded-2xl bg-espresso-950 shadow-inner" />
-          <p className="mt-3.5 text-center text-xs text-espresso-600">
-            Point your camera at the QR code stand on your café table.
-          </p>
+          {/* Different-table confirmation dialog */}
+          {pendingTable && (
+            <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-amber-900 text-sm">Switch to Table {String(pendingTable).padStart(2, '0')}?</p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    You have {items.length} item{items.length !== 1 ? 's' : ''} in your cart for Table {String(tableNumber).padStart(2, '0')}.
+                    Switching tables will <strong>clear your current cart</strong>.
+                  </p>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      type="button"
+                      onClick={handleCancelNewTable}
+                      className="flex-1 rounded-xl border border-amber-300 bg-white py-2 text-xs font-bold text-amber-800 hover:bg-amber-100 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmNewTable}
+                      disabled={checking}
+                      className="flex-1 rounded-xl bg-amber-600 py-2 text-xs font-bold text-white hover:bg-amber-700 transition disabled:opacity-50"
+                    >
+                      Switch to Table {String(pendingTable).padStart(2, '0')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!pendingTable && (
+            <>
+              <div id="qr-reader" className="overflow-hidden rounded-2xl bg-espresso-950 shadow-inner" />
+              <p className="mt-3.5 text-center text-xs text-espresso-600">
+                Point your camera at the QR code stand on your cafe table.
+              </p>
+            </>
+          )}
 
           {error && (
             <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-center text-xs font-medium text-red-700">
@@ -146,30 +202,6 @@ export default function QrScannerModal({ onClose, onTableFound }) {
               Validating table & starting dining session...
             </div>
           )}
-
-          <div className="my-5 flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-espresso-400">
-            <span className="h-px flex-1 bg-foam" />
-            OR ENTER TABLE NUMBER
-            <span className="h-px flex-1 bg-foam" />
-          </div>
-
-          <form onSubmit={handleManualSubmit} className="flex gap-2">
-            <input
-              value={manualValue}
-              onChange={event => setManualValue(event.target.value)}
-              inputMode="numeric"
-              placeholder="e.g. 3"
-              aria-label="Table number"
-              className="w-full rounded-xl border border-foam bg-white px-4 py-3 text-sm font-medium text-espresso-900 placeholder:text-espresso-400 focus:border-brew-500 focus:outline-none focus:ring-2 focus:ring-brew-200"
-            />
-            <button
-              type="submit"
-              disabled={checking}
-              className="btn-primary whitespace-nowrap px-5 text-xs font-bold uppercase tracking-wider shadow-sm disabled:opacity-50"
-            >
-              Use Table
-            </button>
-          </form>
         </div>
       </div>
     </div>

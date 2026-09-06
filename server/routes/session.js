@@ -17,6 +17,26 @@ import {
 
 const router = express.Router();
 
+// GET /api/session/validate — lightweight token verification (no side-effects except lastActivityAt refresh)
+router.get('/validate', async (req, res) => {
+  const token = req.query.diningSessionToken;
+  if (!token) {
+    return res.status(400).json({ valid: false, code: 'SESSION_REQUIRED', error: 'No session token provided.' });
+  }
+  try {
+    const session = await requireActiveDiningSession(token);
+    return res.json({
+      valid: true,
+      tableNumber: session.tableNumber,
+      sessionId: session._id,
+      status: session.status,
+      expiresAt: session.expiresAt,
+    });
+  } catch (err) {
+    return res.status(200).json({ valid: false, code: err.code || 'SESSION_INVALID', error: err.message });
+  }
+});
+
 const getRazorpay = (req) => {
   if (typeof req.app.locals.razorpayFactory === 'function') return req.app.locals.razorpayFactory();
   if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET === 'placeholder_secret' || (process.env.NODE_ENV === 'production' && process.env.RAZORPAY_KEY_ID.startsWith('rzp_test_'))) {

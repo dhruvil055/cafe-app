@@ -10,12 +10,17 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Response interceptor — normalize errors
+// Response interceptor — normalize errors, preserve backend error code
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const msg = error.response?.data?.error || error.message || 'Network error. Please try again.';
-    return Promise.reject(new Error(msg));
+    const data = error.response?.data;
+    const msg = data?.error || error.message || 'Network error. Please try again.';
+    const err = new Error(msg);
+    // Preserve backend session error codes (SESSION_EXPIRED, SESSION_INVALID, etc.)
+    if (data?.code) err.code = data.code;
+    err.status = error.response?.status;
+    return Promise.reject(err);
   }
 );
 

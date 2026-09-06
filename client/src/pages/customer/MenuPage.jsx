@@ -1,14 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingCart, Search, SlidersHorizontal, Leaf, Star, ChevronDown, X, AlertCircle, ScanLine } from 'lucide-react';
+import { ShoppingCart, Search, SlidersHorizontal, Leaf, Star, ChevronDown, X, AlertCircle, ScanLine, CheckCircle2, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
-import useCartStore from '../../context/cartStore';
+import useCartStore, { cartItemCount } from '../../context/cartStore';
 import ProductModal from '../../components/menu/ProductModal';
 import MenuCard from '../../components/menu/MenuCard';
 import SkeletonCard from '../../components/ui/SkeletonCard';
 import QrScannerModal from '../../components/ui/QrScannerModal';
+import { useSessionValidator } from '../../hooks/useSessionValidator';
 
 const SORT_OPTIONS = [
   { value: '', label: 'Default' },
@@ -22,7 +23,9 @@ export default function MenuPage() {
   const navigate = useNavigate();
   const tableParam = searchParams.get('table');
 
-  const { items, tableNumber, setTable, setDiningSession, itemCount, openQuickCart, openScanner } = useCartStore();
+  const { items, tableNumber, sessionExpired, setTable, setDiningSession, openQuickCart, openScanner } = useCartStore();
+  // Reactive item count via selector
+  const itemCount = useCartStore(cartItemCount);
 
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
@@ -37,23 +40,37 @@ export default function MenuPage() {
   const [tableValid, setTableValid] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [tableConnectedAnim, setTableConnectedAnim] = useState(false);
 
   const searchRef = useRef();
   const debounceRef = useRef();
 
-  // Set table from URL
+  // Validate stored session on every route visit
+  useSessionValidator();
+
+  // Set table from URL on initial load
   useEffect(() => {
-    if (tableParam) {
-      setTable(tableParam);
-      api.get(`/tables/${tableParam}/validate`)
-        .then(async () => {
-          setTableValid(true);
-          const currentToken = useCartStore.getState().diningSessionToken;
-          const response = await api.post('/session', { tableNumber: Number(tableParam), diningSessionToken: currentToken });
-          setDiningSession(response.data.diningSessionToken);
-        })
-        .catch(() => setTableValid(false));
-    }
+    if (!tableParam) return;
+    const num = Number(tableParam);
+    if (!Number.isInteger(num) || num <= 0) { setTableValid(false); return; }
+
+    setTable(tableParam);
+    api.get(`/tables/${tableParam}/validate`)
+      .then(async () => {
+        setTableValid(true);
+        const currentState = useCartStore.getState();
+        const currentToken = currentState.diningSessionToken;
+        // Only pass existing token if it belongs to the same table
+        const tokenForSession = currentState.tableNumber === num ? currentToken : null;
+        const response = await api.post('/session', {
+          tableNumber: num,
+          diningSessionToken: tokenForSession,
+        });
+        setDiningSession(response.data.diningSessionToken);
+        setTableConnectedAnim(true);
+        setTimeout(() => setTableConnectedAnim(false), 3000);
+      })
+      .catch(() => setTableValid(false));
   }, [tableParam, setDiningSession, setTable]);
 
   // Fetch categories
@@ -89,6 +106,11 @@ export default function MenuPage() {
   }, [selectedCategory, debouncedSearch, vegOnly, sort]);
 
   const activeTable = tableParam || tableNumber;
+  const hasValidSession = Boolean(tableNumber && useCartStore.getState().diningSessionToken && !sessionExpired);
+
+  // Subtotal for sticky bar
+  const subtotal = items.reduce((s, i) => s + i.itemTotal, 0);
+  const grandTotal = subtotal + Math.round(subtotal * 0.05);
 
   return (
     <div className="min-h-screen bg-cream">
@@ -119,21 +141,49 @@ export default function MenuPage() {
               Fine Coffee & Dining
             </p>
             <h1 className="font-display text-3xl font-bold text-cream leading-tight">
-              Brewhaus Café
+              Brewhaus Cafe
             </h1>
-            {activeTable && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="inline-flex items-center gap-2 mt-2 bg-brew-500/20 backdrop-blur-sm
-                           border border-brew-400/30 rounded-full px-3 py-1"
-              >
-                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                <span className="text-cream text-sm font-medium">
-                  Table {String(activeTable).padStart(2, '0')}
-                </span>
-              </motion.div>
-            )}
+
+            {/* Table connected indicator */}
+            <AnimatePresence mode="wait">
+              {activeTable && !sessionExpired && (
+                <motion.div
+                  key="table-connected"
+                  initial={{ opacity: 0, scale: 0.9, y: 8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className={`inline-flex items-center gap-2 mt-2 backdrop-blur-sm
+                             border rounded-full px-3 py-1 ${
+                    tableConnectedAnim
+                      ? 'bg-green-500/25 border-green-400/50'
+                      : 'bg-brew-500/20 border-brew-400/30'
+                  }`}
+                >
+                  {tableConnectedAnim ? (
+                    <CheckCircle2 size={13} className="text-green-400" />
+                  ) : (
+                    <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                  )}
+                  <span className="text-cream text-sm font-medium">
+                    {tableConnectedAnim
+                      ? `Table ${String(activeTable).padStart(2, '0')} connected!`
+                      : `Table ${String(activeTable).padStart(2, '0')}`}
+                  </span>
+                </motion.div>
+              )}
+              {sessionExpired && (
+                <motion.div
+                  key="session-expired"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="inline-flex items-center gap-2 mt-2 bg-red-500/25 backdrop-blur-sm
+                             border border-red-400/50 rounded-full px-3 py-1"
+                >
+                  <RefreshCw size={12} className="text-red-300" />
+                  <span className="text-red-200 text-sm font-medium">Session expired — scan QR</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         </div>
 
@@ -160,17 +210,21 @@ export default function MenuPage() {
             className="relative glass rounded-full p-3 shadow-lg text-espresso-900"
           >
             <ShoppingCart size={20} className="text-espresso-900" />
-            {itemCount > 0 && (
-              <motion.span
-                key={itemCount}
-                initial={{ scale: 1.4 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-1 -right-1 bg-brew-500 text-white text-xs
-                           font-bold w-5 h-5 rounded-full flex items-center justify-center"
-              >
-                {itemCount}
-              </motion.span>
-            )}
+            <AnimatePresence>
+              {itemCount > 0 && (
+                <motion.span
+                  key={itemCount}
+                  initial={{ scale: 1.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                  className="absolute -top-1 -right-1 bg-brew-500 text-white text-xs
+                             font-bold w-5 h-5 rounded-full flex items-center justify-center"
+                >
+                  {itemCount}
+                </motion.span>
+              )}
+            </AnimatePresence>
           </motion.button>
         </div>
       </div>
@@ -206,23 +260,50 @@ export default function MenuPage() {
               className="relative flex h-10 w-10 items-center justify-center rounded-full bg-espresso-50 text-espresso-900 transition hover:bg-espresso-100"
             >
               <ShoppingCart size={17} />
-              {itemCount > 0 && (
-                <motion.span
-                  key={itemCount}
-                  initial={{ scale: 1.4 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brew-500 px-1 text-[9px] font-bold text-white"
-                >
-                  {itemCount}
-                </motion.span>
-              )}
+              <AnimatePresence>
+                {itemCount > 0 && (
+                  <motion.span
+                    key={itemCount}
+                    initial={{ scale: 1.6, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                    className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brew-500 px-1 text-[9px] font-bold text-white"
+                  >
+                    {itemCount}
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </motion.button>
           </div>
         </nav>
       </div>
 
+      {/* Session expired warning */}
+      {sessionExpired && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-red-50 border-b border-red-200 px-4 py-3 flex items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
+            <p className="text-red-700 text-xs sm:text-sm font-medium">
+              Your table session has expired. Please scan the table QR code again.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowScanner(true)}
+            className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold uppercase text-white shadow-sm hover:bg-red-700 transition active:scale-95 whitespace-nowrap"
+          >
+            Scan QR
+          </button>
+        </motion.div>
+      )}
+
       {/* Invalid table warning */}
-      {tableValid === false && (
+      {tableValid === false && !sessionExpired && (
         <div className="bg-red-50 border-b border-red-200 px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
@@ -241,7 +322,7 @@ export default function MenuPage() {
       )}
 
       {/* No table warning */}
-      {!activeTable && (
+      {!activeTable && !sessionExpired && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <AlertCircle size={16} className="text-amber-700 flex-shrink-0" />
@@ -251,7 +332,7 @@ export default function MenuPage() {
           </div>
           <button
             type="button"
-            onClick={openScanner}
+            onClick={() => setShowScanner(true)}
             className="rounded-full bg-brew-600 px-3.5 py-1.5 text-xs font-bold uppercase text-white shadow-sm hover:bg-brew-700 transition active:scale-95 whitespace-nowrap"
           >
             Scan Table QR
@@ -422,15 +503,19 @@ export default function MenuPage() {
                        flex items-center justify-between font-medium shadow-xl"
           >
             <div className="flex items-center gap-2">
-              <span className="bg-brew-500 text-white text-xs font-bold w-6 h-6
-                              rounded-full flex items-center justify-center">
+              <motion.span
+                key={itemCount}
+                initial={{ scale: 1.4 }}
+                animate={{ scale: 1 }}
+                className="bg-brew-500 text-white text-xs font-bold w-6 h-6
+                            rounded-full flex items-center justify-center"
+              >
                 {itemCount}
-              </span>
+              </motion.span>
               <span>View Cart</span>
             </div>
             <span className="font-display text-brew-300">
-              ₹{useCartStore.getState().items.reduce((s, i) => s + i.itemTotal, 0) +
-                 Math.round(useCartStore.getState().items.reduce((s, i) => s + i.itemTotal, 0) * 0.05)}
+              {String.fromCharCode(8377)}{grandTotal}
             </span>
           </motion.button>
         </Link>
@@ -451,10 +536,10 @@ export default function MenuPage() {
         {showScanner && (
           <QrScannerModal
             onClose={() => setShowScanner(false)}
-            onTableFound={(tableNumber) => {
+            onTableFound={(tableNum) => {
               setShowScanner(false);
-              setTable(tableNumber);
-              navigate(`/menu?table=${tableNumber}`, { replace: true });
+              setTable(tableNum);
+              navigate(`/menu?table=${tableNum}`, { replace: true });
             }}
           />
         )}

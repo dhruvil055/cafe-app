@@ -1,20 +1,30 @@
-import { forwardRef } from 'react';
+﻿import { forwardRef } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Star } from 'lucide-react';
+import { Plus, Star, Lock } from 'lucide-react';
 import useCartStore from '../../context/cartStore';
 import toast from 'react-hot-toast';
 
 const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&q=80';
 
 const MenuCard = forwardRef(function MenuCard({ product, onSelect }, ref) {
-  const { addItem, tableNumber, openScanner } = useCartStore();
+  const { addItem, tableNumber, diningSessionToken, sessionExpired, openScanner } = useCartStore();
+
+  // True session = has table + valid (non-expired) token
+  const hasValidSession = Boolean(tableNumber && diningSessionToken && !sessionExpired);
 
   const handleQuickAdd = (e) => {
     e.stopPropagation();
     if (!product.available) return;
 
-    if (!tableNumber) {
-      toast.error('Please scan your table QR code to add items & order.');
+    if (!hasValidSession) {
+      if (sessionExpired) {
+        toast.error('Your table session has expired. Please scan the table QR code again.', {
+          id: 'session-expired',
+          duration: 5000,
+        });
+      } else {
+        toast.error('Please scan your table QR code to add items & order.');
+      }
       openScanner();
       return;
     }
@@ -67,6 +77,16 @@ const MenuCard = forwardRef(function MenuCard({ product, onSelect }, ref) {
             </span>
           </div>
         )}
+
+        {/* Lock overlay when no valid session */}
+        {!hasValidSession && product.available && (
+          <div className="absolute bottom-2 left-2">
+            <span className="flex items-center gap-1 bg-espresso-950/70 backdrop-blur-sm text-foam text-[10px] font-medium px-1.5 py-0.5 rounded-full">
+              <Lock size={9} />
+              Scan QR
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Info */}
@@ -80,19 +100,26 @@ const MenuCard = forwardRef(function MenuCard({ product, onSelect }, ref) {
 
         <div className="flex items-center justify-between mt-2 gap-2">
           <span className="price-tag text-sm sm:text-base">
-            ₹{product.price}
+            {String.fromCharCode(8377)}{product.price}
           </span>
           <motion.button
             whileTap={{ scale: 0.85 }}
             onClick={handleQuickAdd}
             disabled={!product.available}
+            aria-label={hasValidSession ? `Add ${product.name} to cart` : 'Scan table QR to add items'}
             className={`w-7 h-7 rounded-full flex items-center justify-center transition-all
-              ${product.available
-                ? 'bg-espresso-900 text-cream hover:bg-brew-600 active:scale-90'
-                : 'bg-espresso-200 text-espresso-400 cursor-not-allowed'
+              ${!product.available
+                ? 'bg-espresso-200 text-espresso-400 cursor-not-allowed'
+                : hasValidSession
+                  ? 'bg-espresso-900 text-cream hover:bg-brew-600 active:scale-90'
+                  : 'bg-amber-100 text-amber-600 hover:bg-amber-200 border border-amber-300'
               }`}
           >
-            <Plus size={14} strokeWidth={2.5} />
+            {hasValidSession || !product.available ? (
+              <Plus size={14} strokeWidth={2.5} />
+            ) : (
+              <Lock size={12} strokeWidth={2.5} />
+            )}
           </motion.button>
         </div>
       </div>
