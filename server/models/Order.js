@@ -24,7 +24,7 @@ const orderSchema = new mongoose.Schema({
   paymentVerifiedAt: { type: Date, default: null },
   orderNumber: { type: String, required: true },
   tableNumber: { type: Number, required: true },
-  diningSessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'DiningSession', required: true, index: true },
+  diningSessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'DiningSession', required: false, index: true },
   customer: {
     name: { type: String, required: true },
     phone: { type: String, required: true },
@@ -54,6 +54,8 @@ const orderSchema = new mongoose.Schema({
     enum: ['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'],
     default: 'pending',
   },
+  inventoryProcessed: { type: Boolean, default: false },
+  inventoryProcessedAt: { type: Date, default: null },
   razorpayOrderId: { type: String, default: '' },
   razorpayPaymentId: { type: String, default: '' },
   razorpaySignature: { type: String, default: '' },

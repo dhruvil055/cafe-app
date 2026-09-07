@@ -1,13 +1,10 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, CreditCard, Banknote, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, CreditCard, Banknote, Loader2, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import useCartStore from '../../context/cartStore';
-import { useSessionValidator } from '../../hooks/useSessionValidator';
-
-const SESSION_CODES = new Set(['SESSION_REQUIRED', 'SESSION_INVALID', 'SESSION_EXPIRED', 'SESSION_CLOSED']);
 
 const loadRazorpay = () => {
   return new Promise((resolve) => {
@@ -22,21 +19,16 @@ const loadRazorpay = () => {
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, tableNumber, diningSessionToken, sessionExpired, clearCart, openScanner, invalidateSession } = useCartStore();
+  const { items, tableNumber, clearCart } = useCartStore();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Validate session on every visit
-  useSessionValidator();
-
   const subtotal = items.reduce((s, i) => s + i.itemTotal, 0);
   const tax = Math.round(subtotal * 0.05);
   const total = subtotal + tax;
-
-  const hasValidSession = Boolean(tableNumber && diningSessionToken && !sessionExpired);
 
   if (items.length === 0) {
     return (
@@ -48,25 +40,9 @@ export default function CheckoutPage() {
     );
   }
 
-  const handleSessionError = (err) => {
-    if (err.code && SESSION_CODES.has(err.code)) {
-      invalidateSession();
-      setError('Your table session has expired. Please scan the table QR code again.');
-      openScanner();
-    } else {
-      setError(err.message || 'Failed to place order. Please try again.');
-    }
-  };
-
   const validate = () => {
     if (!name.trim()) return 'Please enter your name.';
     if (!phone.trim() || !/^\d{10}$/.test(phone)) return 'Please enter a valid 10-digit phone number.';
-    if (!hasValidSession) {
-      openScanner();
-      return sessionExpired
-        ? 'Your table session has expired. Please scan the table QR code again.'
-        : 'Please scan the QR code at your table to start ordering.';
-    }
     return null;
   };
 
@@ -88,14 +64,13 @@ export default function CheckoutPage() {
         customer: { name: name.trim(), phone: phone.trim() },
         items: secureItems,
         paymentMethod: 'cash',
-        diningSessionToken,
       };
       const res = await api.post('/orders', orderData);
       const { accessToken } = res.data;
       clearCart();
       navigate(`/order-confirm/${res.data.order._id}?token=${accessToken}`);
     } catch (e) {
-      handleSessionError(e);
+      setError(e.message || 'Failed to place order. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -120,20 +95,19 @@ export default function CheckoutPage() {
         customer: { name: name.trim(), phone: phone.trim() },
         items: secureItems,
         paymentMethod: 'razorpay',
-        diningSessionToken,
       };
       const orderRes = await api.post('/orders', orderData);
       const order = orderRes.data.order;
       const { accessToken } = orderRes.data;
 
       if (import.meta.env.VITE_DEMO_PAYMENTS !== 'false') {
-        await api.post('/payment/demo-complete', { orderId: order._id, accessToken, diningSessionToken });
+        await api.post('/payment/demo-complete', { orderId: order._id, accessToken });
         clearCart();
         navigate(`/order-confirm/${order._id}?token=${accessToken}`);
         return;
       }
 
-      const rzpRes = await api.post('/payment/create-order', { orderId: order._id, accessToken, diningSessionToken });
+      const rzpRes = await api.post('/payment/create-order', { orderId: order._id, accessToken });
       const { razorpayOrderId, amount, keyId } = rzpRes.data;
 
       const loaded = await loadRazorpay();
@@ -162,12 +136,11 @@ export default function CheckoutPage() {
               razorpay_signature: response.razorpay_signature,
               orderId: order._id,
               accessToken,
-              diningSessionToken,
             });
             clearCart();
             navigate(`/order-confirm/${order._id}?token=${accessToken}`);
           } catch (verifyErr) {
-            handleSessionError(verifyErr);
+            setError(verifyErr.message || 'Payment verification failed.');
             setLoading(false);
           }
         },
@@ -175,7 +148,7 @@ export default function CheckoutPage() {
 
       rzp.open();
     } catch (e) {
-      handleSessionError(e);
+      setError(e.message || 'Failed to process payment. Please try again.');
       setLoading(false);
     }
   };
@@ -196,57 +169,19 @@ export default function CheckoutPage() {
       </div>
 
       <div className="p-4 space-y-4 pb-40 sm:pb-32">
-        {/* Session expired inline warning */}
-        {sessionExpired && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-2xl bg-red-50 border border-red-200 p-4 flex items-start gap-3"
-          >
-            <RefreshCw size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-red-800 font-semibold text-sm">Table session expired</p>
-              <p className="text-red-600 text-xs mt-0.5">Please scan the QR code at your table again to continue.</p>
-            </div>
-            <button
-              type="button"
-              onClick={openScanner}
-              className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white hover:bg-red-700 transition whitespace-nowrap"
-            >
-              Scan QR
-            </button>
-          </motion.div>
-        )}
-
         {/* Table badge */}
-        <div className="card p-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${hasValidSession ? 'bg-espresso-900' : 'bg-red-100'}`}>
-              <span className={`font-display font-bold text-sm ${hasValidSession ? 'text-cream' : 'text-red-600'}`}>
-                {String(tableNumber || '—').padStart(2, '0')}
-              </span>
-            </div>
-            <div>
-              <p className="text-xs text-espresso-400">Your Table</p>
-              <p className="font-medium text-espresso-900">
-                {tableNumber ? `Table ${String(tableNumber).padStart(2, '0')}` : 'Not Connected'}
-              </p>
-            </div>
-          </div>
-          {hasValidSession ? (
-            <span className="flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200">
-              <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
-              Dine In
+        <div className="card p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-espresso-900">
+            <span className="font-display font-bold text-sm text-cream">
+              {String(tableNumber || '—').padStart(2, '0')}
             </span>
-          ) : (
-            <button
-              type="button"
-              onClick={openScanner}
-              className="rounded-full bg-brew-600 px-3.5 py-1 text-xs font-bold uppercase text-white shadow-sm hover:bg-brew-700 transition active:scale-95"
-            >
-              {sessionExpired ? 'Re-scan QR' : 'Scan Table QR'}
-            </button>
-          )}
+          </div>
+          <div>
+            <p className="text-xs text-espresso-400">Your Table</p>
+            <p className="font-medium text-espresso-900">
+              {tableNumber ? `Table ${String(tableNumber).padStart(2, '0')}` : 'Not set — scan QR on menu'}
+            </p>
+          </div>
         </div>
 
         {/* Customer info */}

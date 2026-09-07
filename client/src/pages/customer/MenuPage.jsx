@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingCart, Search, SlidersHorizontal, Leaf, Star, ChevronDown, X, AlertCircle, ScanLine, CheckCircle2, RefreshCw } from 'lucide-react';
+import { ShoppingCart, Search, SlidersHorizontal, Leaf, Star, ChevronDown, X, AlertCircle, ScanLine, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import useCartStore, { cartItemCount } from '../../context/cartStore';
@@ -9,7 +9,6 @@ import ProductModal from '../../components/menu/ProductModal';
 import MenuCard from '../../components/menu/MenuCard';
 import SkeletonCard from '../../components/ui/SkeletonCard';
 import QrScannerModal from '../../components/ui/QrScannerModal';
-import { useSessionValidator } from '../../hooks/useSessionValidator';
 
 const SORT_OPTIONS = [
   { value: '', label: 'Default' },
@@ -23,7 +22,7 @@ export default function MenuPage() {
   const navigate = useNavigate();
   const tableParam = searchParams.get('table');
 
-  const { items, tableNumber, sessionExpired, setTable, setDiningSession, openQuickCart, openScanner } = useCartStore();
+  const { items, tableNumber, setTable, openQuickCart, isScannerOpen, openScanner, closeScanner } = useCartStore();
   // Reactive item count via selector
   const itemCount = useCartStore(cartItemCount);
 
@@ -37,7 +36,6 @@ export default function MenuPage() {
   const [vegOnly, setVegOnly] = useState(false);
   const [sort, setSort] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [tableValid, setTableValid] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [tableConnectedAnim, setTableConnectedAnim] = useState(false);
@@ -45,33 +43,16 @@ export default function MenuPage() {
   const searchRef = useRef();
   const debounceRef = useRef();
 
-  // Validate stored session on every route visit
-  useSessionValidator();
-
-  // Set table from URL on initial load
+  // Set table number from URL param (no session creation)
   useEffect(() => {
     if (!tableParam) return;
     const num = Number(tableParam);
-    if (!Number.isInteger(num) || num <= 0) { setTableValid(false); return; }
+    if (!Number.isInteger(num) || num <= 0) return;
 
-    setTable(tableParam);
-    api.get(`/tables/${tableParam}/validate`)
-      .then(async () => {
-        setTableValid(true);
-        const currentState = useCartStore.getState();
-        const currentToken = currentState.diningSessionToken;
-        // Only pass existing token if it belongs to the same table
-        const tokenForSession = currentState.tableNumber === num ? currentToken : null;
-        const response = await api.post('/session', {
-          tableNumber: num,
-          diningSessionToken: tokenForSession,
-        });
-        setDiningSession(response.data.diningSessionToken);
-        setTableConnectedAnim(true);
-        setTimeout(() => setTableConnectedAnim(false), 3000);
-      })
-      .catch(() => setTableValid(false));
-  }, [tableParam, setDiningSession, setTable]);
+    setTable(num);
+    setTableConnectedAnim(true);
+    setTimeout(() => setTableConnectedAnim(false), 3000);
+  }, [tableParam, setTable]);
 
   // Fetch categories
   useEffect(() => {
@@ -106,7 +87,6 @@ export default function MenuPage() {
   }, [selectedCategory, debouncedSearch, vegOnly, sort]);
 
   const activeTable = tableParam || tableNumber;
-  const hasValidSession = Boolean(tableNumber && useCartStore.getState().diningSessionToken && !sessionExpired);
 
   // Subtotal for sticky bar
   const subtotal = items.reduce((s, i) => s + i.itemTotal, 0);
@@ -138,15 +118,15 @@ export default function MenuPage() {
             transition={{ delay: 0.2 }}
           >
             <p className="text-brew-400 text-xs font-medium tracking-widest uppercase mb-1">
-              Fine Coffee & Dining
+              Fine Coffee &amp; Dining
             </p>
             <h1 className="font-display text-3xl font-bold text-cream leading-tight">
               Brewhaus Cafe
             </h1>
 
-            {/* Table connected indicator */}
+            {/* Table connected indicator or scan prompt */}
             <AnimatePresence mode="wait">
-              {activeTable && !sessionExpired && (
+              {activeTable ? (
                 <motion.div
                   key="table-connected"
                   initial={{ opacity: 0, scale: 0.9, y: 8 }}
@@ -170,24 +150,27 @@ export default function MenuPage() {
                       : `Table ${String(activeTable).padStart(2, '0')}`}
                   </span>
                 </motion.div>
-              )}
-              {sessionExpired && (
-                <motion.div
-                  key="session-expired"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="inline-flex items-center gap-2 mt-2 bg-red-500/25 backdrop-blur-sm
-                             border border-red-400/50 rounded-full px-3 py-1"
+              ) : (
+                <motion.button
+                  key="no-table"
+                  type="button"
+                  onClick={openScanner}
+                  initial={{ opacity: 0, scale: 0.9, y: 8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
+                  className="inline-flex items-center gap-2 mt-2 backdrop-blur-sm bg-amber-500/20 border border-amber-400/40 rounded-full px-3.5 py-1 text-cream text-xs font-medium hover:bg-amber-500/30 transition shadow-sm"
                 >
-                  <RefreshCw size={12} className="text-red-300" />
-                  <span className="text-red-200 text-sm font-medium">Session expired — scan QR</span>
-                </motion.div>
+                  <ScanLine size={13} className="text-amber-400" />
+                  <span>Scan Table QR to Order</span>
+                </motion.button>
               )}
             </AnimatePresence>
           </motion.div>
         </div>
 
-        {/* Cart button */}
+        {/* Top-right buttons */}
         <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
           <motion.button
             type="button"
@@ -236,73 +219,9 @@ export default function MenuPage() {
           <Link to="/offers" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Offers</Link>
           <Link to="/gallery" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Gallery</Link>
           <Link to="/contact" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Contact</Link>
-
           <Link to="/orders" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Orders</Link>
-
-
         </nav>
       </div>
-
-      {/* Session expired warning */}
-      {sessionExpired && (
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-red-50 border-b border-red-200 px-4 py-3 flex items-center justify-between gap-3"
-        >
-          <div className="flex items-center gap-2">
-            <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
-            <p className="text-red-700 text-xs sm:text-sm font-medium">
-              Your table session has expired. Please scan the table QR code again.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowScanner(true)}
-            className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold uppercase text-white shadow-sm hover:bg-red-700 transition active:scale-95 whitespace-nowrap"
-          >
-            Scan QR
-          </button>
-        </motion.div>
-      )}
-
-      {/* Invalid table warning */}
-      {tableValid === false && !sessionExpired && (
-        <div className="bg-red-50 border-b border-red-200 px-4 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
-            <p className="text-red-700 text-xs sm:text-sm font-medium">
-              Invalid table number. Please scan your table QR code again.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={openScanner}
-            className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold uppercase text-white shadow-sm hover:bg-red-700 transition active:scale-95 whitespace-nowrap"
-          >
-            Scan QR
-          </button>
-        </div>
-      )}
-
-      {/* No table warning */}
-      {!activeTable && !sessionExpired && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <AlertCircle size={16} className="text-amber-700 flex-shrink-0" />
-            <p className="text-amber-900 text-xs sm:text-sm font-medium">
-              Please scan your table QR code to start adding items & place an order.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowScanner(true)}
-            className="rounded-full bg-brew-600 px-3.5 py-1.5 text-xs font-bold uppercase text-white shadow-sm hover:bg-brew-700 transition active:scale-95 whitespace-nowrap"
-          >
-            Scan Table QR
-          </button>
-        </div>
-      )}
 
       {/* Search + Filters */}
       <div className="sticky top-0 z-30 bg-cream/95 backdrop-blur-sm border-b border-foam px-4 py-3 space-y-3">
@@ -312,7 +231,7 @@ export default function MenuPage() {
             <input
               ref={searchRef}
               type="text"
-              placeholder="Search food & drinks..."
+              placeholder="Search food &amp; drinks..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="input-field pl-9 py-2.5 text-sm"
@@ -495,12 +414,17 @@ export default function MenuPage() {
         )}
       </AnimatePresence>
 
+      {/* QR Scanner modal — sets table number only, no session created */}
       <AnimatePresence>
-        {showScanner && (
+        {(showScanner || isScannerOpen) && (
           <QrScannerModal
-            onClose={() => setShowScanner(false)}
+            onClose={() => {
+              setShowScanner(false);
+              closeScanner();
+            }}
             onTableFound={(tableNum) => {
               setShowScanner(false);
+              closeScanner();
               setTable(tableNum);
               navigate(`/menu?table=${tableNum}`, { replace: true });
             }}

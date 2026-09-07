@@ -20,6 +20,7 @@ import galleryRoutes from './routes/gallery.js';
 import sessionRoutes from './routes/session.js';
 import contactRoutes from './routes/contact.js';
 import analyticsRoutes from './routes/analytics.js';
+import inventoryRoutes from './routes/inventory.js';
 
 dotenv.config();
 
@@ -133,6 +134,7 @@ export const createApp = ({ razorpayFactory } = {}) => {
   app.use('/api/session', sessionRoutes);
   app.use('/api/contact', contactRoutes);
   app.use('/api/analytics', analyticsRoutes);
+  app.use('/api/inventory', inventoryRoutes);
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

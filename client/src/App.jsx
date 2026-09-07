@@ -2,9 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 import QuickCartPopup from './components/ui/QuickCartPopup';
-import QrScannerModal from './components/ui/QrScannerModal';
-import useCartStore from './context/cartStore';
-import { useSessionValidator } from './hooks/useSessionValidator';
 
 // Customer pages
 import MenuPage from './pages/customer/MenuPage';
@@ -20,27 +17,10 @@ import GalleryPage from './pages/customer/GalleryPage';
 import ReceiptPage from './pages/customer/ReceiptPage';
 import OrdersPage from './pages/customer/OrdersPage';
 
-/**
- * SessionWatchdog — renders nothing visually.
- * Runs the session validator hook globally so even pages that don't import it
- * (About, Gallery, etc.) still trigger session re-validation on route change
- * and on the 2-minute periodic interval.
- */
-function SessionWatchdog() {
-  useSessionValidator();
-  return null;
-}
-
 export default function App() {
-  const { isScannerOpen, closeScanner } = useCartStore();
-
   return (
     <BrowserRouter>
-      {/* Global session watchdog — validates stored token on every route change */}
-      <SessionWatchdog />
-
       <QuickCartPopup />
-      {isScannerOpen && <QrScannerModal onClose={closeScanner} />}
       <Toaster
         position="top-center"
         toastOptions={{

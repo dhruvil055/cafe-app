@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { QrCode, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -24,7 +24,7 @@ export default function QrScannerModal({ onClose, onTableFound }) {
   const [checking, setChecking] = useState(false);
   // Pending-confirm state for different-table detection
   const [pendingTable, setPendingTable] = useState(null);
-  const { setTable, setDiningSession, closeScanner, tableNumber, items, clearCart } = useCartStore();
+  const { setTable, tableNumber, items, clearCart } = useCartStore();
 
   useEffect(() => {
     const scanner = new Html5Qrcode('qr-reader');
@@ -71,17 +71,9 @@ export default function QrScannerModal({ onClose, onTableFound }) {
     setError('');
     try {
       await api.get(`/tables/${num}/validate`);
-      const currentToken = useCartStore.getState().diningSessionToken;
-      // Only pass the current token if it is for the same table
-      const tokenForSession = useCartStore.getState().tableNumber === num ? currentToken : null;
-      const response = await api.post('/session', {
-        tableNumber: num,
-        diningSessionToken: tokenForSession,
-      });
 
       setTable(num);
-      setDiningSession(response.data.diningSessionToken);
-      toast.success(`Table ${String(num).padStart(2, '0')} connected! You can now order.`, {
+      toast.success(`Table ${String(num).padStart(2, '0')} connected!`, {
         icon: '✅',
         duration: 4000,
       });
@@ -114,8 +106,7 @@ export default function QrScannerModal({ onClose, onTableFound }) {
     if (activeScanner?.isScanning) {
       activeScanner.stop().catch(() => {});
     }
-    closeScanner();
-    if (onClose) {
+    if (typeof onClose === 'function') {
       onClose();
     }
   };

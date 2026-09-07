@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Product from '../models/Product.js';
 import { adminOnly, protect, staffOrAdmin } from '../middleware/auth.js';
 import { escapeRegex } from '../utils/orderSecurity.js';
+import { checkAvailability } from '../services/inventoryService.js';
 
 const router = express.Router();
 
@@ -35,11 +36,31 @@ router.get('/', async (req, res) => {
       .populate('category', 'name icon')
       .sort(sortObj);
 
-    res.json({ products });
+    // Attach inventory availability to each product
+    let availability = {};
+    try {
+      const productIds = products.map(p => p._id);
+      availability = await checkAvailability(productIds);
+    } catch (err) {
+      // Non-fatal: if inventory check fails, don't break the menu
+      console.error('[Inventory] Availability check failed:', err.message);
+    }
+
+    const productsWithAvailability = products.map(p => {
+      const obj = p.toObject();
+      const maxQty = availability[String(p._id)];
+      // null = no inventory mapping (unlimited), 0 = out of stock
+      obj.maxOrderableQty = maxQty === Infinity ? null : (maxQty ?? null);
+      obj.inventoryAvailable = maxQty === undefined || maxQty === Infinity || maxQty > 0;
+      return obj;
+    });
+
+    res.json({ products: productsWithAvailability });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 // GET /api/menu/:id
 router.get('/:id', async (req, res) => {

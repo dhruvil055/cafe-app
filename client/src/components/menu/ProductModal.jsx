@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Plus, Minus, ShoppingBag, Star, Clock, ScanLine, Lock } from 'lucide-react';
+import { X, Plus, Minus, ShoppingBag, Star, Clock, AlertTriangle, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useCartStore from '../../context/cartStore';
 
 const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=600&q=80';
 
 export default function ProductModal({ product, onClose }) {
-  const { addItem, tableNumber, diningSessionToken, sessionExpired, openScanner } = useCartStore();
+  const { addItem, tableNumber, openScanner } = useCartStore();
   const [quantity, setQuantity] = useState(1);
   const [selectedAddons, setSelectedAddons] = useState([]);
   const [selectedVariant, setSelectedVariant] = useState(null);
@@ -16,8 +16,10 @@ export default function ProductModal({ product, onClose }) {
   const variants = Array.isArray(product?.variants) ? product.variants : [];
   const addons = Array.isArray(product?.addons) ? product.addons : [];
 
-  // True session = has table + valid (non-expired) token
-  const hasValidSession = Boolean(tableNumber && diningSessionToken && !sessionExpired);
+  // Inventory-based availability
+  const isAvailable = product.available && product.inventoryAvailable !== false;
+  const maxQty = product.maxOrderableQty ?? 99; // null = unlimited
+  const isLimited = product.maxOrderableQty !== null && product.maxOrderableQty !== undefined && product.maxOrderableQty <= 10;
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -33,22 +35,24 @@ export default function ProductModal({ product, onClose }) {
     );
   };
 
+  const changeQty = (delta) => {
+    setQuantity(prev => Math.min(maxQty, Math.max(1, prev + delta)));
+  };
+
   const basePrice = selectedVariant ? selectedVariant.price : product.price;
   const addonTotal = selectedAddons.reduce((s, a) => s + a.price, 0);
   const unitPrice = basePrice + addonTotal;
   const total = unitPrice * quantity;
 
   const handleAdd = () => {
-    if (!hasValidSession) {
-      if (sessionExpired) {
-        toast.error('Your table session has expired. Please scan the table QR code again.', {
-          id: 'session-expired',
-          duration: 5000,
-        });
-      } else {
-        toast.error('Please scan your table QR code to start ordering.');
-      }
+    if (!isAvailable) return;
+    if (!tableNumber) {
+      toast.error('Please scan your table QR code to unlock ordering!');
       openScanner();
+      return;
+    }
+    if (quantity > maxQty) {
+      toast.error(`Only ${maxQty} available. Please reduce your quantity.`);
       return;
     }
     const added = addItem(product, quantity, selectedAddons, selectedVariant, instructions);
@@ -80,7 +84,7 @@ export default function ProductModal({ product, onClose }) {
           <img
             src={product.image || PLACEHOLDER}
             alt={product.name}
-            className="w-full h-full object-cover"
+            className={`w-full h-full object-cover ${!isAvailable ? 'opacity-50' : ''}`}
             onError={e => { e.target.src = PLACEHOLDER; }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-espresso-950/40 to-transparent" />
@@ -95,128 +99,100 @@ export default function ProductModal({ product, onClose }) {
 
           {/* Badges */}
           <div className="absolute bottom-3 left-4 flex items-center gap-2">
-            {product.popular && (
+            {product.popular && isAvailable && (
               <span className="bg-brew-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                 <Star size={10} fill="white" /> Popular
               </span>
             )}
-            {!hasValidSession && (
-              <span className="bg-espresso-950/80 backdrop-blur-sm text-foam text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
-                <Lock size={10} />
-                {sessionExpired ? 'Session expired' : 'Scan QR to order'}
+            {!isAvailable && (
+              <span className="bg-espresso-900/90 text-foam text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                Out of Stock
+              </span>
+            )}
+            {isAvailable && isLimited && (
+              <span className="bg-amber-500/90 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                Only {product.maxOrderableQty} left!
               </span>
             )}
           </div>
         </div>
 
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-5 space-y-5">
-            {/* Name & price */}
-            <div>
-              <h2 className="font-display text-2xl font-bold text-espresso-900">{product.name}</h2>
-              {product.description && (
-                <p className="text-espresso-500 text-sm mt-1 leading-relaxed">{product.description}</p>
+        {/* Content */}
+        <div className="p-5 flex-1 overflow-y-auto space-y-4">
+          <div>
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="font-display text-xl font-bold text-espresso-900">{product.name}</h2>
+              {product.prepTime && (
+                <span className="flex items-center gap-1 text-xs text-espresso-400 flex-shrink-0">
+                  <Clock size={12} /> {product.prepTime}m
+                </span>
               )}
-              <div className="flex items-center gap-3 mt-2">
-                <span className="price-tag text-xl sm:text-2xl">{String.fromCharCode(8377)}{basePrice}</span>
-                {product.prepTime && (
-                  <span className="flex items-center gap-1 text-xs text-espresso-400">
-                    <Clock size={12} /> {product.prepTime} min
-                  </span>
-                )}
-              </div>
             </div>
-
-            {/* Variants */}
-            {variants.length > 0 && (
-              <div>
-                <h3 className="font-medium text-espresso-900 text-sm mb-2">Size</h3>
-                <div className="flex flex-wrap gap-2">
-                  {variants.map(v => (
-                    <button
-                      key={v.name}
-                      onClick={() => setSelectedVariant(v)}
-                      className={`px-4 py-2 rounded-xl text-sm font-medium border transition-all
-                        ${selectedVariant?.name === v.name
-                          ? 'bg-espresso-900 text-cream border-espresso-900'
-                          : 'bg-white text-espresso-700 border-foam hover:border-espresso-300'
-                        }`}
-                    >
-                      {v.name} {String.fromCharCode(183)} {String.fromCharCode(8377)}{v.price}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            {product.description && (
+              <p className="text-espresso-500 text-sm mt-1">{product.description}</p>
             )}
+          </div>
 
-            {/* Add-ons */}
-            {addons.length > 0 && (
-              <div>
-                <h3 className="font-medium text-espresso-900 text-sm mb-2">Add-ons</h3>
-                <div className="space-y-2">
-                  {addons.map(addon => {
-                    const selected = selectedAddons.find(a => a.name === addon.name);
-                    return (
-                      <button
-                        key={addon.name}
-                        onClick={() => toggleAddon(addon)}
-                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border
-                                   transition-all text-sm ${selected
-                          ? 'bg-espresso-900 text-cream border-espresso-900'
-                          : 'bg-white text-espresso-700 border-foam hover:border-espresso-300'}`}
-                      >
-                        <span>{addon.name}</span>
-                        <span className="font-medium">
-                          {addon.price === 0 ? 'Free' : `+${String.fromCharCode(8377)}${addon.price}`}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Special instructions */}
+          {/* Variants */}
+          {variants.length > 0 && (
             <div>
-              <h3 className="font-medium text-espresso-900 text-sm mb-2">Special Instructions</h3>
-              <textarea
-                value={instructions}
-                onChange={e => setInstructions(e.target.value)}
-                placeholder="Any allergies, extra requests...?"
-                rows={2}
-                className="input-field resize-none text-sm"
-              />
+              <p className="text-xs font-bold uppercase tracking-wider text-espresso-400 mb-2">Size / Variant</p>
+              <div className="flex gap-2 flex-wrap">
+                {variants.map(v => (
+                  <button
+                    key={v.name}
+                    onClick={() => setSelectedVariant(v)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
+                      selectedVariant?.name === v.name
+                        ? 'bg-brew-500 text-white border-brew-500'
+                        : 'border-foam text-espresso-700 bg-white hover:border-brew-300'
+                    }`}
+                  >
+                    {v.name} {v.price > 0 && `(+${String.fromCharCode(8377)}${v.price})`}
+                  </button>
+                ))}
+              </div>
             </div>
+          )}
 
-            {/* Session warning inline */}
-            {!hasValidSession && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`rounded-2xl p-4 flex items-start gap-3 ${
-                  sessionExpired
-                    ? 'bg-red-50 border border-red-200'
-                    : 'bg-amber-50 border border-amber-200'
-                }`}
-              >
-                <div className={`mt-0.5 flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center ${
-                  sessionExpired ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'
-                }`}>
-                  {sessionExpired ? <Lock size={16} /> : <ScanLine size={16} />}
-                </div>
-                <div>
-                  <p className={`text-sm font-semibold ${sessionExpired ? 'text-red-800' : 'text-amber-900'}`}>
-                    {sessionExpired ? 'Table session expired' : 'Table QR required'}
-                  </p>
-                  <p className={`text-xs mt-0.5 ${sessionExpired ? 'text-red-600' : 'text-amber-700'}`}>
-                    {sessionExpired
-                      ? 'Please scan the QR code at your table again to continue ordering.'
-                      : 'Please scan the QR code at your table to add items to your order.'}
-                  </p>
-                </div>
-              </motion.div>
-            )}
+          {/* Addons */}
+          {addons.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-espresso-400 mb-2">Add-ons</p>
+              <div className="space-y-2">
+                {addons.map(addon => {
+                  const selected = selectedAddons.some(a => a.name === addon.name);
+                  return (
+                    <button
+                      key={addon.name}
+                      onClick={() => toggleAddon(addon)}
+                      className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-sm transition-colors ${
+                        selected
+                          ? 'border-brew-400 bg-brew-50/60 text-espresso-900'
+                          : 'border-foam bg-white text-espresso-600 hover:border-brew-200'
+                      }`}
+                    >
+                      <span className="font-medium text-xs">{addon.name}</span>
+                      <span className="text-xs text-brew-600 font-semibold">+{String.fromCharCode(8377)}{addon.price}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Special Instructions */}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-espresso-400 mb-1.5">Special Instructions</p>
+            <input
+              type="text"
+              placeholder="e.g. Extra hot, no sugar..."
+              value={instructions}
+              onChange={e => setInstructions(e.target.value)}
+              maxLength={120}
+              className="w-full text-xs bg-white border border-foam rounded-xl p-2.5 text-espresso-800
+                         placeholder:text-espresso-300 focus:outline-none focus:border-brew-400"
+            />
           </div>
         </div>
 
@@ -224,48 +200,55 @@ export default function ProductModal({ product, onClose }) {
         <div className="p-4 border-t border-foam bg-white flex items-center gap-3 flex-shrink-0">
           {/* Quantity */}
           <div className="flex items-center gap-2 border border-foam rounded-xl px-2 py-1.5 bg-cream">
-            <button className="qty-btn" onClick={() => setQuantity(Math.max(1, quantity - 1))}>
+            <button
+              className="qty-btn"
+              onClick={() => changeQty(-1)}
+              disabled={!isAvailable}
+            >
               <Minus size={12} />
             </button>
             <span className="w-6 text-center font-medium text-sm text-espresso-900">{quantity}</span>
-            <button className="qty-btn" onClick={() => setQuantity(quantity + 1)}>
+            <button
+              className="qty-btn"
+              onClick={() => changeQty(1)}
+              disabled={!isAvailable || quantity >= maxQty}
+            >
               <Plus size={12} />
             </button>
           </div>
 
-          {/* Add to cart / Scan QR */}
+          {/* Add to cart / Scan to order */}
           <motion.button
-            whileTap={{ scale: 0.97 }}
+            whileTap={isAvailable ? { scale: 0.97 } : {}}
             onClick={handleAdd}
-            disabled={!product.available}
+            disabled={!isAvailable}
             className={`flex-1 flex items-center justify-between py-3.5 rounded-2xl px-5 font-semibold text-sm transition-all
-              ${!product.available
+              ${!isAvailable
                 ? 'bg-espresso-200 text-espresso-400 cursor-not-allowed'
-                : hasValidSession
-                  ? 'bg-espresso-900 text-cream hover:bg-brew-700'
-                  : sessionExpired
-                    ? 'bg-red-600 text-white hover:bg-red-700'
-                    : 'bg-brew-600 text-white hover:bg-brew-700'
+                : !tableNumber
+                ? 'bg-amber-600 text-white hover:bg-amber-700 shadow-md active:scale-95'
+                : 'bg-espresso-900 text-cream hover:bg-brew-700 active:scale-95 shadow-md'
               }`}
           >
             <div className="flex items-center gap-2">
-              {hasValidSession || !product.available ? (
-                <ShoppingBag size={16} />
+              {!isAvailable ? (
+                <span>Out of Stock</span>
+              ) : !tableNumber ? (
+                <>
+                  <Lock size={16} className="text-amber-200" strokeWidth={2.3} />
+                  <span>Scan Table to Order</span>
+                </>
               ) : (
-                <ScanLine size={16} />
+                <>
+                  <ShoppingBag size={16} />
+                  <span>Add to Cart</span>
+                </>
               )}
-              <span>
-                {!product.available
-                  ? 'Unavailable'
-                  : hasValidSession
-                    ? 'Add to Cart'
-                    : sessionExpired
-                      ? 'Scan QR — Session Expired'
-                      : 'Scan Table QR to Order'}
-              </span>
             </div>
-            {product.available && (
-              <span className="font-mono text-base font-semibold text-brew-300">{String.fromCharCode(8377)}{total}</span>
+            {isAvailable && (
+              <span className={`font-mono text-base font-semibold ${!tableNumber ? 'text-amber-100' : 'text-brew-300'}`}>
+                {String.fromCharCode(8377)}{total}
+              </span>
             )}
           </motion.button>
         </div>

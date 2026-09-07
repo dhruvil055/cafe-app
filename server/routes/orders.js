@@ -13,7 +13,7 @@ import {
   validateAndFetchProductPrices,
   calculateServerTotals,
 } from '../utils/orderSecurity.js';
-import { requireActiveDiningSession } from '../utils/diningSession.js';
+import { confirmOrderAndDeduct, restoreForOrder, validateInventoryForOrder } from '../services/inventoryService.js';
 
 const router = express.Router();
 
@@ -64,9 +64,7 @@ const getAuthorizedReceipt = async (req) => {
 // Backend fetches real prices from MongoDB
 router.post('/', async (req, res) => {
   try {
-    const { tableNumber, customer, items, paymentMethod, notes, diningSessionToken } = req.body;
-
-    const diningSession = await requireActiveDiningSession(diningSessionToken);
+    const { tableNumber, customer, items, paymentMethod, notes } = req.body;
 
     // Validate required fields
     const normalizedTableNumber = Number(tableNumber);
@@ -86,8 +84,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Invalid payment method.' });
     }
 
-    // A table is optional for takeaway or counter orders. When supplied,
-    // it must still refer to an active table.
+    // Validate the table exists and is active
     const table = await Table.findOne({
       tableNumber: normalizedTableNumber,
       active: true,
@@ -95,12 +92,24 @@ router.post('/', async (req, res) => {
     if (!table) {
       return res.status(400).json({ error: 'Invalid or inactive table.' });
     }
-    if (diningSession.tableNumber !== normalizedTableNumber) {
-      return res.status(403).json({ error: 'Dining session is not valid for this table.', code: 'SESSION_INVALID' });
-    }
 
     // Validate and fetch all product prices from database
     const validatedItems = await validateAndFetchProductPrices(items, Product);
+
+    // Inventory pre-check — verify stock before accepting order
+    const inventoryErrors = await validateInventoryForOrder(validatedItems);
+    if (inventoryErrors.length > 0) {
+      return res.status(409).json({
+        error: 'Some items are no longer available in the requested quantity.',
+        code: 'INVENTORY_INSUFFICIENT',
+        details: inventoryErrors.map(e => ({
+          inventoryItem: e.inventoryItem,
+          needed: e.needed,
+          available: e.available,
+          unit: e.unit,
+        })),
+      });
+    }
 
     // Calculate totals server-side
     const { subtotal, tax, total, taxRate } = calculateServerTotals(validatedItems);
@@ -118,7 +127,6 @@ router.post('/', async (req, res) => {
     // Create order with server-calculated totals only
     const order = await Order.create({
       tableNumber: normalizedTableNumber,
-      diningSessionId: diningSession._id,
       customer: {
         name: String(customer.name).trim(),
         phone,
@@ -157,8 +165,7 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Order creation error:', error);
-    const status = ['SESSION_REQUIRED', 'SESSION_INVALID', 'SESSION_EXPIRED', 'SESSION_CLOSED'].includes(error.code) ? 403 : 400;
-    res.status(status).json({ error: error.message, code: error.code });
+    res.status(400).json({ error: error.message, code: error.code });
   }
 });
 
@@ -279,25 +286,43 @@ router.put('/:id/status', protect, staffOrAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Invalid order ID.' });
     }
 
+    const previousOrder = await Order.findById(req.params.id);
+    if (!previousOrder) {
+      return res.status(404).json({ error: 'Order not found.' });
+    }
+
+    // SINGLE SOURCE TRIGGER: ANY NON-CONFIRMED STATUS -> CONFIRMED
+    if (orderStatus === 'confirmed') {
+      const result = await confirmOrderAndDeduct(req.params.id, {
+        performedBy: req.user?._id,
+      });
+      return res.json({ order: result.order });
+    }
+
+    // When order changes CONFIRMED -> PREPARING, PREPARING -> READY,
+    // READY -> COMPLETED, or CANCELLED: inventory must NOT be deducted again.
     const order = await Order.findByIdAndUpdate(
       req.params.id,
       { orderStatus },
       { new: true }
     );
 
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found.' });
-    }
-
+    // Note: Disposable consumables are single-use and permanently consumed.
+    // They are NOT restored on cancellation.
     res.json({ order });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error('Update order status error:', error.message);
+    const status = error.statusCode || error.status || 400;
+    res.status(status).json({
+      error: error.message,
+      code: error.code || 'STATUS_UPDATE_ERROR',
+      details: error.details,
+    });
   }
 });
 
 // PUT /api/orders/:id/cash-payment — staff/admin only
-// Cash settlement is a separate, constrained payment transition. It cannot
-// be used for Razorpay orders or to set arbitrary payment fields.
+// Cash settlement is a separate, constrained payment transition.
 router.put('/:id/cash-payment', protect, staffOrAdmin, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -308,54 +333,79 @@ router.put('/:id/cash-payment', protect, staffOrAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Only paymentStatus=paid is accepted for cash settlement.' });
     }
 
-    const updated = await Order.findOneAndUpdate(
-      {
-        _id: req.params.id,
-        paymentMethod: 'cash',
-        paymentStatus: 'pending',
-        cashVerificationStatus: 'confirmed',
-        orderStatus: { $ne: 'cancelled' },
-      },
-      {
-        $set: {
-          paymentStatus: 'paid',
-          paymentVerifiedAt: new Date(),
-          orderStatus: 'confirmed',
-        },
-      },
-      { new: true, runValidators: true }
-    );
-
-    if (updated) return res.json({ order: updated });
-
     const current = await Order.findById(req.params.id);
     if (!current) return res.status(404).json({ error: 'Order not found.' });
     if (current.paymentMethod !== 'cash') {
       return res.status(400).json({ error: 'Only cash orders can be settled here.' });
     }
-    if (current.paymentStatus === 'paid') return res.json({ order: current });
-    return res.status(400).json({ error: 'Cash order is not eligible for settlement.' });
+    if (current.orderStatus === 'cancelled') {
+      return res.status(400).json({ error: 'Cancelled order cannot be settled.' });
+    }
+
+    // If order is not yet confirmed, confirm & deduct; if already confirmed, idempotent no-op for inventory
+    const result = await confirmOrderAndDeduct(current._id, {
+      additionalUpdates: {
+        paymentStatus: 'paid',
+        paymentVerifiedAt: new Date(),
+        cashVerificationStatus: 'confirmed',
+      },
+      performedBy: req.user?._id,
+    });
+
+    return res.json({ order: result.order });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error('Cash payment settlement error:', error.message);
+    const status = error.statusCode || error.status || 400;
+    res.status(status).json({
+      error: error.message,
+      code: error.code || 'CASH_PAYMENT_ERROR',
+      details: error.details,
+    });
   }
 });
 
-// PUT /api/orders/:id/cash-confirmation — staff verifies the customer/order,
-// but this does not mean that cash has been received.
+// PUT /api/orders/:id/cash-confirmation — staff verifies the customer/order
 router.put('/:id/cash-confirmation', protect, staffOrAdmin, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order ID.' });
     const { decision } = req.body;
     if (!['confirm', 'reject'].includes(decision)) return res.status(400).json({ error: 'Decision must be confirm or reject.' });
-    const updated = await Order.findOneAndUpdate(
-      { _id: req.params.id, paymentMethod: 'cash', cashVerificationStatus: 'pending', paymentStatus: 'pending', orderStatus: 'pending' },
-      { $set: { cashVerificationStatus: decision === 'confirm' ? 'confirmed' : 'rejected', orderStatus: decision === 'confirm' ? 'confirmed' : 'cancelled' } },
-      { new: true, runValidators: true },
-    );
-    if (!updated) return res.status(409).json({ error: 'Cash order is no longer awaiting verification.' });
-    return res.json({ order: updated });
+
+    const order = await Order.findOne({
+      _id: req.params.id,
+      paymentMethod: 'cash',
+      cashVerificationStatus: 'pending',
+      paymentStatus: 'pending',
+      orderStatus: 'pending',
+    });
+
+    if (!order) {
+      return res.status(409).json({ error: 'Cash order is no longer awaiting verification.' });
+    }
+
+    if (decision === 'confirm') {
+      // Execute atomic confirmation + inventory deduction
+      const result = await confirmOrderAndDeduct(order._id, {
+        additionalUpdates: {
+          cashVerificationStatus: 'confirmed',
+        },
+        performedBy: req.user?._id,
+      });
+      return res.json({ order: result.order });
+    } else {
+      order.cashVerificationStatus = 'rejected';
+      order.orderStatus = 'cancelled';
+      await order.save();
+      return res.json({ order });
+    }
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    console.error('Cash confirmation error:', error.message);
+    const status = error.statusCode || error.status || 400;
+    return res.status(status).json({
+      error: error.message,
+      code: error.code || 'CASH_CONFIRMATION_ERROR',
+      details: error.details,
+    });
   }
 });
 

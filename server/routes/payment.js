@@ -6,7 +6,7 @@ import {
   verifyAccessToken,
   verifyRazorpaySignature,
 } from '../utils/orderSecurity.js';
-import { requireActiveDiningSession } from '../utils/diningSession.js';
+import { confirmOrderAndDeduct } from '../services/inventoryService.js';
 
 const router = express.Router();
 
@@ -51,17 +51,6 @@ const requireOrderAccess = async (req, res, orderId, accessToken) => {
     return null;
   }
 
-  try {
-    const session = await requireActiveDiningSession(req.body.diningSessionToken);
-    if (!order.diningSessionId.equals(session._id)) {
-      res.status(403).json({ error: 'Dining session does not own this order.', code: 'SESSION_INVALID' });
-      return null;
-    }
-  } catch (error) {
-    res.status(403).json({ error: error.message, code: error.code });
-    return null;
-  }
-
   return order;
 };
 
@@ -97,30 +86,25 @@ router.post('/demo-complete', async (req, res) => {
     if (order.paymentStatus === 'paid') return alreadyVerifiedResponse(res, order);
 
     const demoPaymentId = `demo_pay_${order._id}`;
-    const updated = await Order.findOneAndUpdate(
-      { _id: order._id, paymentStatus: 'pending', orderStatus: { $nin: ['cancelled', 'completed'] } },
-      {
-        $set: {
-          paymentStatus: 'paid',
-          paymentVerifiedAt: new Date(),
-          razorpayPaymentId: demoPaymentId,
-          razorpaySignature: 'demo-server-verified',
-          orderStatus: 'confirmed',
-        },
+
+    const result = await confirmOrderAndDeduct(order._id, {
+      additionalUpdates: {
+        paymentStatus: 'paid',
+        paymentVerifiedAt: new Date(),
+        razorpayPaymentId: demoPaymentId,
+        razorpaySignature: 'demo-server-verified',
       },
-      { new: true, runValidators: true },
-    );
+    });
 
-    if (!updated) {
-      const current = await Order.findById(order._id);
-      if (current?.paymentStatus === 'paid') return alreadyVerifiedResponse(res, current);
-      return res.status(409).json({ error: 'Order payment was already processed.' });
-    }
-
-    return res.json({ success: true, demo: true, order: publicPaymentState(updated) });
+    return res.json({ success: true, demo: true, order: publicPaymentState(result.order) });
   } catch (error) {
     console.error('Demo payment error:', error.message);
-    return res.status(500).json({ error: 'Demo payment completion failed.' });
+    const status = error.statusCode || error.status || 500;
+    return res.status(status).json({
+      error: error.message || 'Demo payment completion failed.',
+      code: error.code,
+      details: error.details,
+    });
   }
 });
 
@@ -295,42 +279,24 @@ router.post('/verify', async (req, res) => {
       return res.status(409).json({ error: 'Order payment has already been completed.' });
     }
 
-    const updatedOrder = await Order.findOneAndUpdate(
-      {
-        _id: order._id,
-        paymentStatus: 'pending',
-        razorpayOrderId: razorpay_order_id,
+    const result = await confirmOrderAndDeduct(order._id, {
+      additionalUpdates: {
+        paymentStatus: 'paid',
+        paymentVerifiedAt: new Date(),
+        razorpayPaymentId: razorpay_payment_id,
+        razorpaySignature: razorpay_signature,
       },
-      {
-        $set: {
-          paymentStatus: 'paid',
-          paymentVerifiedAt: new Date(),
-          razorpayPaymentId: razorpay_payment_id,
-          razorpaySignature: razorpay_signature,
-          orderStatus: 'confirmed',
-        },
-      },
-      { new: true, runValidators: true }
-    );
+    });
 
-    if (!updatedOrder) {
-      const current = await Order.findById(order._id);
-      if (
-        current?.paymentStatus === 'paid' &&
-        current.paymentVerifiedAt &&
-        current.razorpayOrderId === razorpay_order_id &&
-        current.razorpayPaymentId === razorpay_payment_id &&
-        current.razorpaySignature === razorpay_signature
-      ) {
-        return alreadyVerifiedResponse(res, current);
-      }
-      return res.status(409).json({ error: 'Payment was already processed or the order changed.' });
-    }
-
-    return res.json({ success: true, order: publicPaymentState(updatedOrder) });
+    return res.json({ success: true, order: publicPaymentState(result.order) });
   } catch (error) {
     console.error('Payment verification error:', error.message);
-    return res.status(500).json({ error: 'Payment verification failed.' });
+    const status = error.statusCode || error.status || 500;
+    return res.status(status).json({
+      error: error.message || 'Payment verification failed.',
+      code: error.code,
+      details: error.details,
+    });
   }
 });
 

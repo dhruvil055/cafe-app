@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { LayoutDashboard, LogOut, Menu, RefreshCw, ShoppingBag, Tag, UtensilsCrossed, BarChart2 } from 'lucide-react';
+import { LayoutDashboard, LogOut, Menu, RefreshCw, ShoppingBag, Tag, UtensilsCrossed, BarChart2, Package } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,7 @@ const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/orders', icon: ShoppingBag, label: 'Orders' },
   { to: '/products', icon: UtensilsCrossed, label: 'Products' },
+  { to: '/inventory', icon: Package, label: 'Inventory' },
   { to: '/categories', icon: Tag, label: 'Categories' },
   { to: '/tables', icon: 'T', label: 'Tables' },
   { to: '/analytics', icon: BarChart2, label: 'Analytics' },

@@ -9,6 +9,12 @@ import CategoriesPage from './pages/CategoriesPage';
 import TablesPage from './pages/TablesPage';
 import ProfilePage from './pages/ProfilePage';
 import AnalyticsPage from './pages/AnalyticsPage';
+import InventoryDashboardPage from './pages/inventory/InventoryDashboardPage';
+import InventoryItemsPage from './pages/inventory/InventoryItemsPage';
+import InventoryItemDetailPage from './pages/inventory/InventoryItemDetailPage';
+import RecipeMappingPage from './pages/inventory/RecipeMappingPage';
+import InventoryTransactionsPage from './pages/inventory/InventoryTransactionsPage';
+import InventoryReportsPage from './pages/inventory/InventoryReportsPage';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -39,6 +45,15 @@ export default function App() {
       <Route path="/tables" element={<ProtectedRoute><AdminLayout title="Tables"><TablesPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><AdminLayout title="My Profile"><ProfilePage /></AdminLayout></ProtectedRoute>} />
       <Route path="/analytics" element={<ProtectedRoute><AdminLayout title="Analytics"><AnalyticsPage /></AdminLayout></ProtectedRoute>} />
+
+      {/* Inventory Routes */}
+      <Route path="/inventory" element={<ProtectedRoute><AdminLayout title="Inventory Dashboard"><InventoryDashboardPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/inventory/items" element={<ProtectedRoute><AdminLayout title="Inventory Items"><InventoryItemsPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/inventory/items/:id" element={<ProtectedRoute><AdminLayout title="Item Details"><InventoryItemDetailPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/inventory/recipes" element={<ProtectedRoute><AdminLayout title="Recipe / BOM Management"><RecipeMappingPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/inventory/mappings" element={<ProtectedRoute><AdminLayout title="Recipe / BOM Management"><RecipeMappingPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/inventory/transactions" element={<ProtectedRoute><AdminLayout title="Inventory Transactions"><InventoryTransactionsPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/inventory/reports" element={<ProtectedRoute><AdminLayout title="Inventory Reports"><InventoryReportsPage /></AdminLayout></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
