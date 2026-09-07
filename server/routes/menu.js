@@ -7,10 +7,26 @@ import { checkAvailability } from '../services/inventoryService.js';
 
 const router = express.Router();
 
+// In-memory cache for public menu queries (20s TTL for fast responses and low DB load)
+const menuCache = new Map();
+const CACHE_TTL_MS = 20 * 1000;
+
+export const clearMenuCache = () => {
+  menuCache.clear();
+};
+
 // GET /api/menu — public
 router.get('/', async (req, res) => {
   try {
     const { category, search, sort, popular } = req.query;
+
+    // Check memory cache for identical query
+    const cacheKey = JSON.stringify({ category, search, sort, popular });
+    const cached = menuCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+      return res.json(cached.data);
+    }
+
     let query = {};
 
     if (category && category !== 'all') query.category = category;
@@ -34,7 +50,8 @@ router.get('/', async (req, res) => {
 
     const products = await Product.find(query)
       .populate('category', 'name icon')
-      .sort(sortObj);
+      .sort(sortObj)
+      .lean();
 
     // Attach inventory availability to each product
     let availability = {};
@@ -47,15 +64,21 @@ router.get('/', async (req, res) => {
     }
 
     const productsWithAvailability = products.map(p => {
-      const obj = p.toObject();
       const maxQty = availability[String(p._id)];
       // null = no inventory mapping (unlimited), 0 = out of stock
-      obj.maxOrderableQty = maxQty === Infinity ? null : (maxQty ?? null);
-      obj.inventoryAvailable = maxQty === undefined || maxQty === Infinity || maxQty > 0;
-      return obj;
+      return {
+        ...p,
+        maxOrderableQty: maxQty === Infinity ? null : (maxQty ?? null),
+        inventoryAvailable: maxQty === undefined || maxQty === Infinity || maxQty > 0,
+      };
     });
 
-    res.json({ products: productsWithAvailability });
+    const responsePayload = { products: productsWithAvailability };
+    // Keep cache size bounded
+    if (menuCache.size > 100) menuCache.clear();
+    menuCache.set(cacheKey, { timestamp: Date.now(), data: responsePayload });
+
+    res.json(responsePayload);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -90,6 +113,7 @@ router.post('/', protect, staffOrAdmin, async (req, res) => {
 
     const product = await Product.create(update);
     await product.populate('category', 'name icon');
+    clearMenuCache();
     res.status(201).json({ product });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -112,6 +136,7 @@ router.put('/:id', protect, staffOrAdmin, async (req, res) => {
       new: true, runValidators: true
     }).populate('category', 'name icon');
     if (!product) return res.status(404).json({ error: 'Item not found.' });
+    clearMenuCache();
     res.json({ product });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -123,6 +148,7 @@ router.delete('/:id', protect, adminOnly, async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) return res.status(404).json({ error: 'Item not found.' });
+    clearMenuCache();
     res.json({ message: 'Item deleted.' });
   } catch (error) {
     res.status(500).json({ error: error.message });

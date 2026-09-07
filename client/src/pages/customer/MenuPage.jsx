@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingCart, Search, SlidersHorizontal, Leaf, Star, ChevronDown, X, AlertCircle, ScanLine, CheckCircle2 } from 'lucide-react';
+import { ShoppingCart, Search, SlidersHorizontal, Leaf, Star, ChevronDown, X, AlertCircle, ScanLine, CheckCircle2, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import useCartStore, { cartItemCount } from '../../context/cartStore';
@@ -29,7 +29,9 @@ export default function MenuPage() {
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isLongLoading, setIsLongLoading] = useState(false);
   const [menuError, setMenuError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -66,6 +68,17 @@ export default function MenuPage() {
     return () => clearTimeout(debounceRef.current);
   }, [search]);
 
+  // Long loading indicator for cold starts
+  useEffect(() => {
+    let timer;
+    if (loading) {
+      timer = setTimeout(() => setIsLongLoading(true), 3500);
+    } else {
+      setIsLongLoading(false);
+    }
+    return () => clearTimeout(timer);
+  }, [loading]);
+
   // Fetch products
   useEffect(() => {
     setLoading(true);
@@ -84,7 +97,7 @@ export default function MenuPage() {
         toast.error('Failed to load menu');
       })
       .finally(() => setLoading(false));
-  }, [selectedCategory, debouncedSearch, vegOnly, sort]);
+  }, [selectedCategory, debouncedSearch, vegOnly, sort, reloadKey]);
 
   const activeTable = tableParam || tableNumber;
 
@@ -329,14 +342,30 @@ export default function MenuPage() {
       {/* Products grid */}
       <div className={`px-4 py-4 ${itemCount > 0 ? 'pb-28' : ''}`}>
         {loading ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+          <div className="space-y-4">
+            {isLongLoading && (
+              <div className="mx-auto max-w-sm text-center py-2 px-4 text-xs font-medium text-amber-800 bg-amber-50 rounded-full border border-amber-200/80 shadow-sm animate-pulse">
+                Waking up café server, please hold on a moment...
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+            </div>
           </div>
         ) : menuError ? (
-          <div className="text-center py-16">
-            <AlertCircle size={30} className="mx-auto text-red-500" />
-            <p className="mt-4 font-display text-xl text-espresso-700">Menu unavailable</p>
-            <p className="text-espresso-400 text-sm mt-1">{menuError}</p>
+          <div className="text-center py-16 px-4">
+            <div className="w-12 h-12 mx-auto rounded-full bg-red-50 flex items-center justify-center text-red-500 mb-3 border border-red-100">
+              <AlertCircle size={26} />
+            </div>
+            <p className="font-display text-xl font-bold text-espresso-800">Menu temporarily unavailable</p>
+            <p className="text-espresso-500 text-sm mt-1.5 max-w-md mx-auto">{menuError}</p>
+            <button
+              onClick={() => setReloadKey(k => k + 1)}
+              className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 bg-espresso-900 hover:bg-espresso-800 text-cream rounded-full text-sm font-semibold shadow-md transition-all active:scale-95"
+            >
+              <RotateCcw size={15} />
+              <span>Try Again</span>
+            </button>
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-16">

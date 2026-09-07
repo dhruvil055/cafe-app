@@ -73,14 +73,26 @@ export const confirmOrderAndDeduct = async (orderId, { additionalUpdates = {}, p
   // 1. Gather all required consumable items across all order items
   const requiredMap = new Map(); // key: inventoryItemId -> { invId, name, unit, qtyNeeded, orderItemIds: [] }
 
+  const validProductIds = (order.items || []).map(i => i.product).filter(Boolean);
+  const mappings = validProductIds.length > 0
+    ? await MenuInventoryMapping.find({
+        product: { $in: validProductIds },
+        active: true,
+      }).populate('inventoryItem').lean()
+    : [];
+
+  const mappingsByProduct = new Map();
+  for (const m of mappings) {
+    const pid = String(m.product);
+    if (!mappingsByProduct.has(pid)) mappingsByProduct.set(pid, []);
+    mappingsByProduct.get(pid).push(m);
+  }
+
   for (const item of order.items) {
     if (!item.product) continue;
-    const mappings = await MenuInventoryMapping.find({
-      product: item.product,
-      active: true,
-    }).populate('inventoryItem').lean();
+    const itemMappings = mappingsByProduct.get(String(item.product)) || [];
 
-    for (const mapping of mappings) {
+    for (const mapping of itemMappings) {
       const inv = mapping.inventoryItem;
       if (!inv || !inv.active) continue;
       const needed = Number((mapping.quantityRequired * item.quantity).toFixed(6));
@@ -307,20 +319,32 @@ export const restoreForOrder = async (orderId) => {
  */
 export const checkAvailability = async (productIds) => {
   const result = {};
+  if (!productIds || productIds.length === 0) return result;
+
+  // Single batched query for all products instead of N individual round-trips
+  const mappings = await MenuInventoryMapping.find({
+    product: { $in: productIds },
+    active: true,
+  }).populate('inventoryItem', 'currentQuantity active').lean();
+
+  const mappingsByProduct = new Map();
+  for (const m of mappings) {
+    const pid = String(m.product);
+    if (!mappingsByProduct.has(pid)) mappingsByProduct.set(pid, []);
+    mappingsByProduct.get(pid).push(m);
+  }
 
   for (const productId of productIds) {
-    const mappings = await MenuInventoryMapping.find({
-      product: productId,
-      active: true,
-    }).populate('inventoryItem', 'currentQuantity active').lean();
+    const pid = String(productId);
+    const pMappings = mappingsByProduct.get(pid);
 
-    if (!mappings || mappings.length === 0) {
-      result[String(productId)] = Infinity;
+    if (!pMappings || pMappings.length === 0) {
+      result[pid] = Infinity;
       continue;
     }
 
     let maxQty = Infinity;
-    for (const mapping of mappings) {
+    for (const mapping of pMappings) {
       if (!mapping.inventoryItem || !mapping.inventoryItem.active) {
         // If the mapped item is inactive, treat as zero
         maxQty = 0;
@@ -331,7 +355,7 @@ export const checkAvailability = async (productIds) => {
       if (canMake < maxQty) maxQty = canMake;
     }
 
-    result[String(productId)] = maxQty === Infinity ? Infinity : Math.max(0, maxQty);
+    result[pid] = maxQty === Infinity ? Infinity : Math.max(0, maxQty);
   }
 
   return result;
@@ -343,15 +367,27 @@ export const checkAvailability = async (productIds) => {
  */
 export const validateInventoryForOrder = async (items) => {
   const errors = [];
+  const validProductIds = (items || []).map(i => i.product).filter(Boolean);
+  if (validProductIds.length === 0) return errors;
+
+  // Single batched query
+  const mappings = await MenuInventoryMapping.find({
+    product: { $in: validProductIds },
+    active: true,
+  }).populate('inventoryItem', 'name currentQuantity unit active').lean();
+
+  const mappingsByProduct = new Map();
+  for (const m of mappings) {
+    const pid = String(m.product);
+    if (!mappingsByProduct.has(pid)) mappingsByProduct.set(pid, []);
+    mappingsByProduct.get(pid).push(m);
+  }
 
   for (const item of items) {
     if (!item.product) continue;
-    const mappings = await MenuInventoryMapping.find({
-      product: item.product,
-      active: true,
-    }).populate('inventoryItem', 'name currentQuantity unit active').lean();
+    const pMappings = mappingsByProduct.get(String(item.product)) || [];
 
-    for (const mapping of mappings) {
+    for (const mapping of pMappings) {
       if (!mapping.inventoryItem || !mapping.inventoryItem.active) continue;
       const needed = mapping.quantityRequired * item.quantity;
       if (mapping.inventoryItem.currentQuantity < needed) {
@@ -374,20 +410,37 @@ export const validateInventoryForOrder = async (items) => {
  * Called after deductions and restorations.
  */
 export const syncProductAvailability = async (productIds) => {
-  for (const productId of productIds) {
-    if (!productId) continue;
-    const mappings = await MenuInventoryMapping.find({
-      product: productId,
-      active: true,
-    }).populate('inventoryItem', 'currentQuantity active').lean();
+  const validIds = (productIds || []).filter(Boolean);
+  if (validIds.length === 0) return;
 
-    if (!mappings || mappings.length === 0) continue;
+  // Single batched query
+  const mappings = await MenuInventoryMapping.find({
+    product: { $in: validIds },
+    active: true,
+  }).populate('inventoryItem', 'currentQuantity active').lean();
 
-    const hasStock = mappings.every(m =>
+  const mappingsByProduct = new Map();
+  for (const m of mappings) {
+    const pid = String(m.product);
+    if (!mappingsByProduct.has(pid)) mappingsByProduct.set(pid, []);
+    mappingsByProduct.get(pid).push(m);
+  }
+
+  const updates = [];
+  for (const productId of validIds) {
+    const pid = String(productId);
+    const pMappings = mappingsByProduct.get(pid);
+    if (!pMappings || pMappings.length === 0) continue;
+
+    const hasStock = pMappings.every(m =>
       m.inventoryItem && m.inventoryItem.active && m.inventoryItem.currentQuantity >= m.quantityRequired
     );
 
-    await Product.findByIdAndUpdate(productId, { available: hasStock });
+    updates.push(Product.findByIdAndUpdate(productId, { available: hasStock }));
+  }
+
+  if (updates.length > 0) {
+    await Promise.all(updates);
   }
 };
 
