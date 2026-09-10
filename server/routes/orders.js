@@ -8,12 +8,14 @@ import { adminOnly, protect, staffOrAdmin } from '../middleware/auth.js';
 import { createReceiptData, ensureReceiptNumber, generateReceiptPdf } from '../services/receipt.js';
 import {
   generateOrderAccessToken,
+  generateIdempotentAccessToken,
   hashAccessToken,
   verifyAccessToken,
   validateAndFetchProductPrices,
   calculateServerTotals,
 } from '../utils/orderSecurity.js';
 import { confirmOrderAndDeduct, restoreForOrder, validateInventoryForOrder } from '../services/inventoryService.js';
+import { requireActiveDiningSession } from '../utils/diningSession.js';
 
 const router = express.Router();
 
@@ -46,10 +48,18 @@ const getAuthorizedReceipt = async (req) => {
     error.status = 403;
     throw error;
   }
-  let bill = await DiningBill.findOne({ diningSessionId: order.diningSessionId });
-  if (!bill) bill = await DiningBill.create({ diningSessionId: order.diningSessionId });
-  await ensureReceiptNumber(bill);
-  const orders = await Order.find({ diningSessionId: order.diningSessionId, orderStatus: { $ne: 'cancelled' } }).sort({ createdAt: 1 }).lean();
+
+  let bill = null;
+  if (order.diningSessionId) {
+    bill = await DiningBill.findOne({ diningSessionId: order.diningSessionId });
+    if (!bill) bill = await DiningBill.create({ diningSessionId: order.diningSessionId });
+    await ensureReceiptNumber(bill);
+  }
+
+  const orders = order.diningSessionId
+    ? await Order.find({ diningSessionId: order.diningSessionId, orderStatus: { $ne: 'cancelled' } }).sort({ createdAt: 1 }).lean()
+    : [order];
+
   const receipt = await createReceiptData({
     orders,
     bill,
@@ -93,8 +103,83 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Invalid or inactive table.' });
     }
 
+    // Check for idempotency key to prevent duplicate orders
+    const rawIdempotencyKey = req.body?.idempotencyKey || req.headers['idempotency-key'];
+    const idempotencyKey = typeof rawIdempotencyKey === 'string' && rawIdempotencyKey.trim().length > 0
+      ? rawIdempotencyKey.trim().slice(0, 100)
+      : null;
+
+    if (idempotencyKey) {
+      const existingOrder = await Order.findOne({ idempotencyKey });
+      if (existingOrder) {
+        const derivedToken = generateIdempotentAccessToken(idempotencyKey);
+        if (verifyAccessToken(derivedToken, existingOrder.accessTokenHash)) {
+          return res.status(200).json({
+            order: {
+              _id: existingOrder._id,
+              orderNumber: existingOrder.orderNumber,
+              tableNumber: existingOrder.tableNumber,
+              customer: existingOrder.customer,
+              items: existingOrder.items,
+              subtotal: existingOrder.subtotal,
+              tax: existingOrder.tax,
+              total: existingOrder.total,
+              paymentMethod: existingOrder.paymentMethod,
+              paymentStatus: existingOrder.paymentStatus,
+              cashVerificationStatus: existingOrder.cashVerificationStatus,
+              orderStatus: existingOrder.orderStatus,
+              createdAt: existingOrder.createdAt,
+            },
+            accessToken: derivedToken,
+            idempotent: true,
+          });
+        }
+      }
+    }
+
+    // Sanitize customer data
+    const phone = String(customer.phone).trim();
+    if (!/^[0-9+()\-\s]{7,15}$/.test(phone)) {
+      return res.status(400).json({ error: 'Customer phone number is invalid.' });
+    }
+
     // Validate and fetch all product prices from database
     const validatedItems = await validateAndFetchProductPrices(items, Product);
+
+    // Guard against rapid duplicate clicks (exact same name, phone, table, within 2 seconds)
+    const recentDuplicate = await Order.findOne({
+      tableNumber: normalizedTableNumber,
+      'customer.name': String(customer.name).trim(),
+      'customer.phone': phone,
+      createdAt: { $gte: new Date(Date.now() - 2000) },
+    }).sort({ createdAt: -1 });
+
+    if (recentDuplicate && recentDuplicate.items?.length === validatedItems.length) {
+      const sameItems = validatedItems.every((item, idx) => {
+        const existing = recentDuplicate.items[idx];
+        return existing && String(existing.product) === String(item.product) && existing.quantity === item.quantity;
+      });
+      if (sameItems) {
+        return res.status(409).json({
+          error: 'An identical order was just placed. Please wait a moment.',
+          code: 'DUPLICATE_ORDER_ATTEMPT',
+          orderId: recentDuplicate._id,
+        });
+      }
+    }
+
+    // Optional dining session linkage if valid dining session token provided
+    let diningSessionId = null;
+    if (req.body?.diningSessionToken) {
+      try {
+        const session = await requireActiveDiningSession(req.body.diningSessionToken);
+        if (session && Number(session.tableNumber) === normalizedTableNumber) {
+          diningSessionId = session._id;
+        }
+      } catch {
+        // Invalid or expired token does not block basic order creation
+      }
+    }
 
     // Inventory pre-check — verify stock before accepting order
     const inventoryErrors = await validateInventoryForOrder(validatedItems);
@@ -114,19 +199,16 @@ router.post('/', async (req, res) => {
     // Calculate totals server-side
     const { subtotal, tax, total, taxRate } = calculateServerTotals(validatedItems);
 
-    // Generate secure access token
-    const accessToken = generateOrderAccessToken();
+    // Generate secure access token (deterministic if idempotencyKey supplied)
+    const accessToken = idempotencyKey
+      ? generateIdempotentAccessToken(idempotencyKey)
+      : generateOrderAccessToken();
     const accessTokenHash = hashAccessToken(accessToken);
-
-    // Sanitize customer data
-    const phone = String(customer.phone).trim();
-    if (!/^[0-9+()\-\s]{7,15}$/.test(phone)) {
-      return res.status(400).json({ error: 'Customer phone number is invalid.' });
-    }
 
     // Create order with server-calculated totals only
     const order = await Order.create({
       tableNumber: normalizedTableNumber,
+      diningSessionId: diningSessionId || undefined,
       customer: {
         name: String(customer.name).trim(),
         phone,
@@ -142,6 +224,13 @@ router.post('/', async (req, res) => {
       orderStatus: 'pending',
       notes: String(notes || '').slice(0, 500),
       accessTokenHash,
+      idempotencyKey: idempotencyKey || undefined,
+      statusHistory: [{
+        status: 'pending',
+        previousStatus: null,
+        changedAt: new Date(),
+        reason: 'Order placed',
+      }],
     });
 
     // Return order with access token (only on creation)
@@ -291,24 +380,74 @@ router.put('/:id/status', protect, staffOrAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Order not found.' });
     }
 
+    // Enforce strict order status state machine transitions
+    const VALID_STATUS_TRANSITIONS = {
+      pending: ['confirmed', 'cancelled'],
+      confirmed: ['preparing', 'cancelled'],
+      preparing: ['ready', 'cancelled'],
+      ready: ['completed', 'cancelled'],
+      completed: [],
+      cancelled: [],
+    };
+
+    if (previousOrder.orderStatus === orderStatus) {
+      return res.json({ order: previousOrder });
+    }
+
+    const allowedNext = VALID_STATUS_TRANSITIONS[previousOrder.orderStatus] || [];
+    if (!allowedNext.includes(orderStatus)) {
+      return res.status(400).json({
+        error: `Cannot transition order from "${previousOrder.orderStatus}" to "${orderStatus}".`,
+        allowedTransitions: allowedNext,
+      });
+    }
+
     // SINGLE SOURCE TRIGGER: ANY NON-CONFIRMED STATUS -> CONFIRMED
     if (orderStatus === 'confirmed') {
       const result = await confirmOrderAndDeduct(req.params.id, {
         performedBy: req.user?._id,
+        additionalUpdates: {
+          $push: {
+            statusHistory: {
+              status: 'confirmed',
+              previousStatus: previousOrder.orderStatus,
+              changedAt: new Date(),
+              changedBy: req.user?._id || null,
+              reason: req.body.reason || 'Order confirmed by staff',
+            },
+          },
+        },
       });
       return res.json({ order: result.order });
     }
 
-    // When order changes CONFIRMED -> PREPARING, PREPARING -> READY,
-    // READY -> COMPLETED, or CANCELLED: inventory must NOT be deducted again.
+    // If order is being cancelled, restore inventory if previously processed
+    if (orderStatus === 'cancelled') {
+      if (previousOrder.inventoryProcessed && !previousOrder.inventoryRestored) {
+        await restoreForOrder(previousOrder._id, {
+          performedBy: req.user?._id,
+          reason: req.body.reason || 'Order cancelled by staff',
+        });
+      }
+    }
+
     const order = await Order.findByIdAndUpdate(
       req.params.id,
-      { orderStatus },
+      {
+        $set: { orderStatus },
+        $push: {
+          statusHistory: {
+            status: orderStatus,
+            previousStatus: previousOrder.orderStatus,
+            changedAt: new Date(),
+            changedBy: req.user?._id || null,
+            reason: req.body.reason || `Status updated to ${orderStatus}`,
+          },
+        },
+      },
       { new: true }
     );
 
-    // Note: Disposable consumables are single-use and permanently consumed.
-    // They are NOT restored on cancellation.
     res.json({ order });
   } catch (error) {
     console.error('Update order status error:', error.message);
@@ -414,11 +553,15 @@ router.get('/admin/:id/receipt', protect, staffOrAdmin, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order ID.' });
     const order = await Order.findById(req.params.id).lean();
-    if (!order) return res.status(404).json({ error: 'Order not found.' });
-    let bill = await DiningBill.findOne({ diningSessionId: order.diningSessionId });
-    if (!bill) bill = await DiningBill.create({ diningSessionId: order.diningSessionId });
-    await ensureReceiptNumber(bill);
-    const orders = await Order.find({ diningSessionId: order.diningSessionId, orderStatus: { $ne: 'cancelled' } }).sort({ createdAt: 1 }).lean();
+    let bill = null;
+    if (order.diningSessionId) {
+      bill = await DiningBill.findOne({ diningSessionId: order.diningSessionId });
+      if (!bill) bill = await DiningBill.create({ diningSessionId: order.diningSessionId });
+      await ensureReceiptNumber(bill);
+    }
+    const orders = order.diningSessionId
+      ? await Order.find({ diningSessionId: order.diningSessionId, orderStatus: { $ne: 'cancelled' } }).sort({ createdAt: 1 }).lean()
+      : [order];
     const receipt = await createReceiptData({ orders, bill, tableNumber: order.tableNumber });
     const pdfBuffer = await generateReceiptPdf(receipt);
     res.setHeader('Content-Type', 'application/pdf');

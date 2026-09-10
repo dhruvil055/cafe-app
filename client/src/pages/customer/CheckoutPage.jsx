@@ -19,12 +19,17 @@ const loadRazorpay = () => {
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, tableNumber, clearCart } = useCartStore();
+  const { items, tableNumber, clearCart, diningSessionToken, addRecentOrder } = useCartStore();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [idempotencyKey] = useState(() => (
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `chk_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
+  ));
 
   const subtotal = items.reduce((s, i) => s + i.itemTotal, 0);
   const tax = Math.round(subtotal * 0.05);
@@ -64,9 +69,22 @@ export default function CheckoutPage() {
         customer: { name: name.trim(), phone: phone.trim() },
         items: secureItems,
         paymentMethod: 'cash',
+        idempotencyKey,
+        ...(diningSessionToken && { diningSessionToken }),
       };
       const res = await api.post('/orders', orderData);
-      const { accessToken } = res.data;
+      const { accessToken, order } = res.data;
+      if (addRecentOrder && order?._id) {
+        addRecentOrder({
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          accessToken,
+          tableNumber,
+          createdAt: order.createdAt || new Date().toISOString(),
+          total: order.total,
+          paymentMethod: 'cash',
+        });
+      }
       clearCart();
       navigate(`/order-confirm/${res.data.order._id}?token=${accessToken}`);
     } catch (e) {
@@ -95,10 +113,24 @@ export default function CheckoutPage() {
         customer: { name: name.trim(), phone: phone.trim() },
         items: secureItems,
         paymentMethod: 'razorpay',
+        idempotencyKey,
+        ...(diningSessionToken && { diningSessionToken }),
       };
       const orderRes = await api.post('/orders', orderData);
       const order = orderRes.data.order;
       const { accessToken } = orderRes.data;
+
+      if (addRecentOrder && order?._id) {
+        addRecentOrder({
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          accessToken,
+          tableNumber,
+          createdAt: order.createdAt || new Date().toISOString(),
+          total: order.total,
+          paymentMethod: 'razorpay',
+        });
+      }
 
       if (import.meta.env.VITE_DEMO_PAYMENTS !== 'false') {
         await api.post('/payment/demo-complete', { orderId: order._id, accessToken });
@@ -125,6 +157,7 @@ export default function CheckoutPage() {
         modal: {
           ondismiss: () => {
             setLoading(false);
+            api.post('/payment/cancel', { orderId: order._id, accessToken }).catch(() => {});
             toast.error('Payment cancelled.');
           }
         },

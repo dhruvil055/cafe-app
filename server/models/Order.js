@@ -41,7 +41,7 @@ const orderSchema = new mongoose.Schema({
   },
   paymentStatus: {
     type: String,
-    enum: ['pending', 'paid', 'failed', 'refunded'],
+    enum: ['pending', 'payment_created', 'payment_processing', 'paid', 'failed', 'cancelled', 'refunded'],
     default: 'pending',
   },
   cashVerificationStatus: {
@@ -54,8 +54,18 @@ const orderSchema = new mongoose.Schema({
     enum: ['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'],
     default: 'pending',
   },
+  statusHistory: [{
+    status: { type: String, required: true },
+    previousStatus: { type: String, default: null },
+    changedAt: { type: Date, default: Date.now },
+    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    reason: { type: String, default: '' },
+  }],
   inventoryProcessed: { type: Boolean, default: false },
   inventoryProcessedAt: { type: Date, default: null },
+  inventoryRestored: { type: Boolean, default: false },
+  inventoryRestoredAt: { type: Date, default: null },
+  idempotencyKey: { type: String, sparse: true, index: true },
   razorpayOrderId: { type: String, default: '' },
   razorpayPaymentId: { type: String, default: '' },
   razorpaySignature: { type: String, default: '' },
@@ -104,6 +114,11 @@ orderSchema.pre('validate', async function (next) {
 
 orderSchema.index({ orderNumber: 1 }, { unique: true });
 orderSchema.index({ diningSessionId: 1, createdAt: -1 });
+orderSchema.index({ tableNumber: 1, createdAt: -1 });
+orderSchema.index({ orderStatus: 1, createdAt: -1 });
+orderSchema.index({ paymentStatus: 1 });
+orderSchema.index({ createdAt: -1 });
+orderSchema.index({ razorpayOrderId: 1 }, { sparse: true });
 
 export const initializeOrderNumberCounter = async () => {
   const latest = await mongoose.model('Order')

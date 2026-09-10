@@ -9,6 +9,11 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 const MONGO_URI = process.env.MONGO_URI;
 if (!MONGO_URI) { console.error('MONGO_URI not set'); process.exit(1); }
 
+if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PRODUCTION_SEED !== 'true') {
+  console.error('Refusing to seed in production without ALLOW_PRODUCTION_SEED=true');
+  process.exit(1);
+}
+
 // ── Minimal inline schemas (no circular import issues) ──────────────────────
 const addonSchema = new mongoose.Schema({ name: String, price: Number });
 const variantSchema = new mongoose.Schema({ name: String, price: Number });

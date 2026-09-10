@@ -197,8 +197,8 @@ export default function OrderConfirmPage() {
           <Link to={`/receipt/${orderId}?accessToken=${encodeURIComponent(accessToken)}`} className="btn-secondary flex items-center justify-center gap-2 py-3.5 text-sm">
             View Receipt
           </Link>
-          <Link to="/orders" className="btn-accent flex items-center justify-center gap-2 py-3.5 text-sm">
-            View Order Status
+          <Link to={`/track/${orderId}?token=${encodeURIComponent(accessToken)}`} className="btn-accent flex items-center justify-center gap-2 py-3.5 text-sm">
+            Track Live Status
           </Link>
           {order.paymentMethod !== 'cash' && (
             <button

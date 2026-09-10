@@ -67,19 +67,18 @@ export const createApp = ({ razorpayFactory } = {}) => {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'idempotency-key', 'X-Requested-With'],
     maxAge: 86400,
   }));
 
   // ── Rate limiting ──────────────────────────────────────────────────────────
-  // In development ALL traffic comes from 127.0.0.1, so IP-based rate limiting
-  // exhausts instantly across hot-reloads and multiple browser tabs.
-  // Only enable rate limiting in production.
-  if (process.env.NODE_ENV === 'production') {
-    // General baseline — covers all /api/ routes
+  // Enforced in production and test suites; disabled in local development
+  // so hot-reloads and multiple browser tabs are not throttled.
+  if (process.env.NODE_ENV !== 'development') {
+    // General baseline — covers all /api/ routes (200 req/15min)
     const apiLimiter = rateLimit({
       windowMs: 15 * 60 * 1000,
-      max: 500,
+      max: 200,
       standardHeaders: true,
       legacyHeaders: false,
       message: { error: 'Too many requests. Please try again later.' },
@@ -88,7 +87,7 @@ export const createApp = ({ razorpayFactory } = {}) => {
     // Relaxed limiter for read-heavy public endpoints
     const publicLimiter = rateLimit({
       windowMs: 15 * 60 * 1000,
-      max: 1000,
+      max: 500,
       standardHeaders: true,
       legacyHeaders: false,
       message: { error: 'Too many requests. Please try again later.' },
@@ -109,7 +108,6 @@ export const createApp = ({ razorpayFactory } = {}) => {
     app.use('/api/menu', publicLimiter);
     app.use('/api/categories', publicLimiter);
     app.use('/api/session', publicLimiter);
-    app.use('/api/orders', publicLimiter);
     app.use('/api/tables', publicLimiter);
     app.use('/api/gallery', publicLimiter);
 

@@ -303,13 +303,90 @@ export const deductForOrder = async (orderId, options = {}) => {
 
 /**
  * Restore inventory for a cancelled order.
- * Non-reusable consumable items (disposable cups, cans, containers, spoons, etc.)
- * are considered permanently consumed once confirmed.
- * As per café business rules, consumable items are not automatically restored.
+ * If inventory was deducted for the order and the order is cancelled,
+ * restores stock atomically and records an 'order_restoration' transaction.
+ * Idempotent: Can be called multiple times without duplicate restoration.
  */
-export const restoreForOrder = async (orderId) => {
-  console.log(`[Inventory] Consumable items are non-reusable/permanently consumed — skipping automatic restoration for order ${orderId}`);
-  return;
+export const restoreForOrder = async (orderId, { performedBy = null, reason = 'Order cancelled' } = {}) => {
+  const order = await Order.findById(orderId);
+  if (!order) {
+    const error = new Error(`Order ${orderId} not found.`);
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // If inventory was never deducted, or already restored, do nothing
+  if (!order.inventoryProcessed) {
+    return { order, restored: false, reason: 'Inventory was not deducted for this order.' };
+  }
+
+  if (order.inventoryRestored) {
+    console.log(`[Inventory] Order ${order.orderNumber} inventory was already restored.`);
+    return { order, restored: false, alreadyRestored: true };
+  }
+
+  // Check if an order_restoration transaction already exists for this order
+  const existingRestoreTx = await InventoryTransaction.findOne({
+    orderId: order._id,
+    type: 'order_restoration',
+  }).lean();
+
+  if (existingRestoreTx) {
+    order.inventoryRestored = true;
+    order.inventoryRestoredAt = existingRestoreTx.createdAt || new Date();
+    await order.save();
+    return { order, restored: false, alreadyRestored: true };
+  }
+
+  // Find all consumption records for this order
+  const consumptionTxs = await InventoryTransaction.find({
+    orderId: order._id,
+    type: 'order_consumption',
+  }).lean();
+
+  if (!consumptionTxs.length) {
+    order.inventoryRestored = true;
+    await order.save();
+    return { order, restored: false, reason: 'No consumption records found.' };
+  }
+
+  for (const tx of consumptionTxs) {
+    const qtyToRestore = Math.abs(tx.quantity);
+    if (qtyToRestore <= 0) continue;
+
+    const updated = await InventoryItem.findByIdAndUpdate(
+      tx.inventoryItem,
+      { $inc: { currentQuantity: qtyToRestore } },
+      { new: true }
+    );
+
+    if (updated) {
+      const balanceBefore = Number((updated.currentQuantity - qtyToRestore).toFixed(6));
+      const balanceAfter = Number(updated.currentQuantity.toFixed(6));
+
+      await InventoryTransaction.create({
+        inventoryItem: tx.inventoryItem,
+        type: 'order_restoration',
+        quantity: qtyToRestore,
+        balanceBefore,
+        balanceAfter,
+        orderId: order._id,
+        orderItemId: tx.orderItemId || null,
+        reference: order.orderNumber,
+        reason: reason || `Restored for cancelled order ${order.orderNumber}`,
+        performedBy,
+      });
+    }
+  }
+
+  order.inventoryRestored = true;
+  order.inventoryRestoredAt = new Date();
+  await order.save();
+
+  // Sync availability
+  await syncProductAvailability(order.items.map(i => i.product).filter(Boolean));
+  console.log(`[Inventory] Successfully restored inventory for cancelled order ${order.orderNumber}.`);
+  return { order, restored: true };
 };
 
 /**

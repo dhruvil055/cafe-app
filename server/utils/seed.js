@@ -26,6 +26,11 @@ const categories = [
 const seed = async () => {
   try {
     if (!process.env.MONGO_URI) throw new Error('MONGO_URI is not configured. Add your MongoDB Atlas connection string.');
+
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PRODUCTION_SEED !== 'true') {
+      throw new Error('Refusing to seed in production without explicit ALLOW_PRODUCTION_SEED=true environment variable.');
+    }
+
     await mongoose.connect(process.env.MONGO_URI);
     console.log('Connected to MongoDB');
 

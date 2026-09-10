@@ -10,6 +10,15 @@ export const generateOrderAccessToken = () => {
 };
 
 /**
+ * Generate a deterministic access token from an idempotency key and secret.
+ * Guarantees idempotent retries receive the exact same valid access token.
+ */
+export const generateIdempotentAccessToken = (idempotencyKey, secret = process.env.JWT_SECRET || 'brewhaus-token-salt') => {
+  if (!idempotencyKey || typeof idempotencyKey !== 'string') return generateOrderAccessToken();
+  return crypto.createHmac('sha256', secret).update(`order_access_${idempotencyKey.trim()}`).digest('hex');
+};
+
+/**
  * Hash an access token for secure storage.
  */
 export const hashAccessToken = (token) => {

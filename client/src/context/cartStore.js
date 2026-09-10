@@ -6,10 +6,21 @@ const useCartStore = create(
     (set, get) => ({
       items: [],
       tableNumber: null,
+      diningSessionToken: null,
+      recentOrders: [],
       isQuickCartOpen: false,
       lastAddedItemKey: null,
 
       setTable: (num) => set({ tableNumber: Number(num) }),
+      setDiningSessionToken: (token) => set({ diningSessionToken: token }),
+
+      addRecentOrder: (orderInfo) =>
+        set((state) => ({
+          recentOrders: [
+            orderInfo,
+            ...state.recentOrders.filter((o) => o.orderId !== orderInfo.orderId),
+          ].slice(0, 15),
+        })),
 
       isScannerOpen: false,
       openScanner: () => set({ isScannerOpen: true }),
@@ -81,18 +92,22 @@ const useCartStore = create(
         });
       },
 
-      clearCart: () => set({ items: [], tableNumber: null }),
-      resetTable: () => set({ tableNumber: null }),
+      clearCart: () => set({ items: [] }),
+      resetTable: () => set({ tableNumber: null, diningSessionToken: null }),
     }),
     {
       name: 'brewhaus-cart',
       partialize: (state) => ({
         items: state.items,
+        recentOrders: state.recentOrders,
+        diningSessionToken: state.diningSessionToken,
       }),
       merge: (persistedState, currentState) => ({
         ...currentState,
         items: Array.isArray(persistedState?.items) ? persistedState.items : [],
-        tableNumber: null, // Never automatically restore tableNumber on initial site load/run
+        recentOrders: Array.isArray(persistedState?.recentOrders) ? persistedState.recentOrders : [],
+        diningSessionToken: typeof persistedState?.diningSessionToken === 'string' ? persistedState.diningSessionToken : null,
+        tableNumber: null, // Always require scanning/table confirmation
       }),
     }
   )

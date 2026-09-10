@@ -1,5 +1,6 @@
 import express from 'express';
 import Category from '../models/Category.js';
+import Product from '../models/Product.js';
 import { adminOnly, protect, staffOrAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -68,6 +69,15 @@ router.put('/:id', protect, staffOrAdmin, async (req, res) => {
 // DELETE /api/categories/:id — admin
 router.delete('/:id', protect, adminOnly, async (req, res) => {
   try {
+    const productsCount = await Product.countDocuments({ category: req.params.id });
+    if (productsCount > 0) {
+      return res.status(409).json({
+        error: `Cannot delete category: ${productsCount} product(s) are assigned to it. Deactivate the category instead or reassign the products first.`,
+        code: 'CATEGORY_IN_USE',
+        productCount: productsCount,
+      });
+    }
+
     const category = await Category.findByIdAndDelete(req.params.id);
     if (!category) return res.status(404).json({ error: 'Category not found.' });
     res.json({ message: 'Category deleted.' });

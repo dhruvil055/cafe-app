@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /track/
+Disallow: /order-confirmed/
+Disallow: /receipt/
+Disallow: /orders
+
+Sitemap: https://client-ten-peach-93.vercel.app/sitemap.xml

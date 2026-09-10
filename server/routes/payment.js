@@ -162,8 +162,8 @@ router.post('/create-order', async (req, res) => {
 
     // Only persist a gateway order created for this still-pending order.
     const updated = await Order.findOneAndUpdate(
-      { _id: order._id, paymentStatus: 'pending', razorpayOrderId: '' },
-      { $set: { razorpayOrderId: razorpayOrder.id } },
+      { _id: order._id, paymentStatus: { $in: ['pending', 'payment_created'] }, razorpayOrderId: '' },
+      { $set: { razorpayOrderId: razorpayOrder.id, paymentStatus: 'payment_created' } },
       { new: true, runValidators: true }
     );
 
@@ -196,6 +196,33 @@ router.post('/create-order', async (req, res) => {
   }
 });
 
+// POST /api/payment/cancel
+// Customer cancelled/dismissed the payment modal.
+router.post('/cancel', async (req, res) => {
+  try {
+    const { orderId, accessToken } = req.body;
+    const validOrderId = getOrderId(orderId);
+    if (!validOrderId) return res.status(400).json({ error: 'A valid order ID is required.' });
+
+    const order = await requireOrderAccess(req, res, validOrderId, accessToken);
+    if (!order) return;
+
+    if (order.paymentStatus === 'paid') {
+      return res.status(400).json({ error: 'Order has already been paid.' });
+    }
+
+    if (['pending', 'payment_created', 'payment_processing'].includes(order.paymentStatus)) {
+      order.paymentStatus = 'cancelled';
+      await order.save();
+    }
+
+    return res.json({ success: true, order: publicPaymentState(order) });
+  } catch (error) {
+    console.error('Payment cancel error:', error.message);
+    return res.status(500).json({ error: 'Failed to record payment cancellation.' });
+  }
+});
+
 // POST /api/payment/verify
 // Requires order access authorization, binds the payment to the locally
 // initialized Razorpay order, and performs an atomic pending -> paid update.
@@ -225,7 +252,7 @@ router.post('/verify', async (req, res) => {
       return res.status(400).json({ error: 'Payment order ID mismatch.' });
     }
 
-    if (!['pending', 'paid'].includes(order.paymentStatus)) {
+    if (!['pending', 'payment_created', 'payment_processing', 'paid'].includes(order.paymentStatus)) {
       return res.status(400).json({ error: 'Order payment is not in a verifiable state.' });
     }
 
