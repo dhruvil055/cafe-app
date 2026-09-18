@@ -62,4 +62,27 @@ api.interceptors.response.use(
   }
 );
 
+// In-flight GET request deduplication to prevent duplicate network calls
+const inFlightRequests = new Map();
+const originalGet = api.get.bind(api);
+
+api.get = function (url, config) {
+  const method = config?.method?.toLowerCase() || 'get';
+  if (method !== 'get') {
+    return originalGet(url, config);
+  }
+
+  const key = `${url}_${JSON.stringify(config?.params || {})}`;
+  if (inFlightRequests.has(key)) {
+    return inFlightRequests.get(key);
+  }
+
+  const reqPromise = originalGet(url, config).finally(() => {
+    inFlightRequests.delete(key);
+  });
+
+  inFlightRequests.set(key, reqPromise);
+  return reqPromise;
+};
+
 export default api;

@@ -1,13 +1,30 @@
-import { forwardRef } from 'react';
+import { forwardRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Star, Lock } from 'lucide-react';
 import useCartStore from '../../context/cartStore';
 import toast from 'react-hot-toast';
 
-const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&q=80';
+const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=75';
 
-const MenuCard = forwardRef(function MenuCard({ product, onSelect }, ref) {
+function getOptimizedImageProps(rawUrl) {
+  const url = rawUrl || PLACEHOLDER;
+  if (url.includes('images.unsplash.com')) {
+    const base = url.split('?')[0];
+    return {
+      src: `${base}?auto=format&fit=crop&w=400&q=75`,
+      srcSet: `${base}?auto=format&fit=crop&w=320&q=75 320w, ${base}?auto=format&fit=crop&w=480&q=75 480w, ${base}?auto=format&fit=crop&w=640&q=75 640w`,
+      sizes: '(max-width: 640px) 48vw, (max-width: 1024px) 30vw, 22vw',
+    };
+  }
+  return { src: url, srcSet: undefined, sizes: undefined };
+}
+
+const MenuCard = forwardRef(function MenuCard({ product, onSelect, priority = false }, ref) {
   const { addItem, tableNumber, openScanner } = useCartStore();
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  const imageProps = getOptimizedImageProps(imgError ? PLACEHOLDER : product.image);
 
   // inventoryAvailable: true = has stock or no mapping, false = out of stock from inventory
   const isAvailable = product.available && product.inventoryAvailable !== false;
@@ -47,12 +64,26 @@ const MenuCard = forwardRef(function MenuCard({ product, onSelect }, ref) {
     >
       {/* Image */}
       <div className="relative aspect-square overflow-hidden bg-foam">
+        {!imgLoaded && (
+          <div className="absolute inset-0 skeleton" />
+        )}
         <img
-          src={product.image || PLACEHOLDER}
+          src={imageProps.src}
+          srcSet={imageProps.srcSet}
+          sizes={imageProps.sizes}
           alt={product.name}
-          className={`w-full h-full object-cover transition-transform duration-500 ${isAvailable ? 'group-hover:scale-105' : 'opacity-60'}`}
-          loading="lazy"
-          onError={e => { e.target.src = PLACEHOLDER; }}
+          width="400"
+          height="400"
+          style={{ aspectRatio: '1 / 1' }}
+          loading={priority ? 'eager' : 'lazy'}
+          decoding="async"
+          fetchpriority={priority ? 'high' : undefined}
+          onLoad={() => setImgLoaded(true)}
+          onError={() => {
+            setImgError(true);
+            setImgLoaded(true);
+          }}
+          className={`w-full h-full object-cover transition-all duration-300 ${isAvailable ? 'group-hover:scale-105' : 'opacity-60'} ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
         />
 
         {product.popular && isAvailable && (

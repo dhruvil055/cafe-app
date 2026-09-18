@@ -1,21 +1,31 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 import QuickCartPopup from './components/ui/QuickCartPopup';
 
-// Customer pages
+// Primary customer entry page loaded eagerly
 import MenuPage from './pages/customer/MenuPage';
-import CartPage from './pages/customer/CartPage';
-import CheckoutPage from './pages/customer/CheckoutPage';
-import OrderConfirmPage from './pages/customer/OrderConfirmPage';
-import TrackOrderPage from './pages/customer/TrackOrderPage';
-import AboutPage from './pages/customer/AboutPage';
-import OffersPage from './pages/customer/OffersPage';
-import ContactPage from './pages/customer/ContactPage';
-import GalleryPage from './pages/customer/GalleryPage';
 
-import ReceiptPage from './pages/customer/ReceiptPage';
-import OrdersPage from './pages/customer/OrdersPage';
+// Lazy-loaded customer pages
+const CartPage = lazy(() => import('./pages/customer/CartPage'));
+const CheckoutPage = lazy(() => import('./pages/customer/CheckoutPage'));
+const OrderConfirmPage = lazy(() => import('./pages/customer/OrderConfirmPage'));
+const TrackOrderPage = lazy(() => import('./pages/customer/TrackOrderPage'));
+const AboutPage = lazy(() => import('./pages/customer/AboutPage'));
+const OffersPage = lazy(() => import('./pages/customer/OffersPage'));
+const ContactPage = lazy(() => import('./pages/customer/ContactPage'));
+const GalleryPage = lazy(() => import('./pages/customer/GalleryPage'));
+const ReceiptPage = lazy(() => import('./pages/customer/ReceiptPage'));
+const OrdersPage = lazy(() => import('./pages/customer/OrdersPage'));
+
+function PageFallback() {
+  return (
+    <div className="min-h-screen bg-cream flex items-center justify-center">
+      <div className="w-8 h-8 rounded-full border-2 border-brew-500 border-t-transparent animate-spin" />
+    </div>
+  );
+}
 
 export default function App() {
   return (
@@ -37,27 +47,29 @@ export default function App() {
         }}
       />
 
-      <Routes>
-        <Route path="/" element={<Navigate to="/menu" replace />} />
-        <Route path="/menu" element={<MenuPage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/offers" element={<OffersPage />} />
-        <Route path="/contact" element={<ContactPage />} />
-        <Route path="/gallery" element={<GalleryPage />} />
-        <Route path="/cart" element={<CartPage />} />
-        <Route path="/checkout" element={<CheckoutPage />} />
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/menu" replace />} />
+          <Route path="/menu" element={<MenuPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/offers" element={<OffersPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/gallery" element={<GalleryPage />} />
+          <Route path="/cart" element={<CartPage />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
 
-        <Route path="/receipt" element={<ReceiptPage />} />
-        <Route path="/receipt/:orderId" element={<ReceiptPage />} />
-        <Route path="/orders" element={<OrdersPage />} />
-        <Route path="/order-confirm/:orderId" element={<OrderConfirmPage />} />
-        <Route path="/track/:orderId" element={<TrackOrderPage />} />
+          <Route path="/receipt" element={<ReceiptPage />} />
+          <Route path="/receipt/:orderId" element={<ReceiptPage />} />
+          <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/order-confirm/:orderId" element={<OrderConfirmPage />} />
+          <Route path="/track/:orderId" element={<TrackOrderPage />} />
 
-        <Route path="/admin" element={<Navigate to="/menu" replace />} />
-        <Route path="/admin/*" element={<Navigate to="/menu" replace />} />
+          <Route path="/admin" element={<Navigate to="/menu" replace />} />
+          <Route path="/admin/*" element={<Navigate to="/menu" replace />} />
 
-        <Route path="*" element={<Navigate to="/menu" replace />} />
-      </Routes>
+          <Route path="*" element={<Navigate to="/menu" replace />} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

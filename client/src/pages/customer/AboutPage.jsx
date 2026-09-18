@@ -41,8 +41,8 @@ export default function AboutPage() {
   return (
     <main className="about-page min-h-screen overflow-hidden bg-cream text-espresso-900">
       <section className="about-hero relative isolate min-h-[720px] overflow-hidden bg-espresso-950 text-cream sm:min-h-[760px]">
-        <img src="/images/about/brewhaus-cinematic-hero.png" alt="Barista preparing a coffee at Brewhaus" className="absolute inset-0 z-0 h-full w-full object-cover" />
-        <video className="absolute inset-0 z-0 h-full w-full object-cover" autoPlay muted loop playsInline preload="metadata" poster="/images/about/brewhaus-cinematic-hero.png" onError={(event) => { event.currentTarget.style.display = 'none'; }} aria-hidden="true">
+        <img src="/images/about/brewhaus-cinematic-hero.webp" alt="Barista preparing a coffee at Brewhaus" className="absolute inset-0 z-0 h-full w-full object-cover" />
+        <video className="absolute inset-0 z-0 h-full w-full object-cover" autoPlay muted loop playsInline preload="metadata" poster="/images/about/brewhaus-cinematic-hero.webp" onError={(event) => { event.currentTarget.style.display = 'none'; }} aria-hidden="true">
           <source src="/BrewHaus.mp4" type="video/mp4" />
         </video>
         <div className="absolute inset-0 z-10 bg-[linear-gradient(90deg,rgba(13,8,4,0.94)_0%,rgba(13,8,4,0.74)_45%,rgba(13,8,4,0.22)_100%)]" />
@@ -77,7 +77,7 @@ export default function AboutPage() {
 
         <div className="about-hero-cup pointer-events-none absolute bottom-0 right-8 z-20 hidden w-64 md:block lg:right-[8%] lg:w-72" aria-hidden="true">
           <div className="rounded-t-[9rem] border border-white/25 bg-cream/10 p-2 shadow-[0_30px_55px_rgba(0,0,0,0.3)] backdrop-blur-sm">
-            <img src="/images/about/brewhaus-story-cup.png" alt="" className="h-[22rem] w-full rounded-t-[8.3rem] object-cover object-bottom" />
+            <img src="/images/about/brewhaus-story-cup.webp" alt="" className="h-[22rem] w-full rounded-t-[8.3rem] object-cover object-bottom" />
           </div>
           <p className="mt-3 text-center text-[10px] font-semibold uppercase tracking-[0.24em] text-cream/70">Slowly made</p>
         </div>
@@ -100,7 +100,7 @@ export default function AboutPage() {
           <motion.div {...reveal} onMouseMove={setDepthPosition} onMouseLeave={(event) => { event.currentTarget.style.setProperty('--about-x', 0); event.currentTarget.style.setProperty('--about-y', 0); }} className="about-depth relative mx-auto w-full max-w-xl pb-8 pr-4 sm:pr-10">
             <div className="absolute inset-x-10 bottom-0 top-12 rounded-[2.5rem] bg-brew-100" />
             <div className="about-depth-layer relative overflow-hidden rounded-[2.2rem] bg-espresso-900 shadow-[0_28px_70px_rgba(26,15,8,0.22)]">
-              <img src="/images/about/brewhaus-story-cup.png" alt="Freshly brewed coffee at Brewhaus" className="h-[34rem] w-full object-cover sm:h-[42rem]" loading="lazy" />
+              <img src="/images/about/brewhaus-story-cup.webp" alt="Freshly brewed coffee at Brewhaus" className="h-[34rem] w-full object-cover sm:h-[42rem]" loading="lazy" />
             </div>
             <div className="about-depth-layer absolute -bottom-1 -left-1 rounded-2xl border border-white/60 bg-cream/90 px-5 py-4 shadow-lg backdrop-blur-sm sm:left-5">
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brew-700">Made to linger</p>
@@ -129,8 +129,8 @@ export default function AboutPage() {
       </section>
 
       <section className="relative isolate overflow-hidden bg-espresso-950 px-4 py-24 text-cream sm:px-6 lg:px-8">
-        <img src="/images/about/brewhaus-cinematic-hero.png" alt="" className="absolute inset-0 -z-20 h-full w-full object-cover opacity-45" loading="lazy" />
-        <video className="absolute inset-0 -z-10 h-full w-full object-cover opacity-65 mix-blend-luminosity" autoPlay muted loop playsInline preload="none" poster="/images/about/brewhaus-cinematic-hero.png" onError={(event) => { event.currentTarget.style.display = 'none'; }} aria-hidden="true">
+        <img src="/images/about/brewhaus-cinematic-hero.webp" alt="" className="absolute inset-0 -z-20 h-full w-full object-cover opacity-45" loading="lazy" />
+        <video className="absolute inset-0 -z-10 h-full w-full object-cover opacity-65 mix-blend-luminosity" autoPlay muted loop playsInline preload="none" poster="/images/about/brewhaus-cinematic-hero.webp" onError={(event) => { event.currentTarget.style.display = 'none'; }} aria-hidden="true">
           <source src="/BrewHaus.mp4" type="video/mp4" />
         </video>
         <div className="absolute inset-0 -z-10 bg-espresso-950/55" />
@@ -146,7 +146,7 @@ export default function AboutPage() {
           <motion.div {...reveal} onMouseMove={setDepthPosition} onMouseLeave={(event) => { event.currentTarget.style.setProperty('--about-x', 0); event.currentTarget.style.setProperty('--about-y', 0); }} className="about-depth relative order-2 lg:order-1">
             <div className="absolute -inset-4 rounded-[2.5rem] bg-espresso-100" />
             <div className="about-depth-layer relative overflow-hidden rounded-[2rem] shadow-[0_24px_60px_rgba(26,15,8,0.16)]">
-              <img src="/images/about/brewhaus-cinematic-hero.png" alt="Coffee being prepared at the Brewhaus counter" className="h-[25rem] w-full object-cover sm:h-[34rem]" loading="lazy" />
+              <img src="/images/about/brewhaus-cinematic-hero.webp" alt="Coffee being prepared at the Brewhaus counter" className="h-[25rem] w-full object-cover sm:h-[34rem]" loading="lazy" />
             </div>
           </motion.div>
           <motion.div {...reveal} className="order-1 lg:order-2">
@@ -160,7 +160,7 @@ export default function AboutPage() {
       </section>
 
       <section className="relative isolate overflow-hidden bg-espresso-950 px-4 py-24 text-center text-cream sm:px-6 sm:py-32 lg:px-8">
-        <img src="/images/about/brewhaus-story-cup.png" alt="" className="absolute inset-0 -z-20 h-full w-full object-cover opacity-40" loading="lazy" />
+        <img src="/images/about/brewhaus-story-cup.webp" alt="" className="absolute inset-0 -z-20 h-full w-full object-cover opacity-40" loading="lazy" />
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_center,rgba(154,96,49,0.42),rgba(13,8,4,0.95)_70%)]" />
         <motion.div {...reveal} className="mx-auto max-w-3xl">
           <SectionEyebrow light>Fine Coffee & Dining</SectionEyebrow>

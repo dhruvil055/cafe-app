@@ -279,7 +279,7 @@ export default function ContactPage() {
       >
         {/* Background Video & Fallback Poster */}
         <img
-          src="/images/about/brewhaus-cinematic-hero.png"
+          src="/images/about/brewhaus-cinematic-hero.webp"
           alt="Barista preparing handcrafted coffee at Brewhaus"
           className="absolute inset-0 z-0 h-full w-full object-cover"
         />
@@ -290,7 +290,7 @@ export default function ContactPage() {
           loop
           playsInline
           preload="metadata"
-          poster="/images/about/brewhaus-cinematic-hero.png"
+          poster="/images/about/brewhaus-cinematic-hero.webp"
           onError={(event) => {
             event.currentTarget.style.display = 'none';
           }}
@@ -389,7 +389,7 @@ export default function ContactPage() {
 
           <div className="rounded-t-[9rem] border border-white/25 bg-cream/10 p-2.5 shadow-[0_30px_60px_rgba(0,0,0,0.35)] backdrop-blur-md">
             <img
-              src="/images/about/brewhaus-story-cup.png"
+              src="/images/about/brewhaus-story-cup.webp"
               alt="Brewhaus handcrafted coffee cup"
               className="h-[22rem] w-full rounded-t-[8.3rem] object-cover object-bottom"
             />
@@ -804,7 +804,7 @@ export default function ContactPage() {
       {/* ========================================================================= */}
       <section className="relative isolate overflow-hidden bg-espresso-950 px-4 py-24 text-cream sm:px-6 lg:px-8">
         <img
-          src="/images/about/brewhaus-cinematic-hero.png"
+          src="/images/about/brewhaus-cinematic-hero.webp"
           alt="Atmosphere at Brewhaus Café"
           className="absolute inset-0 -z-20 h-full w-full object-cover opacity-40"
           loading="lazy"
@@ -816,7 +816,7 @@ export default function ContactPage() {
           loop
           playsInline
           preload="none"
-          poster="/images/about/brewhaus-cinematic-hero.png"
+          poster="/images/about/brewhaus-cinematic-hero.webp"
           onError={(event) => {
             event.currentTarget.style.display = 'none';
           }}
@@ -913,7 +913,7 @@ export default function ContactPage() {
       {/* ========================================================================= */}
       <section className="relative isolate overflow-hidden bg-espresso-950 px-4 py-24 text-center text-cream sm:px-6 sm:py-32 lg:px-8">
         <img
-          src="/images/about/brewhaus-story-cup.png"
+          src="/images/about/brewhaus-story-cup.webp"
           alt="Brewhaus Coffee Experience"
           className="absolute inset-0 -z-20 h-full w-full object-cover opacity-35"
           loading="lazy"

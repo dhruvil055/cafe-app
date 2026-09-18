@@ -1,14 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, Search, SlidersHorizontal, Leaf, Star, ChevronDown, X, AlertCircle, ScanLine, CheckCircle2, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import useCartStore, { cartItemCount } from '../../context/cartStore';
-import ProductModal from '../../components/menu/ProductModal';
 import MenuCard from '../../components/menu/MenuCard';
 import SkeletonCard from '../../components/ui/SkeletonCard';
-import QrScannerModal from '../../components/ui/QrScannerModal';
+import { getCached, setCached, CATEGORIES_TTL_MS, DEFAULT_TTL_MS } from '../../utils/menuCache';
+
+const ProductModal = lazy(() => import('../../components/menu/ProductModal'));
+const QrScannerModal = lazy(() => import('../../components/ui/QrScannerModal'));
 
 const SORT_OPTIONS = [
   { value: '', label: 'Default' },
@@ -56,9 +58,19 @@ export default function MenuPage() {
     setTimeout(() => setTableConnectedAnim(false), 3000);
   }, [tableParam, setTable]);
 
-  // Fetch categories
+  // Fetch categories with client cache
   useEffect(() => {
-    api.get('/categories').then(res => setCategories(Array.isArray(res.data.categories) ? res.data.categories : []));
+    const cachedCats = getCached('categories');
+    if (cachedCats && cachedCats.length > 0) {
+      setCategories(cachedCats);
+    }
+    api.get('/categories')
+      .then(res => {
+        const cats = Array.isArray(res.data.categories) ? res.data.categories : [];
+        setCategories(cats);
+        setCached('categories', cats, CATEGORIES_TTL_MS);
+      })
+      .catch(() => {});
   }, []);
 
   // Debounce search
@@ -79,22 +91,38 @@ export default function MenuPage() {
     return () => clearTimeout(timer);
   }, [loading]);
 
-  // Fetch products
+  // Fetch products with stale-while-revalidate client cache
   useEffect(() => {
-    setLoading(true);
-    setMenuError('');
     const params = new URLSearchParams();
     if (selectedCategory !== 'all') params.append('category', selectedCategory);
     if (debouncedSearch) params.append('search', debouncedSearch);
     if (vegOnly) params.append('veg', 'true');
     if (sort) params.append('sort', sort);
 
+    const cacheKey = `menu_${params.toString()}`;
+    const cachedProducts = getCached(cacheKey);
+
+    if (cachedProducts && cachedProducts.length > 0) {
+      setProducts(cachedProducts);
+      setLoading(false);
+      setMenuError('');
+    } else {
+      setLoading(true);
+      setMenuError('');
+    }
+
     api.get(`/menu?${params}`)
-      .then(res => setProducts(Array.isArray(res.data.products) ? res.data.products : []))
+      .then(res => {
+        const prods = Array.isArray(res.data.products) ? res.data.products : [];
+        setProducts(prods);
+        setCached(cacheKey, prods, DEFAULT_TTL_MS);
+      })
       .catch(error => {
-        setProducts([]);
-        setMenuError(error.message || 'Unable to connect to the menu service.');
-        toast.error('Failed to load menu');
+        if (!cachedProducts || cachedProducts.length === 0) {
+          setProducts([]);
+          setMenuError(error.message || 'Unable to connect to the menu service.');
+          toast.error('Failed to load menu');
+        }
       })
       .finally(() => setLoading(false));
   }, [selectedCategory, debouncedSearch, vegOnly, sort, reloadKey]);
@@ -117,6 +145,7 @@ export default function MenuPage() {
           loop
           playsInline
           preload="metadata"
+          poster="/images/hero-poster.webp"
           aria-hidden="true"
         >
           <source src="/BrewHaus.mp4" type="video/mp4" />
@@ -385,10 +414,11 @@ export default function MenuPage() {
             className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
           >
             <AnimatePresence mode="popLayout">
-              {products.map(product => (
+              {products.map((product, idx) => (
                 <MenuCard
                   key={product._id}
                   product={product}
+                  priority={idx < 2}
                   onSelect={() => setSelectedProduct(product)}
                 />
               ))}
@@ -433,31 +463,35 @@ export default function MenuPage() {
         </motion.div>
       )}
 
-      {/* Product modal */}
+      {/* Product modal — loaded lazily */}
       <AnimatePresence>
         {selectedProduct && (
-          <ProductModal
-            product={selectedProduct}
-            onClose={() => setSelectedProduct(null)}
-          />
+          <Suspense fallback={null}>
+            <ProductModal
+              product={selectedProduct}
+              onClose={() => setSelectedProduct(null)}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
 
-      {/* QR Scanner modal — sets table number only, no session created */}
+      {/* QR Scanner modal — loaded lazily, keeps html5-qrcode out of initial bundle */}
       <AnimatePresence>
         {(showScanner || isScannerOpen) && (
-          <QrScannerModal
-            onClose={() => {
-              setShowScanner(false);
-              closeScanner();
-            }}
-            onTableFound={(tableNum) => {
-              setShowScanner(false);
-              closeScanner();
-              setTable(tableNum);
-              navigate(`/menu?table=${tableNum}`, { replace: true });
-            }}
-          />
+          <Suspense fallback={null}>
+            <QrScannerModal
+              onClose={() => {
+                setShowScanner(false);
+                closeScanner();
+              }}
+              onTableFound={(tableNum) => {
+                setShowScanner(false);
+                closeScanner();
+                setTable(tableNum);
+                navigate(`/menu?table=${tableNum}`, { replace: true });
+              }}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
     </div>
