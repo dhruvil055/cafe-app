@@ -20,6 +20,8 @@ const extractTableNumber = (value) => {
 
 export default function QrScannerModal({ onClose, onTableFound }) {
   const scannerRef = useRef(null);
+  const isProcessingRef = useRef(false);
+  const isClosedRef = useRef(false);
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
   // Pending-confirm state for different-table detection
@@ -34,6 +36,8 @@ export default function QrScannerModal({ onClose, onTableFound }) {
       { facingMode: 'environment' },
       { fps: 10, qrbox: { width: 240, height: 240 } },
       async (decodedText) => {
+        if (isProcessingRef.current) return;
+        isProcessingRef.current = true;
         await handleTableValue(decodedText);
       },
       () => {}
@@ -53,6 +57,9 @@ export default function QrScannerModal({ onClose, onTableFound }) {
     const tableNum = extractTableNumber(value);
     if (!tableNum) {
       setError('That QR code is not a Brewhaus table code.');
+      setTimeout(() => {
+        isProcessingRef.current = false;
+      }, 1500);
       return;
     }
     const num = Number(tableNum);
@@ -74,6 +81,7 @@ export default function QrScannerModal({ onClose, onTableFound }) {
 
       setTable(num);
       toast.success(`Table ${String(num).padStart(2, '0')} connected!`, {
+        id: 'table-connected',
         icon: '✅',
         duration: 4000,
       });
@@ -84,6 +92,9 @@ export default function QrScannerModal({ onClose, onTableFound }) {
       handleClose();
     } catch (err) {
       setError('This table number is not active. Please scan a valid table QR code.');
+      setTimeout(() => {
+        isProcessingRef.current = false;
+      }, 2000);
     } finally {
       setChecking(false);
     }
@@ -92,16 +103,22 @@ export default function QrScannerModal({ onClose, onTableFound }) {
   const handleConfirmNewTable = async () => {
     if (!pendingTable) return;
     clearCart();
+    const tableToConnect = pendingTable;
     setPendingTable(null);
-    await connectToTable(pendingTable);
+    await connectToTable(tableToConnect);
   };
 
   const handleCancelNewTable = () => {
     setPendingTable(null);
     setError('');
+    setTimeout(() => {
+      isProcessingRef.current = false;
+    }, 1000);
   };
 
   const handleClose = () => {
+    if (isClosedRef.current) return;
+    isClosedRef.current = true;
     const activeScanner = scannerRef.current;
     if (activeScanner?.isScanning) {
       activeScanner.stop().catch(() => {});
