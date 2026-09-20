@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 import QuickCartPopup from './components/ui/QuickCartPopup';
+import PushNotificationBanner from './components/ui/PushNotificationBanner';
 
 // Primary customer entry page loaded eagerly
 import MenuPage from './pages/customer/MenuPage';
@@ -18,6 +19,7 @@ const ContactPage = lazy(() => import('./pages/customer/ContactPage'));
 const GalleryPage = lazy(() => import('./pages/customer/GalleryPage'));
 const ReceiptPage = lazy(() => import('./pages/customer/ReceiptPage'));
 const OrdersPage = lazy(() => import('./pages/customer/OrdersPage'));
+const UnsubscribePage = lazy(() => import('./pages/customer/UnsubscribePage'));
 
 function PageFallback() {
   return (
@@ -31,6 +33,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <QuickCartPopup />
+      <PushNotificationBanner />
       <Toaster
         position="top-center"
         toastOptions={{
@@ -57,6 +60,7 @@ export default function App() {
           <Route path="/gallery" element={<GalleryPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/unsubscribe" element={<UnsubscribePage />} />
 
           <Route path="/receipt" element={<ReceiptPage />} />
           <Route path="/receipt/:orderId" element={<ReceiptPage />} />

@@ -22,6 +22,8 @@ export default function CheckoutPage() {
   const { items, tableNumber, clearCart, diningSessionToken, addRecentOrder } = useCartStore();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -48,6 +50,7 @@ export default function CheckoutPage() {
   const validate = () => {
     if (!name.trim()) return 'Please enter your name.';
     if (!phone.trim() || !/^\d{10}$/.test(phone)) return 'Please enter a valid 10-digit phone number.';
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Please enter a valid email address.';
     return null;
   };
 
@@ -66,7 +69,12 @@ export default function CheckoutPage() {
 
       const orderData = {
         tableNumber,
-        customer: { name: name.trim(), phone: phone.trim() },
+        customer: {
+          name: name.trim(),
+          phone: phone.trim(),
+          email: email.trim(),
+          marketingConsent,
+        },
         items: secureItems,
         paymentMethod: 'cash',
         idempotencyKey,
@@ -110,7 +118,12 @@ export default function CheckoutPage() {
 
       const orderData = {
         tableNumber,
-        customer: { name: name.trim(), phone: phone.trim() },
+        customer: {
+          name: name.trim(),
+          phone: phone.trim(),
+          email: email.trim(),
+          marketingConsent,
+        },
         items: secureItems,
         paymentMethod: 'razorpay',
         idempotencyKey,
@@ -152,7 +165,7 @@ export default function CheckoutPage() {
         name: 'Brewhaus Cafe',
         description: `Order ${order.orderNumber} · Table ${tableNumber}`,
         order_id: razorpayOrderId,
-        prefill: { name: name.trim(), contact: phone.trim() },
+        prefill: { name: name.trim(), contact: phone.trim(), email: email.trim() },
         theme: { color: '#1a0f08' },
         modal: {
           ondismiss: () => {
@@ -245,6 +258,30 @@ export default function CheckoutPage() {
                 inputMode="numeric"
               />
             </div>
+          </div>
+          <div>
+            <label className="text-xs text-espresso-500 mb-1 block">Email (Optional)</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="name@example.com"
+              className="input-field"
+              autoComplete="email"
+            />
+          </div>
+          <div className="pt-1.5 border-t border-foam">
+            <label className="flex items-start gap-2.5 cursor-pointer text-espresso-700 select-none group">
+              <input
+                type="checkbox"
+                checked={marketingConsent}
+                onChange={e => setMarketingConsent(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-espresso-300 text-brew-600 focus:ring-brew-500 cursor-pointer transition accent-brew-600"
+              />
+              <span className="text-xs leading-relaxed text-espresso-600 group-hover:text-espresso-900 transition">
+                I agree to receive offers, promotions and updates from Brewhaus Café.
+              </span>
+            </label>
           </div>
         </div>
 

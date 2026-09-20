@@ -25,9 +25,12 @@ const orderSchema = new mongoose.Schema({
   orderNumber: { type: String, required: true },
   tableNumber: { type: Number, required: true },
   diningSessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'DiningSession', required: false, index: true },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: false, index: true },
   customer: {
     name: { type: String, required: true },
     phone: { type: String, required: true },
+    email: { type: String, default: '' },
+    marketingConsent: { type: Boolean, default: false },
   },
   items: [orderItemSchema],
   subtotal: { type: Number, required: true },

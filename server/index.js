@@ -21,6 +21,10 @@ import sessionRoutes from './routes/session.js';
 import contactRoutes from './routes/contact.js';
 import analyticsRoutes from './routes/analytics.js';
 import inventoryRoutes from './routes/inventory.js';
+import customerRoutes from './routes/customers.js';
+import marketingRoutes from './routes/marketing.js';
+import notificationRoutes from './routes/notifications.js';
+import { startCampaignScheduler } from './services/campaignRunner.js';
 
 dotenv.config();
 
@@ -133,6 +137,9 @@ export const createApp = ({ razorpayFactory } = {}) => {
   app.use('/api/contact', contactRoutes);
   app.use('/api/analytics', analyticsRoutes);
   app.use('/api/inventory', inventoryRoutes);
+  app.use('/api/customers', customerRoutes);
+  app.use('/api/marketing', marketingRoutes);
+  app.use('/api/notifications', notificationRoutes);
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -158,6 +165,7 @@ export const app = createApp();
 export const startServer = async () => {
   const port = process.env.PORT || 5000;
   await connectDB();
+  startCampaignScheduler();
   return app.listen(port, () => {
     console.log(`Server running on port ${port}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);

@@ -4,6 +4,8 @@ import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import Table from '../models/Table.js';
 import DiningBill from '../models/DiningBill.js';
+import Customer from '../models/Customer.js';
+import { normalizePhoneNumber } from '../utils/phoneNormalizer.js';
 import { adminOnly, protect, staffOrAdmin } from '../middleware/auth.js';
 import { createReceiptData, ensureReceiptNumber, generateReceiptPdf } from '../services/receipt.js';
 import {
@@ -137,11 +139,14 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Sanitize customer data
-    const phone = String(customer.phone).trim();
-    if (!/^[0-9+()\-\s]{7,15}$/.test(phone)) {
+    // Sanitize and normalize customer data
+    const normalizedPhone = normalizePhoneNumber(customer.phone);
+    if (!normalizedPhone) {
       return res.status(400).json({ error: 'Customer phone number is invalid.' });
     }
+    const customerName = String(customer.name).trim();
+    const customerEmail = typeof customer.email === 'string' ? customer.email.trim().toLowerCase() : '';
+    const explicitMarketingConsent = customer.marketingConsent === true;
 
     // Validate and fetch all product prices from database
     const validatedItems = await validateAndFetchProductPrices(items, Product);
@@ -149,8 +154,8 @@ router.post('/', async (req, res) => {
     // Guard against rapid duplicate clicks (exact same name, phone, table, within 2 seconds)
     const recentDuplicate = await Order.findOne({
       tableNumber: normalizedTableNumber,
-      'customer.name': String(customer.name).trim(),
-      'customer.phone': phone,
+      'customer.name': customerName,
+      'customer.phone': { $in: [normalizedPhone, String(customer.phone).trim()] },
       createdAt: { $gte: new Date(Date.now() - 2000) },
     }).sort({ createdAt: -1 });
 
@@ -199,6 +204,47 @@ router.post('/', async (req, res) => {
     // Calculate totals server-side
     const { subtotal, tax, total, taxRate } = calculateServerTotals(validatedItems);
 
+    // Find or create Customer document
+    const now = new Date();
+    let customerDoc = await Customer.findOne({ phone: normalizedPhone });
+
+    if (!customerDoc) {
+      customerDoc = await Customer.create({
+        name: customerName,
+        phone: normalizedPhone,
+        email: customerEmail,
+        marketingConsent: explicitMarketingConsent,
+        marketingConsentAt: explicitMarketingConsent ? now : null,
+        firstOrderAt: now,
+        lastOrderAt: now,
+        totalOrders: 1,
+        totalSpent: total,
+        status: 'active',
+      });
+    } else {
+      customerDoc.lastOrderAt = now;
+      customerDoc.totalOrders = (customerDoc.totalOrders || 0) + 1;
+      customerDoc.totalSpent = (customerDoc.totalSpent || 0) + total;
+
+      if (customerName && (!customerDoc.name || customerDoc.name.toLowerCase() === 'guest')) {
+        customerDoc.name = customerName;
+      }
+      if (customerEmail && !customerDoc.email) {
+        customerDoc.email = customerEmail;
+      }
+
+      // Preserve existing consent; never silently change false to true unless explicit
+      if (explicitMarketingConsent && !customerDoc.marketingConsent && customerDoc.status !== 'blocked') {
+        customerDoc.marketingConsent = true;
+        customerDoc.marketingConsentAt = now;
+        customerDoc.marketingOptOutAt = null;
+        if (customerDoc.status === 'unsubscribed') {
+          customerDoc.status = 'active';
+        }
+      }
+      await customerDoc.save();
+    }
+
     // Generate secure access token (deterministic if idempotencyKey supplied)
     const accessToken = idempotencyKey
       ? generateIdempotentAccessToken(idempotencyKey)
@@ -209,9 +255,12 @@ router.post('/', async (req, res) => {
     const order = await Order.create({
       tableNumber: normalizedTableNumber,
       diningSessionId: diningSessionId || undefined,
+      customerId: customerDoc._id,
       customer: {
-        name: String(customer.name).trim(),
-        phone,
+        name: customerName,
+        phone: normalizedPhone,
+        email: customerDoc.email || customerEmail,
+        marketingConsent: customerDoc.marketingConsent,
       },
       items: validatedItems,
       subtotal,
@@ -239,6 +288,7 @@ router.post('/', async (req, res) => {
         _id: order._id,
         orderNumber: order.orderNumber,
         tableNumber: order.tableNumber,
+        customerId: order.customerId,
         customer: order.customer,
         items: order.items,
         subtotal: order.subtotal,
