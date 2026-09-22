@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 import QuickCartPopup from './components/ui/QuickCartPopup';
-import PushNotificationBanner from './components/ui/PushNotificationBanner';
+import WebPushPrompt from './components/ui/WebPushPrompt';
 
 // Primary customer entry page loaded eagerly
 import MenuPage from './pages/customer/MenuPage';
@@ -33,7 +33,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <QuickCartPopup />
-      <PushNotificationBanner />
+      <WebPushPrompt />
       <Toaster
         position="top-center"
         toastOptions={{

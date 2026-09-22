@@ -38,7 +38,11 @@ export default function CustomerNotificationStatus() {
   };
 
   if (permission === 'unsupported') {
-    return null;
+    return (
+      <div className="rounded-2xl border border-foam bg-white p-4 shadow-sm">
+        <p className="text-xs text-espresso-500">Web notifications aren&apos;t supported on this browser.</p>
+      </div>
+    );
   }
 
   return (

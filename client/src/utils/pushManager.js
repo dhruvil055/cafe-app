@@ -98,6 +98,65 @@ export const subscribeToWebPush = async ({ customerId, phone } = {}) => {
 };
 
 /**
+ * Silent background sync for the "already granted" case.
+ * Never triggers a permission request — proceeds ONLY when
+ * Notification.permission is already "granted". Safe to call on every
+ * site visit: reuses the existing registration/subscription and upserts
+ * it on the backend so stays/rotated endpoints never go stale.
+ *
+ * @returns {Promise<boolean>} true when an active subscription is ensured.
+ */
+export const ensureWebPushSubscription = async ({ customerId, phone } = {}) => {
+  if (!isPushSupported()) return false;
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return false;
+
+  try {
+    let registration = await navigator.serviceWorker.getRegistration();
+    if (!registration) {
+      registration = await navigator.serviceWorker.register('/sw.js');
+    }
+    await navigator.serviceWorker.ready;
+
+    let publicKey = null;
+    try {
+      const res = await api.get('/notifications/vapid-public-key');
+      publicKey = res.data?.publicKey;
+    } catch {
+      const res = await api.get('/push/vapid-public-key');
+      publicKey = res.data?.publicKey;
+    }
+    if (!publicKey) return false;
+
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+
+    const payload = {
+      subscription: subscription.toJSON(),
+      customerId: customerId || localStorage.getItem('brewhaus_customer_id') || undefined,
+      phone: phone || localStorage.getItem('brewhaus_customer_phone') || undefined,
+      userAgent: navigator.userAgent,
+    };
+
+    try {
+      await api.post('/notifications/subscribe', payload);
+    } catch {
+      await api.post('/push/subscribe', payload);
+    }
+
+    localStorage.setItem('brewhaus_push_enabled', 'true');
+    return true;
+  } catch (err) {
+    console.error('Background web push sync failed:', err.message);
+    return false;
+  }
+};
+
+/**
  * Unsubscribes current device from Web Push
  */
 export const unsubscribeFromWebPush = async () => {
