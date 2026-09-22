@@ -48,7 +48,15 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  const targetUrl = event.notification.data?.url || event.notification.data?.actionUrl || '/menu';
+  const rawTarget = event.notification.data?.url || event.notification.data?.actionUrl || '/menu';
+  // Resolve against the service worker origin so relative paths open the
+  // correct website page regardless of the client's current scope.
+  let targetUrl = '/menu';
+  try {
+    targetUrl = new URL(rawTarget, self.location.origin).href;
+  } catch {
+    targetUrl = new URL('/menu', self.location.origin).href;
+  }
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {

@@ -50,6 +50,11 @@ const pushSubscriptionSchema = new mongoose.Schema({
     default: true,
     index: true,
   },
+  lastUsedAt: {
+    type: Date,
+    default: null,
+    index: true,
+  },
 }, { timestamps: true });
 
 // Keep active and isActive synchronized

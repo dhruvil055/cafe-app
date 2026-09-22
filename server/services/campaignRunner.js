@@ -191,24 +191,46 @@ export const buildCustomerAudienceQuery = (audienceType, filter = {}) => {
 /**
  * Retrieves all active push subscriptions eligible for a given audience segment.
  * Respects Phase 13 & 14 (only active push subscriptions receive notifications).
+ *
+ * Eligibility rule (no exceptions):
+ *   Customer + Active Web Push Subscription + Permission granted
+ *   = Eligible Website Notification Recipient.
+ * A phone number alone NEVER qualifies a recipient.
  */
 export const getEligiblePushSubscriptions = async (audienceType = 'all_enabled', filter = {}) => {
+  const normalizedAudience = audienceType === 'all' ? 'all_enabled' : audienceType;
   const activeSubQuery = {
     $or: [{ isActive: true }, { active: true }],
   };
+
+  // "Selected customers" — explicit customer ID list from the admin UI.
+  const selectedIds = filter.customerIds || filter.targetCustomers || filter.targetCustomerIds;
+  if (normalizedAudience === 'selected' && Array.isArray(selectedIds) && selectedIds.length > 0) {
+    const idSet = new Set(selectedIds.map((id) => String(id)));
+    const subs = await PushSubscription.find({
+      ...activeSubQuery,
+      customerId: { $in: [...idSet].filter((id) => /^[a-fA-F0-9]{24}$/.test(id)) },
+    })
+      .populate('customerId')
+      .lean();
+    return subs.filter((sub) => {
+      if (!sub.customerId) return false;
+      return sub.customerId.status !== 'blocked';
+    });
+  }
 
   const activeSubscriptions = await PushSubscription.find(activeSubQuery)
     .populate('customerId')
     .lean();
 
-  if (audienceType === 'all_enabled' || !audienceType) {
+  if (normalizedAudience === 'all_enabled' || normalizedAudience === 'all' || !normalizedAudience) {
     return activeSubscriptions.filter((sub) => {
       if (sub.customerId && sub.customerId.status === 'blocked') return false;
       return true;
     });
   }
 
-  const customerQuery = buildCustomerAudienceQuery(audienceType, filter);
+  const customerQuery = buildCustomerAudienceQuery(normalizedAudience, filter);
   const matchingCustomers = await Customer.find(customerQuery).select('_id').lean();
   const matchingCustomerIds = new Set(matchingCustomers.map((c) => String(c._id)));
 
@@ -221,15 +243,22 @@ export const getEligiblePushSubscriptions = async (audienceType = 'all_enabled',
 
 /**
  * Real-time audience estimation count.
- * Differentiates between website push campaigns and marketing campaigns.
+ * Website push counts DEVICES with active subscriptions (never raw customers).
  */
 export const getEstimatedAudienceCount = async (audienceType, filter = {}, channel = 'web_push') => {
-  if (channel === 'web_push' || channel === 'push') {
+  const normalizedChannel = String(channel || 'web_push').toLowerCase();
+  if (['web', 'web_push', 'push'].includes(normalizedChannel)) {
     const eligible = await getEligiblePushSubscriptions(audienceType, filter);
     return eligible.length;
   }
 
-  // Marketing audience query for SMS/WhatsApp
+  if (['sms', 'whatsapp'].includes(normalizedChannel)) {
+    const err = new Error(`${channel} channel is coming soon. Web Push is the only active channel.`);
+    err.code = 'CHANNEL_COMING_SOON';
+    throw err;
+  }
+
+  // Marketing audience query for legacy counts
   const query = await buildMarketingAudienceQuery(audienceType, filter);
   return Customer.countDocuments(query);
 };
@@ -246,19 +275,21 @@ const formatMessage = (template, customer, campaign) => {
 };
 
 const executeNotificationCampaign = async (campaign) => {
+  // v1 website notifications are Web Push ONLY. SMS/WhatsApp are coming soon.
+  const channel = String(campaign.channel || 'web_push').toLowerCase();
+  if (['sms', 'whatsapp'].includes(channel)) {
+    campaign.status = 'failed';
+    await campaign.save();
+    const err = new Error(`${campaign.channel} channel is coming soon. Web Push is the only active channel.`);
+    err.code = 'CHANNEL_COMING_SOON';
+    throw err;
+  }
+
   campaign.status = 'sending';
   await campaign.save();
 
   try {
-    const isPush = campaign.channel === 'web_push' || !campaign.channel;
-    
-    let eligibleRecipients = [];
-    if (isPush) {
-      eligibleRecipients = await getEligiblePushSubscriptions(campaign.audienceType, campaign.audienceFilter);
-    } else {
-      const audienceQuery = await buildMarketingAudienceQuery(campaign.audienceType, campaign.audienceFilter);
-      eligibleRecipients = await Customer.find(audienceQuery).lean();
-    }
+    const eligibleRecipients = await getEligiblePushSubscriptions(campaign.audienceType, campaign.audienceFilter);
 
     campaign.totalRecipients = eligibleRecipients.length;
     await campaign.save();
@@ -274,46 +305,40 @@ const executeNotificationCampaign = async (campaign) => {
     let sentCount = 0;
     let failedCount = 0;
 
-    const BATCH_SIZE = 10;
+    // Controlled concurrency: fixed batch size so large campaigns never
+    // spike memory or connections. Tune via NOTIFICATION_BATCH_SIZE.
+    const BATCH_SIZE = Math.max(1, Number(process.env.NOTIFICATION_BATCH_SIZE) || 100);
     for (let i = 0; i < eligibleRecipients.length; i += BATCH_SIZE) {
       const batch = eligibleRecipients.slice(i, i + BATCH_SIZE);
 
       await Promise.all(
         batch.map(async (recipient) => {
-          const customer = isPush ? (recipient.customerId || null) : recipient;
+          const customer = recipient.customerId || null;
           const personalizedMessage = formatMessage(campaign.message, customer, campaign);
 
           const delivery = await NotificationDelivery.create({
             campaignId: campaign._id,
             customerId: customer ? (customer._id || customer) : null,
-            subscriptionId: isPush ? recipient._id : null,
+            subscriptionId: recipient._id,
             status: 'sending',
             sentAt: new Date(),
           });
 
           try {
-            if (isPush) {
-              await notificationService.sendPushNotification({
-                subscription: recipient,
-                title: campaign.title,
-                message: personalizedMessage,
-                image: campaign.image,
-                actionUrl: campaign.actionUrl,
-                offerCode: campaign.offerCode,
-              });
-            } else if (campaign.channel === 'sms') {
-              await notificationService.sendSMS({
-                phone: customer.phone,
-                message: personalizedMessage,
-                offerCode: campaign.offerCode,
-              });
-            } else if (campaign.channel === 'whatsapp') {
-              await notificationService.sendWhatsApp({
-                phone: customer.phone,
-                message: personalizedMessage,
-                offerCode: campaign.offerCode,
-              });
-            }
+            await notificationService.sendPushNotification({
+              subscription: recipient,
+              title: campaign.title,
+              message: personalizedMessage,
+              image: campaign.image,
+              actionUrl: campaign.actionUrl,
+              offerCode: campaign.offerCode,
+            });
+
+            // Track last successful use (helps prune stale devices later).
+            await PushSubscription.updateOne(
+              { _id: recipient._id },
+              { lastUsedAt: new Date() }
+            );
 
             delivery.status = 'delivered';
             await delivery.save();
@@ -411,14 +436,17 @@ const executeLegacyCampaign = async (campaign) => {
           try {
             let result;
             if (channel === 'whatsapp') {
-              result = await notificationService.sendWhatsApp({
+              // Legacy marketing simulator — zero network calls, no paid provider.
+              result = await notificationService.sendLegacyMarketing({
+                channel: 'WHATSAPP',
                 phone: customer.phone,
                 message: personalizedMessage,
                 offerCode: campaign.offerCode,
-                variables: { name: customer.name, offer: campaign.title, code: campaign.offerCode },
               });
             } else if (channel === 'sms') {
-              result = await notificationService.sendSMS({
+              // Legacy marketing simulator — zero network calls, no paid provider.
+              result = await notificationService.sendLegacyMarketing({
+                channel: 'SMS',
                 phone: customer.phone,
                 message: personalizedMessage,
                 offerCode: campaign.offerCode,
@@ -585,13 +613,17 @@ export const retryFailedDeliveries = async (campaignId) => {
         const personalizedMessage = formatMessage(campaign.message, customer, campaign);
         let result;
         if (delivery.channel === 'whatsapp') {
-          result = await notificationService.sendWhatsApp({
+          // Legacy marketing simulator — zero network calls, no paid provider.
+          result = await notificationService.sendLegacyMarketing({
+            channel: 'WHATSAPP',
             phone: customer.phone,
             message: personalizedMessage,
             offerCode: campaign.offerCode,
           });
         } else if (delivery.channel === 'sms') {
-          result = await notificationService.sendSMS({
+          // Legacy marketing simulator — zero network calls, no paid provider.
+          result = await notificationService.sendLegacyMarketing({
+            channel: 'SMS',
             phone: customer.phone,
             message: personalizedMessage,
             offerCode: campaign.offerCode,

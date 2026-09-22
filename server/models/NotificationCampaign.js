@@ -33,12 +33,14 @@ const notificationCampaignSchema = new mongoose.Schema({
   },
   channel: {
     type: String,
-    enum: ['web_push', 'sms', 'whatsapp'],
+    enum: ['web', 'web_push', 'sms', 'whatsapp'],
     default: 'web_push',
   },
   audienceType: {
     type: String,
     enum: [
+      'all',
+      'selected',
       'all_enabled',
       'single_customer',
       'new_customers',
@@ -62,7 +64,7 @@ const notificationCampaignSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['draft', 'scheduled', 'sending', 'sent', 'partially_failed', 'failed', 'cancelled'],
+    enum: ['draft', 'processing', 'completed', 'partial', 'scheduled', 'sending', 'sent', 'partially_failed', 'failed', 'cancelled'],
     default: 'draft',
     index: true,
   },

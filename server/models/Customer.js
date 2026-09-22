@@ -37,6 +37,11 @@ const customerSchema = new mongoose.Schema({
     default: false,
     index: true,
   },
+  notificationPreferences: {
+    webPush: { type: Boolean, default: true },
+    sms: { type: Boolean, default: false },
+    whatsapp: { type: Boolean, default: false },
+  },
   notificationEnabledAt: {
     type: Date,
     default: null,

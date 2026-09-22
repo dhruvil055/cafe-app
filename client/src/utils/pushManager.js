@@ -30,30 +30,35 @@ export const getNotificationPermission = () => {
 };
 
 /**
- * Subscribes the current device to Web Push
+ * Subscribes the current device to Web Push.
+ * Never registers twice: reuses an existing registration/subscription and
+ * upserts it on the backend (idempotent by endpoint).
  */
 export const subscribeToWebPush = async ({ customerId, phone } = {}) => {
   if (!isPushSupported()) {
-    throw new Error('Web push notifications are not supported by this browser.');
+    throw new Error('Notifications are not supported on this browser.');
   }
 
-  // 1. Request user permission
+  // 1. Request user permission (only after explicit user click upstream)
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') {
     throw new Error(permission === 'denied' ? 'PERMISSION_DENIED' : 'PERMISSION_DISMISSED');
   }
 
-  // 2. Register Service Worker
-  const registration = await navigator.serviceWorker.register('/sw.js');
+  // 2. Reuse existing Service Worker registration (avoid duplicates)
+  let registration = await navigator.serviceWorker.getRegistration();
+  if (!registration) {
+    registration = await navigator.serviceWorker.register('/sw.js');
+  }
   await navigator.serviceWorker.ready;
 
-  // 3. Fetch VAPID public key
+  // 3. Fetch VAPID public key (never the private key)
   let publicKey = null;
   try {
-    const res = await api.get('/push/vapid-public-key');
+    const res = await api.get('/notifications/vapid-public-key');
     publicKey = res.data?.publicKey;
   } catch {
-    const res = await api.get('/notifications/vapid-public-key');
+    const res = await api.get('/push/vapid-public-key');
     publicKey = res.data?.publicKey;
   }
 
@@ -61,14 +66,17 @@ export const subscribeToWebPush = async ({ customerId, phone } = {}) => {
     throw new Error('VAPID public key could not be retrieved from server.');
   }
 
-  // 4. Subscribe via PushManager
+  // 4. Reuse an existing push subscription when present
   const applicationServerKey = urlBase64ToUint8Array(publicKey);
-  const subscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey,
-  });
+  let subscription = await registration.pushManager.getSubscription();
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey,
+    });
+  }
 
-  // 5. Send subscription payload to backend
+  // 5. Send subscription payload to backend (upsert by endpoint)
   const resolvedCustomerId = customerId || localStorage.getItem('brewhaus_customer_id') || undefined;
   const resolvedPhone = phone || localStorage.getItem('brewhaus_customer_phone') || undefined;
 
@@ -80,9 +88,9 @@ export const subscribeToWebPush = async ({ customerId, phone } = {}) => {
   };
 
   try {
-    await api.post('/push/subscribe', payload);
-  } catch {
     await api.post('/notifications/subscribe', payload);
+  } catch {
+    await api.post('/push/subscribe', payload);
   }
 
   localStorage.setItem('brewhaus_push_enabled', 'true');
@@ -96,15 +104,15 @@ export const unsubscribeFromWebPush = async () => {
   if (!isPushSupported()) return;
 
   try {
-    const registration = await navigator.serviceWorker.getRegistration('/sw.js');
+    const registration = await navigator.serviceWorker.getRegistration();
     if (registration) {
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) {
         await subscription.unsubscribe();
         try {
-          await api.delete('/push/unsubscribe', { data: { endpoint: subscription.endpoint } });
-        } catch {
           await api.delete('/notifications/unsubscribe', { data: { endpoint: subscription.endpoint } });
+        } catch {
+          await api.delete('/push/unsubscribe', { data: { endpoint: subscription.endpoint } });
         }
       }
     }

@@ -124,7 +124,7 @@ router.get('/audience/count', protect, staffOrAdmin, async (req, res) => {
       maxDaysInactive,
     };
 
-    const count = await getEstimatedAudienceCount(audienceType, filter);
+    const count = await getEstimatedAudienceCount(audienceType, filter, 'marketing');
     res.json({ count });
   } catch (err) {
     console.error('Audience count error:', err);
@@ -452,15 +452,18 @@ router.post('/test-dispatch', protect, staffOrAdmin, async (req, res) => {
     let result;
     if (channel === 'whatsapp' || channel === 'all') {
       if (!phone) return res.status(400).json({ error: 'Phone number is required for WhatsApp test.' });
-      result = await notificationService.sendWhatsApp({
+      // Legacy marketing simulator — zero network calls, no paid provider.
+      result = await notificationService.sendLegacyMarketing({
+        channel: 'WHATSAPP',
         phone: normalizedPhone,
         message: formattedMessage,
         offerCode: offerCode || '',
-        variables: { name: 'Admin (Test)', offer: title || 'Test Offer', code: offerCode || '' },
       });
     } else if (channel === 'sms') {
       if (!phone) return res.status(400).json({ error: 'Phone number is required for SMS test.' });
-      result = await notificationService.sendSMS({
+      // Legacy marketing simulator — zero network calls, no paid provider.
+      result = await notificationService.sendLegacyMarketing({
+        channel: 'SMS',
         phone: normalizedPhone,
         message: formattedMessage,
         offerCode: offerCode || '',
