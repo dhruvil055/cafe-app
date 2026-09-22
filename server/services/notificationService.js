@@ -1,12 +1,10 @@
 import webpush from 'web-push';
 import PushSubscription from '../models/PushSubscription.js';
-import crypto from 'crypto';
-import { getMarketingSettings } from '../models/MarketingSetting.js';
-import { normalizePhoneNumber } from '../utils/phoneNormalizer.js';
 
-// In-memory persistent fallback VAPID keys if not provided in environment
+// VAPID Configuration
 let activeVapidKeys = null;
-const getVapidKeys = () => {
+
+export const getVapidKeys = () => {
   if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     return {
       publicKey: process.env.VAPID_PUBLIC_KEY,
@@ -14,15 +12,17 @@ const getVapidKeys = () => {
       subject: process.env.VAPID_SUBJECT || 'mailto:admin@brewhauscafe.com',
     };
   }
+
+  // Fallback in-memory generator if not provided in environment
   if (!activeVapidKeys) {
     activeVapidKeys = webpush.generateVAPIDKeys();
-    activeVapidKeys.subject = 'mailto:admin@brewhauscafe.com';
+    activeVapidKeys.subject = process.env.VAPID_SUBJECT || 'mailto:admin@brewhauscafe.com';
   }
   return activeVapidKeys;
 };
 
-// Initialize web-push configuration
-const configureWebPush = () => {
+// Initialize webpush details
+export const configureWebPush = () => {
   const keys = getVapidKeys();
   try {
     webpush.setVapidDetails(keys.subject, keys.publicKey, keys.privateKey);
@@ -33,238 +33,51 @@ const configureWebPush = () => {
 };
 
 /**
- * SMS Provider Interface & Implementations
+ * Abstract Notification Channel Provider (Phase 24)
+ * Architecture allows future SMS and WhatsApp channels to plug in seamlessly.
  */
-class SMSProvider {
-  async send({ phone, message, offerCode }) {
-    throw new Error('send() not implemented');
-  }
-}
-
-class SimulatedSMSProvider extends SMSProvider {
-  async send({ phone, message, offerCode }) {
-    // Realistic simulation with unique provider ID
-    const providerMessageId = `sms_sim_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-    console.log(`[SMS-SIMULATOR] Dispatched to ${phone}: "${message}" (Code: ${offerCode || 'NONE'}) [ID: ${providerMessageId}]`);
-    return {
-      success: true,
-      provider: 'simulated-sms',
-      providerMessageId,
-      status: 'delivered',
-    };
-  }
-}
-
-class UpstreamSMSProvider extends SMSProvider {
-  constructor(config) {
-    super();
-    this.apiKey = config.apiKey;
-    this.senderId = config.senderId;
-    this.provider = config.provider; // e.g. twilio, msg91
-  }
-
-  async send({ phone, message, offerCode }) {
-    const settings = await getMarketingSettings();
-    const accountSid = settings.twilio?.accountSid || process.env.TWILIO_ACCOUNT_SID;
-    const authToken = settings.twilio?.authToken || process.env.TWILIO_AUTH_TOKEN;
-    const fromPhone = settings.twilio?.phoneNumber || process.env.TWILIO_PHONE_NUMBER || this.senderId || 'BREWHAUS';
-
-    if (accountSid && authToken) {
-      const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
-      const params = new URLSearchParams();
-      params.append('To', phone);
-      params.append('From', fromPhone);
-      params.append('Body', message);
-
-      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${auth}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: params,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Twilio SMS failed');
-      return {
-        success: true,
-        provider: 'twilio',
-        providerMessageId: data.sid,
-        status: 'delivered',
-      };
-    }
-
-    // Fallback simulation
-    const sim = new SimulatedSMSProvider();
-    return sim.send({ phone, message, offerCode });
+class BaseNotificationProvider {
+  async send(payload) {
+    throw new Error('send() method not implemented');
   }
 }
 
 /**
- * WhatsApp Provider Interface & Implementations
+ * Web Push Provider (Only Active Channel in this Phase)
  */
-class WhatsAppProvider {
-  async send({ phone, message, templateName, variables, offerCode }) {
-    throw new Error('send() not implemented');
-  }
-}
-
-class SimulatedWhatsAppProvider extends WhatsAppProvider {
-  async send({ phone, message, templateName, variables, offerCode }) {
-    const providerMessageId = `wa_sim_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-    console.log(`[WHATSAPP-SIMULATOR] Dispatched to ${phone}: "${message}" (Template: ${templateName || 'custom'}, Code: ${offerCode || 'NONE'}) [ID: ${providerMessageId}]`);
-    return {
-      success: true,
-      provider: 'simulated-whatsapp',
-      providerMessageId,
-      status: 'delivered',
-    };
-  }
-}
-
-class OfficialWhatsAppCloudProvider extends WhatsAppProvider {
-  constructor(config = {}) {
-    super();
-    this.apiKey = config.apiKey;
-    this.phoneNumberId = config.phoneNumberId;
-  }
-
-  async send({ phone, message, templateName, variables, offerCode }) {
-    const settings = await getMarketingSettings();
-    const apiKey = this.apiKey || settings.whatsappCloud?.accessToken || process.env.WHATSAPP_API_KEY;
-    const phoneNumberId = this.phoneNumberId || settings.whatsappCloud?.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
-
-    const normalized = normalizePhoneNumber(phone) || phone;
-    const digitsOnly = String(normalized).replace(/[^\d]/g, '');
-    const directUrl = `https://api.whatsapp.com/send?phone=${digitsOnly}&text=${encodeURIComponent(message)}`;
-
-    // 1. If Meta WhatsApp Cloud API credentials exist, dispatch via Meta Graph API
-    if (apiKey && phoneNumberId) {
-      const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`;
-      let body;
-      if (templateName) {
-        body = JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: digitsOnly,
-          type: 'template',
-          template: {
-            name: templateName,
-            language: { code: 'en_US' },
-            components: [
-              {
-                type: 'body',
-                parameters: Object.values(variables || {}).map(val => ({ type: 'text', text: String(val) })),
-              },
-            ],
-          },
-        });
-      } else {
-        body = JSON.stringify({
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: digitsOnly,
-          type: 'text',
-          text: { preview_url: false, body: message },
-        });
-      }
-
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body,
-      });
-
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error?.message || 'Meta WhatsApp Cloud API call failed');
-      }
-
-      const msgId = data.messages?.[0]?.id || `wa_${Date.now()}`;
-      return {
-        success: true,
-        provider: 'whatsapp-cloud-api',
-        providerMessageId: msgId,
-        directUrl,
-        status: 'delivered',
-      };
-    }
-
-    // 2. If Twilio WhatsApp credentials exist, dispatch via Twilio API
-    if (settings.twilio?.accountSid && settings.twilio?.authToken && settings.twilio?.phoneNumber) {
-      const auth = Buffer.from(`${settings.twilio.accountSid}:${settings.twilio.authToken}`).toString('base64');
-      const params = new URLSearchParams();
-      const from = settings.twilio.phoneNumber.startsWith('whatsapp:') ? settings.twilio.phoneNumber : `whatsapp:${settings.twilio.phoneNumber}`;
-      const to = `whatsapp:+${digitsOnly}`;
-      params.append('To', to);
-      params.append('From', from);
-      params.append('Body', message);
-
-      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${settings.twilio.accountSid}/Messages.json`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${auth}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: params,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Twilio WhatsApp failed');
-
-      return {
-        success: true,
-        provider: 'twilio-whatsapp',
-        providerMessageId: data.sid,
-        directUrl,
-        status: 'delivered',
-      };
-    }
-
-    // 3. Direct WhatsApp Click-to-Chat protocol (0 setup, 100% real delivery)
-    return {
-      success: true,
-      provider: 'direct-whatsapp',
-      providerMessageId: `wa_direct_${Date.now()}_${digitsOnly}`,
-      directUrl,
-      status: 'delivered',
-      requiresDirectOpen: true,
-      message: `Direct WhatsApp link generated for ${phone}. Click to open WhatsApp immediately!`,
-    };
-  }
-}
-
-/**
- * Web Push Provider
- */
-class WebPushProvider {
+class WebPushChannelProvider extends BaseNotificationProvider {
   constructor() {
+    super();
     configureWebPush();
   }
 
-  async send({ subscription, title, message, url, offerCode }) {
-    if (!subscription || !subscription.endpoint) {
-      throw new Error('Valid push subscription with endpoint is required.');
+  async send({ subscription, title, message, image, actionUrl, offerCode }) {
+    if (!subscription || !subscription.endpoint || !subscription.keys) {
+      throw new Error('Valid push subscription with endpoint and keys is required.');
     }
 
     const payload = JSON.stringify({
-      title: title || '☕ Brewhaus Café Special Offer',
-      body: message,
-      icon: '/icons/coffee-cup.png',
-      badge: '/icons/badge.png',
+      title: title || '☕ Brewhaus Café',
+      body: message || 'Special announcement from Brewhaus Café',
+      icon: '/favicon.ico',
+      badge: '/favicon.ico',
+      image: image || undefined,
       data: {
-        url: url || '/offers',
+        url: actionUrl || '/menu',
+        actionUrl: actionUrl || '/menu',
         offerCode: offerCode || '',
         sentAt: new Date().toISOString(),
       },
     });
 
     try {
-      const res = await webpush.sendNotification(
+      const result = await webpush.sendNotification(
         {
           endpoint: subscription.endpoint,
-          keys: subscription.keys,
+          keys: {
+            p256dh: subscription.keys.p256dh,
+            auth: subscription.keys.auth,
+          },
         },
         payload,
         {
@@ -274,48 +87,172 @@ class WebPushProvider {
 
       return {
         success: true,
-        provider: 'web-push',
-        providerMessageId: `push_${Date.now()}_${res.statusCode}`,
+        channel: 'WEB_PUSH',
         status: 'delivered',
+        statusCode: result.statusCode,
+        deliveredAt: new Date(),
       };
     } catch (err) {
+      // Phase 26: If endpoint is 404 (Not Found) or 410 (Gone), mark inactive immediately
       if (err.statusCode === 404 || err.statusCode === 410) {
-        // Subscription expired or unregistered; deactivate in database
-        await PushSubscription.updateOne({ endpoint: subscription.endpoint }, { active: false });
+        await PushSubscription.updateOne(
+          { endpoint: subscription.endpoint },
+          { isActive: false, active: false }
+        );
       }
       throw err;
     }
   }
 }
 
+import twilio from 'twilio';
+
+// Twilio Client Configuration
+let twilioClient = null;
+const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_PHONE = process.env.TWILIO_PHONE_NUMBER;
+const TWILIO_WHATSAPP = process.env.TWILIO_WHATSAPP_NUMBER || TWILIO_PHONE;
+
+if (TWILIO_SID && TWILIO_AUTH) {
+  try {
+    twilioClient = twilio(TWILIO_SID, TWILIO_AUTH);
+    console.log('Twilio client initialized for SMS/WhatsApp.');
+  } catch (err) {
+    console.warn('Twilio initialization failed:', err.message);
+  }
+}
+
 /**
- * Factory for notification service
+ * SMS Provider (Twilio)
+ */
+class SMSChannelProvider extends BaseNotificationProvider {
+  async send({ phone, message }) {
+    if (!phone) throw new Error('Phone number is required for SMS.');
+    if (!message) throw new Error('Message is required for SMS.');
+
+    if (!twilioClient) {
+      console.log(`[MOCK SMS] To: ${phone} | Msg: ${message}`);
+      return {
+        success: true,
+        channel: 'SMS',
+        provider: 'sms-simulator',
+        providerMessageId: `sms_mock_${Date.now()}`,
+        status: 'delivered',
+        deliveredAt: new Date(),
+      };
+    }
+
+    try {
+      const result = await twilioClient.messages.create({
+        body: message,
+        from: TWILIO_PHONE,
+        to: phone.startsWith('+') ? phone : `+91${phone}`, // default to India code if no +
+      });
+
+      return {
+        success: true,
+        channel: 'SMS',
+        provider: 'twilio',
+        providerMessageId: result.sid,
+        status: result.status === 'failed' ? 'failed' : 'delivered',
+        deliveredAt: new Date(),
+      };
+    } catch (err) {
+      console.error('Twilio SMS Error:', err.message);
+      throw err;
+    }
+  }
+}
+
+/**
+ * WhatsApp Provider (Twilio)
+ */
+class WhatsAppChannelProvider extends BaseNotificationProvider {
+  async send({ phone, message }) {
+    if (!phone) throw new Error('Phone number is required for WhatsApp.');
+    if (!message) throw new Error('Message is required for WhatsApp.');
+
+    if (!twilioClient) {
+      console.log(`[MOCK WHATSAPP] To: ${phone} | Msg: ${message}`);
+      return {
+        success: true,
+        channel: 'WHATSAPP',
+        provider: 'whatsapp-simulator',
+        providerMessageId: `wa_mock_${Date.now()}`,
+        status: 'delivered',
+        deliveredAt: new Date(),
+      };
+    }
+
+    try {
+      const targetPhone = phone.startsWith('+') ? phone : `+91${phone}`;
+      const result = await twilioClient.messages.create({
+        body: message,
+        from: `whatsapp:${TWILIO_WHATSAPP}`,
+        to: `whatsapp:${targetPhone}`,
+      });
+
+      return {
+        success: true,
+        channel: 'WHATSAPP',
+        provider: 'twilio',
+        providerMessageId: result.sid,
+        status: result.status === 'failed' ? 'failed' : 'delivered',
+        deliveredAt: new Date(),
+      };
+    } catch (err) {
+      console.error('Twilio WhatsApp Error:', err.message);
+      throw err;
+    }
+  }
+}
+
+/**
+ * Notification Service Engine
  */
 class NotificationService {
   constructor() {
-    this.initProviders();
-  }
-
-  initProviders() {
-    this.smsProvider = new UpstreamSMSProvider({});
-    this.whatsAppProvider = new OfficialWhatsAppCloudProvider({});
-    this.pushProvider = new WebPushProvider();
+    this.providers = {
+      WEB_PUSH: new WebPushChannelProvider(),
+      SMS: new SMSChannelProvider(),
+      WHATSAPP: new WhatsAppChannelProvider(),
+    };
   }
 
   getVapidPublicKey() {
     return getVapidKeys().publicKey;
   }
 
+  /**
+   * Main dispatch method for Web Push notifications (Phase 17)
+   */
+  async sendPushNotification({ subscription, title, message, image, actionUrl, offerCode }) {
+    return this.providers.WEB_PUSH.send({
+      subscription,
+      title,
+      message,
+      image,
+      actionUrl,
+      offerCode,
+    });
+  }
+
+  // Alias for backward compatibility if any legacy callers exist
+  async sendPush(args) {
+    return this.sendPushNotification({
+      ...args,
+      actionUrl: args.url || args.actionUrl,
+    });
+  }
+
+  // Backward compatibility for legacy CRM marketing module
   async sendSMS({ phone, message, offerCode }) {
-    return this.smsProvider.send({ phone, message, offerCode });
+    return this.providers.SMS.send({ phone, message, offerCode });
   }
 
   async sendWhatsApp({ phone, message, templateName, variables, offerCode }) {
-    return this.whatsAppProvider.send({ phone, message, templateName, variables, offerCode });
-  }
-
-  async sendPush({ subscription, title, message, url, offerCode }) {
-    return this.pushProvider.send({ subscription, title, message, url, offerCode });
+    return this.providers.WHATSAPP.send({ phone, message, offerCode });
   }
 }
 

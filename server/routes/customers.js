@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Customer from '../models/Customer.js';
 import Order from '../models/Order.js';
 import CampaignDelivery from '../models/CampaignDelivery.js';
+import PushSubscription from '../models/PushSubscription.js';
 import { protect, staffOrAdmin } from '../middleware/auth.js';
 import { normalizePhoneNumber } from '../utils/phoneNormalizer.js';
 
@@ -55,12 +56,16 @@ router.get('/stats', protect, staffOrAdmin, async (req, res) => {
 
     const [
       totalCustomers,
+      notificationEnabled,
+      notificationDisabled,
       marketingOptedIn,
       marketingOptedOut,
       activeCustomers,
       newThisMonth,
     ] = await Promise.all([
       Customer.countDocuments(),
+      Customer.countDocuments({ notificationPermission: true }),
+      Customer.countDocuments({ notificationPermission: { $ne: true } }),
       Customer.countDocuments({ marketingConsent: true }),
       Customer.countDocuments({ marketingConsent: false }),
       Customer.countDocuments({ status: 'active' }),
@@ -70,10 +75,17 @@ router.get('/stats', protect, staffOrAdmin, async (req, res) => {
     res.json({
       stats: {
         totalCustomers,
+        notificationEnabled,
+        notificationDisabled,
+        notificationsEnabled: notificationEnabled,
+        notificationsDisabled: notificationDisabled,
+        marketingOptIn: marketingOptedIn,
+        marketingOptOut: marketingOptedOut,
         marketingOptedIn,
         marketingOptedOut,
         activeCustomers,
         newThisMonth,
+        newCustomers: newThisMonth,
       },
     });
   } catch (err) {
@@ -142,6 +154,7 @@ router.get('/', protect, staffOrAdmin, async (req, res) => {
     const {
       search = '',
       marketingConsent,
+      notifications,
       status,
       frequency,
       minSpent,
@@ -164,8 +177,15 @@ router.get('/', protect, staffOrAdmin, async (req, res) => {
     }
 
     // Filter by consent
-    if (marketingConsent === 'true') query.marketingConsent = true;
-    else if (marketingConsent === 'false') query.marketingConsent = false;
+    if (marketingConsent === 'true' || marketingConsent === 'opt_in') query.marketingConsent = true;
+    else if (marketingConsent === 'false' || marketingConsent === 'opt_out') query.marketingConsent = false;
+
+    // Filter by notification permission (Phase 8)
+    if (notifications === 'enabled') {
+      query.notificationPermission = true;
+    } else if (notifications === 'disabled') {
+      query.notificationPermission = { $ne: true };
+    }
 
     // Filter by status
     if (status && ['active', 'blocked', 'unsubscribed'].includes(status)) {
@@ -204,8 +224,31 @@ router.get('/', protect, staffOrAdmin, async (req, res) => {
       Customer.countDocuments(query),
     ]);
 
+    // Attach active subscription count to each customer
+    const customerIds = customers.map((c) => c._id);
+    const activeSubs = await PushSubscription.aggregate([
+      {
+        $match: {
+          customerId: { $in: customerIds },
+          $or: [{ isActive: true }, { active: true }],
+        },
+      },
+      {
+        $group: {
+          _id: '$customerId',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const subCountMap = new Map(activeSubs.map((s) => [String(s._id), s.count]));
+    const customersWithSubs = customers.map((c) => ({
+      ...c,
+      activeDevicesCount: subCountMap.get(String(c._id)) || 0,
+    }));
+
     res.json({
-      customers,
+      customers: customersWithSubs,
       total,
       page: pageNum,
       totalPages: Math.ceil(total / limitNum) || 1,
@@ -218,7 +261,7 @@ router.get('/', protect, staffOrAdmin, async (req, res) => {
 });
 
 /**
- * Customer Profile Details + Order History + Campaign Deliveries
+ * Customer Profile Details + Order History + Campaign Deliveries + Devices
  * GET /api/customers/:id
  */
 router.get('/:id', protect, staffOrAdmin, async (req, res) => {
@@ -251,6 +294,12 @@ router.get('/:id', protect, staffOrAdmin, async (req, res) => {
       .limit(20)
       .lean();
 
+    // Query all push subscription devices (Phase 9)
+    const devices = await PushSubscription.find({ customerId: customer._id })
+      .select('deviceType browser userAgent deviceInfo isActive active createdAt updatedAt')
+      .sort({ updatedAt: -1 })
+      .lean();
+
     const aov = customer.totalOrders > 0
       ? Math.round((customer.totalSpent / customer.totalOrders) * 100) / 100
       : 0;
@@ -259,6 +308,10 @@ router.get('/:id', protect, staffOrAdmin, async (req, res) => {
       customer,
       orders,
       deliveries,
+      devices: devices.map((d) => ({
+        ...d,
+        isActive: d.isActive !== undefined ? d.isActive : d.active,
+      })),
       metrics: {
         averageOrderValue: aov,
         totalOrders: customer.totalOrders,

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import api from '../../services/api';
 import useCartStore from '../../context/cartStore';
 import { downloadPdf } from '../../utils/download';
+import CustomerNotificationStatus from '../../components/ui/CustomerNotificationStatus';
 
 const STATUS = {
   pending: { label: 'Order received', detail: 'Waiting for the cafe to confirm your order.', tone: 'border-amber-200 bg-amber-50 text-amber-800' },
@@ -126,6 +127,9 @@ export default function OrdersPage() {
             <UtensilsCrossed size={14} /> Order more
           </Link>
         </div>
+
+        {/* Browser Push Notification Status (Phase 6) */}
+        <CustomerNotificationStatus />
 
         {orders.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-espresso-200 bg-white p-10 text-center">

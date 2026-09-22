@@ -24,6 +24,7 @@ import inventoryRoutes from './routes/inventory.js';
 import customerRoutes from './routes/customers.js';
 import marketingRoutes from './routes/marketing.js';
 import notificationRoutes from './routes/notifications.js';
+import pushRoutes from './routes/push.js';
 import { startCampaignScheduler } from './services/campaignRunner.js';
 
 dotenv.config();
@@ -58,6 +59,7 @@ export const createApp = ({ razorpayFactory } = {}) => {
     'http://localhost:4173',
     'http://localhost:5174',
     'http://localhost:4174',
+    'http://localhost:5175',
   ]);
 
   // Strict CORS allowlist. Requests without an Origin are allowed for native
@@ -140,6 +142,7 @@ export const createApp = ({ razorpayFactory } = {}) => {
   app.use('/api/customers', customerRoutes);
   app.use('/api/marketing', marketingRoutes);
   app.use('/api/notifications', notificationRoutes);
+  app.use('/api/push', pushRoutes);
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

@@ -1,43 +1,28 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Check, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import toast from 'react-hot-toast';
-import api from '../../services/api';
-
-const urlBase64ToUint8Array = (base64String) => {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-};
+import { isPushSupported, getNotificationPermission, subscribeToWebPush } from '../../utils/pushManager';
 
 export default function PushNotificationBanner() {
   const [visible, setVisible] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
 
   useEffect(() => {
-    // Only show if supported and not already decided
-    if (typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator)) {
-      return;
-    }
+    if (!isPushSupported()) return;
 
-    if (Notification.permission === 'granted' || Notification.permission === 'denied') {
-      return;
-    }
+    const perm = getNotificationPermission();
+    if (perm === 'granted' || perm === 'denied') return;
 
     const dismissed = localStorage.getItem('brewhaus_push_dismissed');
     if (dismissed && Date.now() - Number(dismissed) < 7 * 24 * 60 * 60 * 1000) {
       return;
     }
 
-    // Delay display politely by 3.5 seconds
+    // Delay politely after customer interacts with the website
     const timer = setTimeout(() => {
       setVisible(true);
-    }, 3500);
+    }, 6000);
 
     return () => clearTimeout(timer);
   }, []);
@@ -50,39 +35,17 @@ export default function PushNotificationBanner() {
   const handleEnable = async () => {
     setSubscribing(true);
     try {
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        toast('Notification permission was not granted.', { icon: 'ℹ️' });
-        setVisible(false);
-        return;
-      }
-
-      // Register SW
-      const registration = await navigator.serviceWorker.register('/sw.js');
-      await navigator.serviceWorker.ready;
-
-      // Get VAPID public key
-      const { data } = await api.get('/notifications/vapid-public-key');
-      if (!data?.publicKey) throw new Error('VAPID key not available.');
-
-      const convertedKey = urlBase64ToUint8Array(data.publicKey);
-
-      // Subscribe to PushManager
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: convertedKey,
-      });
-
-      // Send subscription to backend
-      await api.post('/notifications/subscribe', {
-        subscription: subscription.toJSON(),
-      });
-
-      toast.success("Notifications enabled! You'll receive exclusive Brewhaus deals.");
+      await subscribeToWebPush();
+      toast.success("☕ Notifications enabled! You'll receive exclusive Brewhaus deals.");
       setVisible(false);
     } catch (err) {
-      console.error('Push enable error:', err);
-      toast.error('Unable to enable notifications.');
+      if (err.message === 'PERMISSION_DENIED') {
+        toast.error('Notification permission was blocked in your browser settings.');
+      } else if (err.message === 'PERMISSION_DISMISSED') {
+        toast('Notification request was dismissed.', { icon: 'ℹ️' });
+      } else {
+        toast.error(err.message || 'Unable to enable notifications.');
+      }
       setVisible(false);
     } finally {
       setSubscribing(false);
@@ -99,14 +62,14 @@ export default function PushNotificationBanner() {
           transition={{ duration: 0.35, ease: 'easeOut' }}
           className="fixed bottom-20 sm:bottom-6 right-4 left-4 sm:left-auto sm:max-w-md z-40"
         >
-          <div className="rounded-3xl border border-foam bg-white p-5 shadow-xl text-espresso-900">
+          <div className="rounded-3xl border border-brew-200/90 bg-white p-5 shadow-2xl text-espresso-900">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brew-100 text-brew-700">
-                  <Bell size={18} />
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brew-100 text-brew-700">
+                  <span className="text-xl">☕</span>
                 </div>
                 <div>
-                  <h3 className="font-display text-base font-bold leading-tight">Want exclusive Brewhaus offers?</h3>
+                  <h3 className="font-display text-base font-bold leading-tight">Stay Updated with Brewhaus</h3>
                   <p className="text-xs text-espresso-500">Get notified about:</p>
                 </div>
               </div>
@@ -121,16 +84,20 @@ export default function PushNotificationBanner() {
 
             <div className="mt-3 space-y-1.5 text-xs text-espresso-700 pl-1">
               <div className="flex items-center gap-2">
-                <Check size={13} className="text-brew-600 shrink-0" />
-                <span>Special offers & discounts</span>
+                <Check size={14} className="text-brew-600 shrink-0 font-bold" />
+                <span>Special offers</span>
               </div>
               <div className="flex items-center gap-2">
-                <Check size={13} className="text-brew-600 shrink-0" />
-                <span>New seasonal menu items</span>
+                <Check size={14} className="text-brew-600 shrink-0 font-bold" />
+                <span>New menu items</span>
               </div>
               <div className="flex items-center gap-2">
-                <Check size={13} className="text-brew-600 shrink-0" />
-                <span>Weekend coffee deals</span>
+                <Check size={14} className="text-brew-600 shrink-0 font-bold" />
+                <span>Weekend deals</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Check size={14} className="text-brew-600 shrink-0 font-bold" />
+                <span>Café updates</span>
               </div>
             </div>
 
@@ -138,13 +105,13 @@ export default function PushNotificationBanner() {
               <button
                 onClick={handleEnable}
                 disabled={subscribing}
-                className="btn-primary flex-1 text-xs py-2 px-3 justify-center shadow-none"
+                className="btn-primary flex-1 text-xs py-2.5 px-3 justify-center shadow-none disabled:opacity-60"
               >
                 {subscribing ? 'Enabling...' : 'Enable Notifications'}
               </button>
               <button
                 onClick={handleDismiss}
-                className="btn-secondary text-xs py-2 px-3"
+                className="btn-secondary text-xs py-2.5 px-3"
               >
                 Maybe Later
               </button>

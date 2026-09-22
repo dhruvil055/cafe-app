@@ -1,0 +1,45 @@
+[diff_block_start]
+@@ -596,17 +596,59 @@
+                   </div>
+                 </div>
+ 
++                {/* Delivery Channel (Added for SMS/WhatsApp) */}
++                <div className="pt-3 border-t border-foam space-y-2">
++                  <label className="font-semibold text-espresso-900 block">Delivery Channel</label>
++                  <div className="flex flex-wrap gap-4">
++                    <label className="flex items-center gap-2 cursor-pointer font-medium text-espresso-900">
++                      <input
++                        type="radio"
++                        name="channel"
++                        value="web_push"
++                        checked={channel === 'web_push'}
++                        onChange={() => setChannel('web_push')}
++                        className="accent-brew-600"
++                      />
++                      <Bell size={16} /> Web Push Notification
++                    </label>
++                    <label className="flex items-center gap-2 cursor-pointer font-medium text-espresso-900">
++                      <input
++                        type="radio"
++                        name="channel"
++                        value="sms"
++                        checked={channel === 'sms'}
++                        onChange={() => setChannel('sms')}
++                        className="accent-brew-600"
++                      />
++                      <Smartphone size={16} /> SMS Text
++                    </label>
++                    <label className="flex items-center gap-2 cursor-pointer font-medium text-espresso-900">
++                      <input
++                        type="radio"
++                        name="channel"
++                        value="whatsapp"
++                        checked={channel === 'whatsapp'}
++                        onChange={() => setChannel('whatsapp')}
++                        className="accent-brew-600"
++                      />
++                      <Phone size={16} /> WhatsApp Message
++                    </label>
++                  </div>
++                </div>
+[diff_block_end]

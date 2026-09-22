@@ -32,6 +32,15 @@ const customerSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  notificationPermission: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
+  notificationEnabledAt: {
+    type: Date,
+    default: null,
+  },
   firstOrderAt: {
     type: Date,
     default: null,

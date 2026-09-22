@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Users, UserCheck, UserX, UserPlus, ShieldAlert,
   Search, Download, Eye, Ban, CheckCircle2, ChevronLeft,
   ChevronRight, X, Phone, Mail, Calendar, ShoppingBag,
   ArrowUpDown, Loader2, RefreshCw, Sparkles, Tag, Check, AlertCircle,
-  MessageSquare,
+  MessageSquare, Bell, Monitor, Smartphone,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 
 export default function CustomersPage() {
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [stats, setStats] = useState({
     totalCustomers: 0,
@@ -24,6 +26,7 @@ export default function CustomersPage() {
 
   // Filters & Pagination state
   const [search, setSearch] = useState('');
+  const [notificationsFilter, setNotificationsFilter] = useState('');
   const [consentFilter, setConsentFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [frequencyFilter, setFrequencyFilter] = useState('');
@@ -78,6 +81,7 @@ export default function CustomersPage() {
     try {
       const params = new URLSearchParams();
       if (search.trim()) params.set('search', search.trim());
+      if (notificationsFilter) params.set('notifications', notificationsFilter);
       if (consentFilter) params.set('marketingConsent', consentFilter);
       if (statusFilter) params.set('status', statusFilter);
       if (frequencyFilter) params.set('frequency', frequencyFilter);
@@ -104,7 +108,7 @@ export default function CustomersPage() {
 
   useEffect(() => {
     fetchCustomers();
-  }, [search, consentFilter, statusFilter, frequencyFilter, minSpentFilter, sortBy, sortOrder, page]);
+  }, [search, notificationsFilter, consentFilter, statusFilter, frequencyFilter, minSpentFilter, sortBy, sortOrder, page]);
 
   // Open Customer Profile Drawer
   const openProfile = async (customer) => {
@@ -192,11 +196,11 @@ export default function CustomersPage() {
   };
 
   const statCards = [
-    { label: 'Total Customers', value: stats.totalCustomers, icon: Users, color: 'text-sky-600', bg: 'bg-sky-50' },
-    { label: 'Marketing Opt-In', value: stats.marketingOptedIn, icon: UserCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Marketing Opt-Out', value: stats.marketingOptedOut, icon: UserX, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { label: 'Active Customers', value: stats.activeCustomers, icon: CheckCircle2, color: 'text-violet-600', bg: 'bg-violet-50' },
-    { label: 'New This Month', value: stats.newThisMonth, icon: UserPlus, color: 'text-brew-600', bg: 'bg-brew-50' },
+    { label: 'Total Customers', value: stats.totalCustomers, icon: Users, color: 'text-espresso-900', bg: 'bg-stone-100' },
+    { label: 'Notifications Enabled', value: stats.notificationEnabled || stats.notificationsEnabled || 0, icon: Bell, color: 'text-emerald-700', bg: 'bg-emerald-50' },
+    { label: 'Notifications Disabled', value: stats.notificationDisabled || stats.notificationsDisabled || 0, icon: Bell, color: 'text-stone-600', bg: 'bg-stone-100' },
+    { label: 'Marketing Opt-In', value: stats.marketingOptIn || stats.marketingOptedIn || 0, icon: UserCheck, color: 'text-sky-700', bg: 'bg-sky-50' },
+    { label: 'New This Month', value: stats.newThisMonth || stats.newCustomers || 0, icon: UserPlus, color: 'text-brew-700', bg: 'bg-brew-50' },
   ];
 
   return (
@@ -256,7 +260,7 @@ export default function CustomersPage() {
 
       {/* Filter and Search Bar */}
       <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-soft space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {/* Search input */}
           <div className="relative lg:col-span-2">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
@@ -267,6 +271,19 @@ export default function CustomersPage() {
               placeholder="Search by customer name, mobile (+91...), email..."
               className="w-full rounded-xl border border-stone-200 bg-stone-50/50 py-2 pl-9 pr-3 text-xs focus:border-espresso-500 focus:bg-white focus:outline-none"
             />
+          </div>
+
+          {/* Notifications Filter (Phase 8) */}
+          <div>
+            <select
+              value={notificationsFilter}
+              onChange={(e) => { setNotificationsFilter(e.target.value); setPage(1); }}
+              className="w-full rounded-xl border border-stone-200 bg-white py-2 px-3 text-xs text-stone-700 focus:border-espresso-500 focus:outline-none"
+            >
+              <option value="">Notifications: All</option>
+              <option value="enabled">🔔 Enabled</option>
+              <option value="disabled">🔕 Disabled</option>
+            </select>
           </div>
 
           {/* Marketing Consent Filter */}
@@ -325,10 +342,11 @@ export default function CustomersPage() {
               <option value="5000">&gt; ₹5,000 (VIP)</option>
             </select>
 
-            {(search || consentFilter || statusFilter || frequencyFilter || minSpentFilter) && (
+            {(search || notificationsFilter || consentFilter || statusFilter || frequencyFilter || minSpentFilter) && (
               <button
                 onClick={() => {
                   setSearch('');
+                  setNotificationsFilter('');
                   setConsentFilter('');
                   setStatusFilter('');
                   setFrequencyFilter('');
@@ -377,8 +395,8 @@ export default function CustomersPage() {
                 <th className="px-4 py-3.5">Mobile</th>
                 <th className="px-4 py-3.5 text-center">Orders</th>
                 <th className="px-4 py-3.5 text-right">Total Spent</th>
-                <th className="px-4 py-3.5">First Order</th>
                 <th className="px-4 py-3.5">Last Order</th>
+                <th className="px-4 py-3.5 text-center">Notifications</th>
                 <th className="px-4 py-3.5 text-center">Marketing Consent</th>
                 <th className="px-4 py-3.5 text-center">Status</th>
                 <th className="px-4 py-3.5 text-right">Actions</th>
@@ -433,14 +451,22 @@ export default function CustomersPage() {
                         ₹{Number(c.totalSpent || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
 
-                      {/* First Order */}
-                      <td className="px-4 py-3 text-stone-500">
-                        {c.firstOrderAt ? new Date(c.firstOrderAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-                      </td>
-
                       {/* Last Order */}
                       <td className="px-4 py-3 text-stone-500">
                         {c.lastOrderAt ? new Date(c.lastOrderAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                      </td>
+
+                      {/* Notifications (Phase 8) */}
+                      <td className="px-4 py-3 text-center">
+                        {c.notificationPermission ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                            <Bell size={11} /> Enabled {c.activeDevicesCount > 0 ? `(${c.activeDevicesCount})` : ''}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-semibold text-stone-500 border border-stone-200">
+                            Disabled
+                          </span>
+                        )}
                       </td>
 
                       {/* Marketing Consent */}
@@ -609,50 +635,126 @@ export default function CustomersPage() {
                   </div>
                 ) : (
                   <>
-                    {/* Status & Consent Highlights */}
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      {/* Marketing Status */}
-                      <div className="rounded-2xl border border-stone-200 p-4 bg-stone-50/30">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-stone-400 block mb-1">Marketing Status</span>
-                        {selectedCustomer.marketingConsent ? (
-                          <div className="flex items-center gap-1.5 text-emerald-700 font-semibold text-xs">
-                            <Check size={14} className="text-emerald-600" /> Opted-In
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-stone-600 font-semibold text-xs">
-                            <X size={14} className="text-stone-400" /> Opted-Out
-                          </div>
-                        )}
-                        <span className="text-[10px] text-stone-400 mt-1 block">
-                          {selectedCustomer.marketingConsentAt
-                            ? `Consented on ${new Date(selectedCustomer.marketingConsentAt).toLocaleDateString('en-IN')}`
-                            : selectedCustomer.marketingOptOutAt
-                            ? `Opted out on ${new Date(selectedCustomer.marketingOptOutAt).toLocaleDateString('en-IN')}`
-                            : 'No consent record'}
-                        </span>
+                    {/* Customer Information (Phase 9) */}
+                    <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-soft space-y-3">
+                      <div className="flex items-center justify-between border-b border-foam pb-2">
+                        <h3 className="font-display text-sm font-bold text-espresso-900">Customer Information</h3>
+                        <span className="text-[10px] text-stone-400">ID: {selectedCustomer._id}</span>
                       </div>
-
-                      {/* Account Status */}
-                      <div className="rounded-2xl border border-stone-200 p-4 bg-stone-50/30">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-stone-400 block mb-1">Account Status</span>
-                        <span className={`inline-block font-semibold text-xs capitalize ${selectedCustomer.status === 'active' ? 'text-emerald-700' : 'text-red-700'}`}>
-                          {selectedCustomer.status}
-                        </span>
-                        <span className="text-[10px] text-stone-400 mt-1 block">
-                          Member since {new Date(selectedCustomer.createdAt).toLocaleDateString('en-IN')}
-                        </span>
-                      </div>
-
-                      {/* Average Order Value */}
-                      <div className="rounded-2xl border border-stone-200 p-4 bg-stone-50/30">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-stone-400 block mb-1">Avg Order Value</span>
-                        <div className="font-bold text-stone-900 text-sm">
-                          ₹{profileData?.metrics?.averageOrderValue || 0}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                        <div>
+                          <span className="text-stone-400 block text-[10px]">Full Name</span>
+                          <span className="font-semibold text-stone-900">{selectedCustomer.name || 'Guest'}</span>
                         </div>
-                        <span className="text-[10px] text-stone-400 mt-1 block">
-                          Across {selectedCustomer.totalOrders || 0} orders
-                        </span>
+                        <div>
+                          <span className="text-stone-400 block text-[10px]">Mobile</span>
+                          <span className="font-mono font-medium text-stone-900">{selectedCustomer.phone}</span>
+                        </div>
+                        <div>
+                          <span className="text-stone-400 block text-[10px]">Email</span>
+                          <span className="text-stone-700 truncate block">{selectedCustomer.email || '—'}</span>
+                        </div>
+                        <div>
+                          <span className="text-stone-400 block text-[10px]">First Order</span>
+                          <span className="text-stone-800">
+                            {selectedCustomer.firstOrderAt ? new Date(selectedCustomer.firstOrderAt).toLocaleDateString('en-IN') : '—'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-stone-400 block text-[10px]">Last Order</span>
+                          <span className="text-stone-800">
+                            {selectedCustomer.lastOrderAt ? new Date(selectedCustomer.lastOrderAt).toLocaleDateString('en-IN') : '—'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-stone-400 block text-[10px]">Total Orders</span>
+                          <span className="font-bold text-stone-900">{selectedCustomer.totalOrders || 0}</span>
+                        </div>
+                        <div>
+                          <span className="text-stone-400 block text-[10px]">Total Spent</span>
+                          <span className="font-bold text-brew-700">₹{Number(selectedCustomer.totalSpent || 0).toLocaleString('en-IN')}</span>
+                        </div>
+                        <div>
+                          <span className="text-stone-400 block text-[10px]">Notification Status</span>
+                          <span className={`font-semibold inline-flex items-center gap-1 ${
+                            selectedCustomer.notificationPermission ? 'text-emerald-700' : 'text-stone-500'
+                          }`}>
+                            <Bell size={11} /> {selectedCustomer.notificationPermission ? 'Enabled' : 'Disabled'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-stone-400 block text-[10px]">Marketing Consent</span>
+                          <span className={`font-semibold ${
+                            selectedCustomer.marketingConsent ? 'text-emerald-700' : 'text-stone-500'
+                          }`}>
+                            {selectedCustomer.marketingConsent ? 'Opted-In' : 'Opted-Out'}
+                          </span>
+                        </div>
                       </div>
+                    </div>
+
+                    {/* Registered Devices (Phase 9) */}
+                    <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-soft space-y-3">
+                      <div className="flex items-center justify-between border-b border-foam pb-2">
+                        <div className="flex items-center gap-1.5">
+                          <Monitor size={15} className="text-brew-600" />
+                          <h3 className="font-display text-sm font-bold text-espresso-900">Registered Devices</h3>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-semibold text-stone-500">
+                            {profileData?.devices?.length || 0} device(s)
+                          </span>
+                          {selectedCustomer.phone && (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/notifications?phone=${encodeURIComponent(selectedCustomer.phone)}`)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-brew-200 bg-brew-50 px-2 py-0.5 text-[11px] font-semibold text-brew-800 hover:bg-brew-100 transition shadow-sm"
+                              title="Send instant website push notification to this customer"
+                            >
+                              <Bell size={11} /> Send Web Push
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {!profileData?.devices || profileData.devices.length === 0 ? (
+                        <div className="py-4 text-center text-xs text-stone-400 bg-stone-50/50 rounded-xl border border-dashed border-foam">
+                          No registered browser push devices found for this customer.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {profileData.devices.map((device, i) => {
+                            const isMobile = device.deviceType === 'Mobile';
+                            const DeviceIcon = isMobile ? Smartphone : Monitor;
+                            const active = device.isActive || device.active;
+                            return (
+                              <div
+                                key={device._id || i}
+                                className="flex items-center justify-between rounded-xl border border-foam bg-stone-50/50 p-3 text-xs"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-foam text-stone-600">
+                                    <DeviceIcon size={16} />
+                                  </div>
+                                  <div>
+                                    <div className="font-semibold text-espresso-900">
+                                      {device.browser || 'Browser'} {device.deviceType || 'Device'}
+                                    </div>
+                                    <div className="text-[10px] text-stone-400">
+                                      Added {new Date(device.createdAt).toLocaleDateString('en-IN')}
+                                    </div>
+                                  </div>
+                                </div>
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                  active ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
+                                }`}>
+                                  {active ? 'Active' : 'Inactive'}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
                     {/* Spend Metrics */}

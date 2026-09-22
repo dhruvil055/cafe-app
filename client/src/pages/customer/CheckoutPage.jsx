@@ -82,6 +82,10 @@ export default function CheckoutPage() {
       };
       const res = await api.post('/orders', orderData);
       const { accessToken, order } = res.data;
+      if (order?.customerId) {
+        localStorage.setItem('brewhaus_customer_id', order.customerId);
+      }
+      localStorage.setItem('brewhaus_customer_phone', phone.trim());
       if (addRecentOrder && order?._id) {
         addRecentOrder({
           orderId: order._id,
@@ -132,6 +136,11 @@ export default function CheckoutPage() {
       const orderRes = await api.post('/orders', orderData);
       const order = orderRes.data.order;
       const { accessToken } = orderRes.data;
+
+      if (order?.customerId) {
+        localStorage.setItem('brewhaus_customer_id', order.customerId);
+      }
+      localStorage.setItem('brewhaus_customer_phone', phone.trim());
 
       if (addRecentOrder && order?._id) {
         addRecentOrder({

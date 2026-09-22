@@ -10,6 +10,7 @@ import TablesPage from './pages/TablesPage';
 import ProfilePage from './pages/ProfilePage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import CustomersPage from './pages/CustomersPage';
+import NotificationsPage from './pages/NotificationsPage';
 import MarketingPage from './pages/MarketingPage';
 import InventoryDashboardPage from './pages/inventory/InventoryDashboardPage';
 import InventoryItemsPage from './pages/inventory/InventoryItemsPage';
@@ -43,6 +44,7 @@ export default function App() {
       <Route path="/dashboard" element={<ProtectedRoute><AdminLayout title="Dashboard"><DashboardPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/orders" element={<ProtectedRoute><AdminLayout title="Orders"><OrdersPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/customers" element={<ProtectedRoute><AdminLayout title="Customers CRM"><CustomersPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><AdminLayout title="Notification Center"><NotificationsPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/marketing" element={<ProtectedRoute><AdminLayout title="Marketing & Offers"><MarketingPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/products" element={<ProtectedRoute><AdminLayout title="Products"><ProductsPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/categories" element={<ProtectedRoute><AdminLayout title="Categories"><CategoriesPage /></AdminLayout></ProtectedRoute>} />

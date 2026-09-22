@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Download, UtensilsCrossed, CheckCircle2, Clock, Loader2 } from 'lucide-react';
 import api from '../../services/api';
 import { downloadPdf } from '../../utils/download';
+import NotificationPermissionPrompt from '../../components/ui/NotificationPermissionPrompt';
 
 const STATUS_CONFIG = {
   pending:   { label: 'Order Received',    color: 'text-yellow-600', bg: 'bg-yellow-50', icon: '📋' },
@@ -161,6 +162,13 @@ export default function OrderConfirmPage() {
             ))}
           </div>
         </div>
+
+        {/* Post-Order Notification Opt-In (Phase 27) */}
+        <NotificationPermissionPrompt
+          customerId={order.customerId}
+          phone={order.customer?.phone}
+          variant="card"
+        />
 
         {/* Items */}
         <div className="card p-4 space-y-3">
