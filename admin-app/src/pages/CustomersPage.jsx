@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Users, UserCheck, UserX, UserPlus, ShieldAlert,
@@ -12,7 +11,6 @@ import toast from 'react-hot-toast';
 import api from '../services/api';
 
 export default function CustomersPage() {
-  const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [stats, setStats] = useState({
     totalCustomers: 0,
@@ -704,16 +702,6 @@ export default function CustomersPage() {
                           <span className="text-[10px] font-semibold text-stone-500">
                             {profileData?.devices?.length || 0} device(s)
                           </span>
-                          {selectedCustomer.phone && (
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/notifications?phone=${encodeURIComponent(selectedCustomer.phone)}`)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-brew-200 bg-brew-50 px-2 py-0.5 text-[11px] font-semibold text-brew-800 hover:bg-brew-100 transition shadow-sm"
-                              title="Send instant website push notification to this customer"
-                            >
-                              <Bell size={11} /> Send Web Push
-                            </button>
-                          )}
                         </div>
                       </div>
 
