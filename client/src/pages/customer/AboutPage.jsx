@@ -1,184 +1,432 @@
-import { useRef } from 'react';
-import { ArrowDown, ArrowLeft, ArrowRight, Coffee, HeartHandshake, Sparkles } from 'lucide-react';
-import { motion } from 'framer-motion';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
+import styles from './AboutPage.module.css';
 
-const highlights = [
-  { icon: Coffee, title: 'Slow coffee', text: 'Single-origin brews and handcrafted espresso bars prepared with patience and precision.' },
-  { icon: Sparkles, title: 'Comfort-first dining', text: 'Warm interiors, easy seating, and food made for casual evenings and weekend catch-ups.' },
-  { icon: HeartHandshake, title: 'Community vibe', text: 'A welcoming café experience for students, families, professionals, and friends.' },
+const TOTAL_FRAMES = 240;
+const BASE_FRAME_PATH = '/coffee-frames/ezgif-frame-';
+
+const STORY_MOMENTS = [
+  {
+    id: '1',
+    start: 1,
+    end: 40,
+    heading: 'THE BEGINNING',
+    subtext: 'Every great cup starts with carefully selected coffee beans.',
+    className: styles.moment1,
+  },
+  {
+    id: '2',
+    start: 41,
+    end: 80,
+    heading: 'CRAFTED WITH CARE',
+    subtext: 'Precision. Patience. Perfect balance.',
+    className: styles.moment2,
+  },
+  {
+    id: '3',
+    start: 81,
+    end: 120,
+    heading: 'THE PERFECT POUR',
+    subtext: 'Rich aroma. Deep character. Smooth finish.',
+    className: styles.moment3,
+  },
+  {
+    id: '4',
+    start: 121,
+    end: 160,
+    heading: 'BREWED IN THE MOMENT',
+    subtext: 'Where craftsmanship meets the perfect extraction.',
+    className: styles.moment4,
+  },
+  {
+    id: '5',
+    start: 161,
+    end: 200,
+    heading: 'RICH. WARM.\nAROMATIC.',
+    subtext: 'Made to slow you down and savor.',
+    className: styles.moment5,
+  },
+  {
+    id: '6',
+    start: 201,
+    end: 230,
+    heading: 'YOUR CUP IS READY',
+    subtext: 'Take a moment. Enjoy every single sip.',
+    className: styles.moment6,
+  },
+  {
+    id: 'final',
+    start: 231,
+    end: 240,
+    heading: 'EVERY CUP\nTELLS A STORY.',
+    subtext: 'Experience artisanal coffee at Brewhaus.',
+    className: styles.momentFinal,
+  },
 ];
-
-const values = [
-  'Fresh ingredients sourced with care',
-  'Thoughtful service with a personal touch',
-  'A calm, modern café experience every day',
-];
-
-const reveal = {
-  initial: { opacity: 0, y: 24, filter: 'blur(8px)' },
-  whileInView: { opacity: 1, y: 0, filter: 'blur(0px)' },
-  viewport: { once: true, amount: 0.22 },
-  transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] },
-};
-
-function SectionEyebrow({ children, light = false }) {
-  return <p className={`text-[11px] font-semibold uppercase tracking-[0.28em] ${light ? 'text-brew-200' : 'text-brew-700'}`}>{children}</p>;
-}
 
 export default function AboutPage() {
-  const storyRef = useRef(null);
+  const canvasRef = useRef(null);
+  const progressBarFillRef = useRef(null);
+  const progressDotRef = useRef(null);
+  const progressCounterRef = useRef(null);
+  const scrollCueRef = useRef(null);
+  const containerRef = useRef(null);
 
-  const scrollToStory = () => storyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  const setDepthPosition = (event) => {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const x = ((event.clientX - bounds.left) / bounds.width - 0.5).toFixed(2);
-    const y = ((event.clientY - bounds.top) / bounds.height - 0.5).toFixed(2);
-    event.currentTarget.style.setProperty('--about-x', x);
-    event.currentTarget.style.setProperty('--about-y', y);
-  };
+  const [activeMoment, setActiveMoment] = useState(-1);
+  const [exitingMoment, setExitingMoment] = useState(-1);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return;
+
+    // Image Caching State
+    const frames = new Array(TOTAL_FRAMES + 1);
+    const loadedFlags = new Array(TOTAL_FRAMES + 1).fill(false);
+    let lastDrawnFrame = -1;
+    let isResizing = false;
+    let animFrameId = null;
+
+    // Scroll & Lerp State
+    let targetFrame = 1;
+    let currentFrame = 1;
+    let currentActiveIndex = -1;
+
+    function getFrameUrl(index) {
+      const padded = String(index).padStart(3, '0');
+      return `${BASE_FRAME_PATH}${padded}.jpg`;
+    }
+
+    function getBestLoadedFrame(target) {
+      if (loadedFlags[target]) return target;
+      let step = 1;
+      while (target - step >= 1 || target + step <= TOTAL_FRAMES) {
+        if (target - step >= 1 && loadedFlags[target - step]) {
+          return target - step;
+        }
+        if (target + step <= TOTAL_FRAMES && loadedFlags[target + step]) {
+          return target + step;
+        }
+        step++;
+      }
+      return 1;
+    }
+
+    function drawFrame(frameIndex, force = false) {
+      if (!force && frameIndex === lastDrawnFrame && !isResizing) return;
+
+      const resolvedIndex = getBestLoadedFrame(frameIndex);
+      const img = frames[resolvedIndex];
+      if (!img || !img.complete || img.naturalWidth === 0) return;
+
+      const canvasW = canvas.width;
+      const canvasH = canvas.height;
+      const imgW = img.naturalWidth;
+      const imgH = img.naturalHeight;
+
+      // Aspect-ratio cover math
+      const scale = Math.max(canvasW / imgW, canvasH / imgH);
+      const scaledW = imgW * scale;
+      const scaledH = imgH * scale;
+      const offsetX = (canvasW - scaledW) / 2;
+      const offsetY = (canvasH - scaledH) / 2;
+
+      ctx.drawImage(img, offsetX, offsetY, scaledW, scaledH);
+      lastDrawnFrame = frameIndex;
+    }
+
+    function resizeCanvas() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      if (lastDrawnFrame > 0) {
+        drawFrame(lastDrawnFrame, true);
+      }
+    }
+
+    function initPreload() {
+      const firstImg = new Image();
+      firstImg.src = getFrameUrl(1);
+
+      const onFirstLoad = () => {
+        if (loadedFlags[1]) return;
+        frames[1] = firstImg;
+        loadedFlags[1] = true;
+        drawFrame(1, true);
+        preloadMilestonesAndStream();
+      };
+
+      firstImg.onload = onFirstLoad;
+      if (firstImg.complete && firstImg.naturalWidth > 0) {
+        onFirstLoad();
+      }
+    }
+
+    function preloadMilestonesAndStream() {
+      const milestones = [24, 48, 72, 96, 120, 144, 168, 192, 216, 240];
+      milestones.forEach((idx) => {
+        if (idx !== 1 && !frames[idx]) {
+          const img = new Image();
+          img.src = getFrameUrl(idx);
+          img.onload = () => {
+            frames[idx] = img;
+            loadedFlags[idx] = true;
+          };
+        }
+      });
+
+      const queue = [];
+      for (let i = 2; i <= TOTAL_FRAMES; i++) {
+        if (!milestones.includes(i)) {
+          queue.push(i);
+        }
+      }
+
+      const BATCH_SIZE = 8;
+      let activeIndex = 0;
+
+      function loadNextBatch() {
+        if (activeIndex >= queue.length) return;
+        const currentBatch = queue.slice(activeIndex, activeIndex + BATCH_SIZE);
+        activeIndex += BATCH_SIZE;
+
+        let loadedInBatch = 0;
+        currentBatch.forEach((frameIdx) => {
+          const img = new Image();
+          img.src = getFrameUrl(frameIdx);
+          img.onload = () => {
+            frames[frameIdx] = img;
+            loadedFlags[frameIdx] = true;
+            loadedInBatch++;
+            if (loadedInBatch === currentBatch.length) {
+              loadNextBatch();
+            }
+          };
+          img.onerror = () => {
+            loadedInBatch++;
+            if (loadedInBatch === currentBatch.length) {
+              loadNextBatch();
+            }
+          };
+        });
+      }
+
+      loadNextBatch();
+    }
+
+    function getScrollProgress() {
+      const track = containerRef.current;
+      const trackHeight = track ? track.scrollHeight : 0;
+      const totalScroll = Math.max(
+        document.documentElement.scrollHeight - window.innerHeight,
+        trackHeight - window.innerHeight,
+        1
+      );
+      const currentScroll = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+      return Math.min(Math.max(currentScroll / totalScroll, 0), 1);
+    }
+
+    function onScroll() {
+      const progress = getScrollProgress();
+      const frameOffset = Math.max(0, Math.min(TOTAL_FRAMES - 1, Math.round(progress * (TOTAL_FRAMES - 1))));
+      targetFrame = 1 + frameOffset;
+
+      if (progressBarFillRef.current && progressDotRef.current) {
+        const percent = (progress * 100).toFixed(2);
+        progressBarFillRef.current.style.height = `${percent}%`;
+        progressDotRef.current.style.top = `${percent}%`;
+      }
+
+      if (scrollCueRef.current) {
+        if (progress > 0.02) {
+          scrollCueRef.current.classList.add(styles.isHidden);
+        } else {
+          scrollCueRef.current.classList.remove(styles.isHidden);
+        }
+      }
+    }
+
+    function updateMoments(frame) {
+      let matchedIndex = -1;
+      for (let i = 0; i < STORY_MOMENTS.length; i++) {
+        if (frame >= STORY_MOMENTS[i].start && frame <= STORY_MOMENTS[i].end) {
+          matchedIndex = i;
+          break;
+        }
+      }
+
+      if (matchedIndex !== currentActiveIndex) {
+        setExitingMoment(currentActiveIndex);
+        setActiveMoment(matchedIndex);
+        currentActiveIndex = matchedIndex;
+      }
+    }
+
+    function renderLoop() {
+      onScroll();
+
+      const delta = targetFrame - currentFrame;
+      if (Math.abs(delta) > 0.005) {
+        currentFrame += delta * 0.18;
+      } else {
+        currentFrame = targetFrame;
+      }
+
+      const roundedFrame = Math.round(currentFrame);
+      const clampedFrame = Math.max(1, Math.min(TOTAL_FRAMES, roundedFrame));
+
+      drawFrame(clampedFrame);
+      updateMoments(clampedFrame);
+
+      if (progressCounterRef.current) {
+        progressCounterRef.current.textContent = `${String(clampedFrame).padStart(3, '0')} / 240`;
+      }
+
+      animFrameId = requestAnimationFrame(renderLoop);
+    }
+
+    // Initialize
+    resizeCanvas();
+    initPreload();
+    onScroll();
+    animFrameId = requestAnimationFrame(renderLoop);
+
+    const handleScroll = () => onScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+
+    let resizeTimeout;
+    const handleResize = () => {
+      clearTimeout(resizeTimeout);
+      isResizing = true;
+      resizeTimeout = setTimeout(() => {
+        resizeCanvas();
+        isResizing = false;
+      }, 100);
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(resizeTimeout);
+    };
+  }, []);
 
   return (
-    <main className="about-page min-h-screen overflow-hidden bg-cream text-espresso-900">
-      <section className="about-hero relative isolate min-h-[720px] overflow-hidden bg-espresso-950 text-cream sm:min-h-[760px]">
-        <img src="/images/about/brewhaus-cinematic-hero.webp" alt="Barista preparing a coffee at Brewhaus" className="absolute inset-0 z-0 h-full w-full object-cover" />
-        <video className="absolute inset-0 z-0 h-full w-full object-cover" autoPlay muted loop playsInline preload="metadata" poster="/images/about/brewhaus-cinematic-hero.webp" onError={(event) => { event.currentTarget.style.display = 'none'; }} aria-hidden="true">
-          <source src="/BrewHaus.mp4" type="video/mp4" />
-        </video>
-        <div className="absolute inset-0 z-10 bg-[linear-gradient(90deg,rgba(13,8,4,0.94)_0%,rgba(13,8,4,0.74)_45%,rgba(13,8,4,0.22)_100%)]" />
-        <div className="absolute inset-0 z-10 bg-[linear-gradient(0deg,rgba(13,8,4,0.82)_0%,transparent_44%)]" />
-
-        <nav className="absolute inset-x-0 top-0 z-30 mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6 lg:px-8" aria-label="About page navigation">
-          <Link to="/menu" className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/20 px-3 py-2 text-xs font-medium text-cream backdrop-blur-md transition hover:bg-white/10 sm:px-4 sm:text-sm">
-            <ArrowLeft size={15} /> <span>Back to Menu</span>
+    <div className={styles.pageWrapper}>
+      {/* Floating Top Navigation */}
+      <header className={styles.topNav} aria-label="Brewhaus Navigation">
+        <Link to="/menu" className={styles.backBtn}>
+          <ArrowLeft size={15} />
+          <span>Back to Menu</span>
+        </Link>
+        <Link to="/menu" className={styles.navBrand}>
+          BREWHAUS
+        </Link>
+        <nav className={styles.navLinks}>
+          <Link to="/menu" className={styles.navLink}>
+            Menu
           </Link>
-          <div className="hidden items-center gap-4 text-xs font-medium text-cream/85 sm:flex sm:gap-6 sm:text-sm">
-            <Link to="/offers" className="transition hover:text-brew-200">Offers</Link>
-            <Link to="/contact" className="transition hover:text-brew-200">Contact</Link>
-          </div>
+          <Link to="/offers" className={styles.navLink}>
+            Offers
+          </Link>
+          <Link to="/contact" className={styles.navLink}>
+            Contact
+          </Link>
         </nav>
+      </header>
 
-        <div className="relative z-20 mx-auto flex min-h-[720px] max-w-7xl items-center px-4 pb-20 pt-28 sm:min-h-[760px] sm:px-6 lg:px-8">
-          <motion.div initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }} className="w-full min-w-0 max-w-2xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.34em] text-brew-200">Fine Coffee & Dining</p>
-            <p className="mt-6 font-display text-4xl font-bold tracking-[0.16em] text-cream sm:text-5xl">BREWHAUS</p>
-            <h1 className="mt-5 max-w-[20rem] font-display text-5xl font-semibold leading-[0.93] text-cream sm:max-w-xl sm:text-7xl lg:text-[5.5rem]">Brewhaus, made for slow moments.</h1>
-            <p className="mt-7 max-w-[21rem] text-base leading-7 text-cream/80 sm:max-w-lg sm:text-lg">
-              Founded for people who love great coffee, good conversation, and a space that feels like home, Brewhaus blends café culture with warm hospitality and elevated comfort food.
-            </p>
-            <div className="mt-9 flex flex-wrap items-center gap-4">
-              <button type="button" onClick={scrollToStory} className="inline-flex items-center gap-2 rounded-full bg-cream px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-espresso-900 transition hover:bg-brew-100 sm:px-6">
-                Discover our story <ArrowDown size={15} />
-              </button>
-              <span className="hidden text-xs font-medium uppercase tracking-[0.2em] text-cream/55 sm:inline">A place to pause</span>
-            </div>
-          </motion.div>
-        </div>
+      {/* Fixed Fullscreen Viewport */}
+      <div className={styles.stickyViewport}>
+        {/* Visual Canvas for 240 frames */}
+        <canvas
+          ref={canvasRef}
+          className={styles.coffeeCanvas}
+          aria-label="Interactive coffee cup animation"
+          role="img"
+        />
 
-        <div className="about-hero-cup pointer-events-none absolute bottom-0 right-8 z-20 hidden w-64 md:block lg:right-[8%] lg:w-72" aria-hidden="true">
-          <div className="rounded-t-[9rem] border border-white/25 bg-cream/10 p-2 shadow-[0_30px_55px_rgba(0,0,0,0.3)] backdrop-blur-sm">
-            <img src="/images/about/brewhaus-story-cup.webp" alt="" className="h-[22rem] w-full rounded-t-[8.3rem] object-cover object-bottom" />
+        {/* Ambient Vignette & Warm Glow */}
+        <div className={styles.ambientVignette} aria-hidden="true" />
+
+        {/* Minimal Progress Indicator */}
+        <aside className={styles.progressIndicator} aria-label="Experience progress" aria-hidden="true">
+          <div className={styles.progressTrack}>
+            <div ref={progressBarFillRef} className={styles.progressBarFill} />
+            <div ref={progressDotRef} className={styles.progressDot} />
           </div>
-          <p className="mt-3 text-center text-[10px] font-semibold uppercase tracking-[0.24em] text-cream/70">Slowly made</p>
-        </div>
-      </section>
+          <div ref={progressCounterRef} className={styles.progressCounter}>
+            001 / 240
+          </div>
+        </aside>
 
-      <section ref={storyRef} className="scroll-mt-6 px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:gap-20">
-          <motion.div {...reveal}>
-            <SectionEyebrow>Our story</SectionEyebrow>
-            <h2 className="mt-5 max-w-xl font-display text-5xl font-semibold leading-[0.98] text-espresso-950 sm:text-6xl">A little more time for what matters.</h2>
-            <p className="mt-7 max-w-lg text-base leading-8 text-espresso-600">
-              Brewhaus is made for the unhurried parts of the day: a thoughtful cup, an easy meal, and conversations that need a little more room.
-            </p>
-            <blockquote className="mt-9 border-l-2 border-brew-500 pl-5 font-display text-3xl leading-tight text-espresso-800 sm:text-4xl">“Brewhaus, made for slow moments.”</blockquote>
-            <dl className="mt-10 grid max-w-md grid-cols-3 gap-3 border-t border-espresso-200 pt-6">
-              {[['Since', '2022'], ['Guests', '10k+'], ['Signature', '30+']].map(([label, value]) => <div key={label}><dt className="text-[10px] font-bold uppercase tracking-[0.16em] text-espresso-500">{label}</dt><dd className="mt-1 font-display text-2xl font-semibold text-espresso-900">{value}</dd></div>)}
-            </dl>
-          </motion.div>
-
-          <motion.div {...reveal} onMouseMove={setDepthPosition} onMouseLeave={(event) => { event.currentTarget.style.setProperty('--about-x', 0); event.currentTarget.style.setProperty('--about-y', 0); }} className="about-depth relative mx-auto w-full max-w-xl pb-8 pr-4 sm:pr-10">
-            <div className="absolute inset-x-10 bottom-0 top-12 rounded-[2.5rem] bg-brew-100" />
-            <div className="about-depth-layer relative overflow-hidden rounded-[2.2rem] bg-espresso-900 shadow-[0_28px_70px_rgba(26,15,8,0.22)]">
-              <img src="/images/about/brewhaus-story-cup.webp" alt="Freshly brewed coffee at Brewhaus" className="h-[34rem] w-full object-cover sm:h-[42rem]" loading="lazy" />
-            </div>
-            <div className="about-depth-layer absolute -bottom-1 -left-1 rounded-2xl border border-white/60 bg-cream/90 px-5 py-4 shadow-lg backdrop-blur-sm sm:left-5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brew-700">Made to linger</p>
-              <p className="mt-1 text-sm text-espresso-700">Coffee, food, and good company.</p>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      <section className="border-y border-espresso-100 bg-[#f0e7dc] px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <motion.div {...reveal} className="max-w-2xl">
-            <SectionEyebrow>Crafted with care</SectionEyebrow>
-            <h2 className="mt-5 font-display text-5xl font-semibold leading-[0.98] text-espresso-950 sm:text-6xl">The feeling is in the details.</h2>
-          </motion.div>
-          <div className="mt-12 grid gap-4 md:grid-cols-3">
-            {highlights.map(({ icon: Icon, title, text }, index) => (
-              <motion.article key={title} {...reveal} transition={{ ...reveal.transition, delay: index * 0.08 }} className="group rounded-[1.75rem] border border-white/80 bg-white/70 p-7 shadow-[0_12px_30px_rgba(58,39,23,0.07)] backdrop-blur-sm transition duration-500 hover:-translate-y-1.5 hover:shadow-[0_20px_45px_rgba(58,39,23,0.13)]">
-                <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-brew-100 text-brew-700"><Icon size={19} /></span>
-                <h3 className="mt-8 font-display text-3xl font-semibold text-espresso-900">{title}</h3>
-                <p className="mt-3 text-sm leading-7 text-espresso-600">{text}</p>
-              </motion.article>
-            ))}
+        {/* Initial Scroll Cue */}
+        <div ref={scrollCueRef} className={styles.initialScrollCue} aria-hidden="true">
+          <span className={styles.scrollCueText}>SCROLL TO POUR</span>
+          <div className={styles.scrollCueIndicator}>
+            <div className={styles.scrollCueLine} />
           </div>
         </div>
-      </section>
 
-      <section className="relative isolate overflow-hidden bg-espresso-950 px-4 py-24 text-cream sm:px-6 lg:px-8">
-        <img src="/images/about/brewhaus-cinematic-hero.webp" alt="" className="absolute inset-0 -z-20 h-full w-full object-cover opacity-45" loading="lazy" />
-        <video className="absolute inset-0 -z-10 h-full w-full object-cover opacity-65 mix-blend-luminosity" autoPlay muted loop playsInline preload="none" poster="/images/about/brewhaus-cinematic-hero.webp" onError={(event) => { event.currentTarget.style.display = 'none'; }} aria-hidden="true">
-          <source src="/BrewHaus.mp4" type="video/mp4" />
-        </video>
-        <div className="absolute inset-0 -z-10 bg-espresso-950/55" />
-        <motion.div {...reveal} className="mx-auto max-w-3xl text-center">
-          <SectionEyebrow light>Brewhaus experience</SectionEyebrow>
-          <h2 className="mt-5 font-display text-5xl font-semibold leading-[0.98] text-cream sm:text-7xl">The ritual, from the first pour.</h2>
-          <p className="mx-auto mt-7 max-w-xl text-base leading-8 text-cream/80">A warm table, a carefully made cup, and time that feels well spent.</p>
-        </motion.div>
-      </section>
+        {/* Story Moments Subtitles */}
+        <div className={styles.storyOverlay} aria-live="polite">
+          {STORY_MOMENTS.map((moment, idx) => {
+            const isActive = activeMoment === idx;
+            const isExiting = exitingMoment === idx && !isActive;
 
-      <section className="px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.08fr_0.92fr] lg:gap-20">
-          <motion.div {...reveal} onMouseMove={setDepthPosition} onMouseLeave={(event) => { event.currentTarget.style.setProperty('--about-x', 0); event.currentTarget.style.setProperty('--about-y', 0); }} className="about-depth relative order-2 lg:order-1">
-            <div className="absolute -inset-4 rounded-[2.5rem] bg-espresso-100" />
-            <div className="about-depth-layer relative overflow-hidden rounded-[2rem] shadow-[0_24px_60px_rgba(26,15,8,0.16)]">
-              <img src="/images/about/brewhaus-cinematic-hero.webp" alt="Coffee being prepared at the Brewhaus counter" className="h-[25rem] w-full object-cover sm:h-[34rem]" loading="lazy" />
-            </div>
-          </motion.div>
-          <motion.div {...reveal} className="order-1 lg:order-2">
-            <SectionEyebrow>What makes us different</SectionEyebrow>
-            <h2 className="mt-5 font-display text-5xl font-semibold leading-[0.98] text-espresso-950 sm:text-6xl">Coffee, prepared with patience.</h2>
-            <div className="mt-8 space-y-3">
-              {values.map((value, index) => <div key={value} className="flex items-center gap-4 rounded-2xl border border-espresso-100 bg-white px-5 py-4 shadow-sm"><span className="font-display text-2xl text-brew-600">0{index + 1}</span><p className="text-sm font-medium text-espresso-700">{value}</p></div>)}
-            </div>
-          </motion.div>
+            let momentStateClass = '';
+            if (isActive) momentStateClass = styles.isActive;
+            else if (isExiting) momentStateClass = styles.isExiting;
+
+            const isFinal = moment.id === 'final';
+
+            return (
+              <article
+                key={moment.id}
+                className={`${styles.storyMoment} ${moment.className} ${momentStateClass}`}
+              >
+                <h2 className={styles.momentHeading}>
+                  {moment.heading.split('\n').map((line, i) => (
+                    <React.Fragment key={i}>
+                      {line}
+                      {i < moment.heading.split('\n').length - 1 && <br />}
+                    </React.Fragment>
+                  ))}
+                </h2>
+                {moment.subtext && <p className={styles.momentSubtext}>{moment.subtext}</p>}
+
+                {isFinal && (
+                  <div className={styles.finalActions}>
+                    <Link to="/menu" className={styles.primaryCta}>
+                      Explore Menu <ArrowRight size={15} />
+                    </Link>
+                    <Link to="/contact" className={styles.secondaryCta}>
+                      Visit Brewhaus
+                    </Link>
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </div>
-      </section>
+      </div>
 
-      <section className="relative isolate overflow-hidden bg-espresso-950 px-4 py-24 text-center text-cream sm:px-6 sm:py-32 lg:px-8">
-        <img src="/images/about/brewhaus-story-cup.webp" alt="" className="absolute inset-0 -z-20 h-full w-full object-cover opacity-40" loading="lazy" />
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_center,rgba(154,96,49,0.42),rgba(13,8,4,0.95)_70%)]" />
-        <motion.div {...reveal} className="mx-auto max-w-3xl">
-          <SectionEyebrow light>Fine Coffee & Dining</SectionEyebrow>
-          <h2 className="mt-5 font-display text-5xl font-semibold leading-[0.96] text-cream sm:text-7xl">Come experience Brewhaus.</h2>
-          <p className="mx-auto mt-7 max-w-xl text-base leading-8 text-cream/75">A calm, modern café experience made for every kind of gathering.</p>
-          <div className="mt-10 flex flex-wrap justify-center gap-3">
-            <Link to="/menu" className="inline-flex items-center gap-2 rounded-full bg-cream px-6 py-3 text-xs font-bold uppercase tracking-[0.16em] text-espresso-900 transition hover:bg-brew-100">View menu <ArrowRight size={15} /></Link>
-            <Link to="/contact" className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/5 px-6 py-3 text-xs font-bold uppercase tracking-[0.16em] text-cream backdrop-blur-sm transition hover:bg-white/10">Visit Brewhaus <ArrowRight size={15} /></Link>
-          </div>
-        </motion.div>
-      </section>
-
-      <footer className="bg-[#0a0603] px-4 py-10 text-cream/65 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 text-center sm:flex-row sm:items-end sm:justify-between sm:text-left">
-          <div><p className="font-display text-2xl font-semibold tracking-[0.12em] text-cream">BREWHAUS</p><p className="mt-2 text-xs uppercase tracking-[0.2em] text-brew-300">Fine Coffee & Dining</p></div>
-          <div className="flex justify-center gap-5 text-sm sm:justify-end"><Link to="/menu" className="transition hover:text-cream">Menu</Link><Link to="/offers" className="transition hover:text-cream">Offers</Link><Link to="/contact" className="transition hover:text-cream">Contact</Link></div>
-        </div>
-      </footer>
-    </main>
+      {/* 600vh Scroll Height Track */}
+      <div ref={containerRef} className={styles.experienceContainer} aria-hidden="true" />
+    </div>
   );
 }

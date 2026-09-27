@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Web Request Cache Miss Flow",
+    "output": "web-request-cache-miss.html",
+    "viewBox": [1000, 600],
+    "column_fit": "spread",
+    "animation": "trace",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    { "id": "browser", "type": "external", "label": "Browser", "sublabel": "User Agent" },
+    { "id": "api", "type": "backend", "label": "API", "sublabel": "Backend Service" },
+    { "id": "redis", "type": "database", "label": "Redis", "sublabel": "Cache" },
+    { "id": "postgres", "type": "database", "label": "PostgreSQL", "sublabel": "Database" }
+  ],
+  "segments": [
+    { "from": 140, "to": 240, "label": "Cache Check" },
+    { "from": 260, "to": 360, "label": "Cache Miss & DB Query" },
+    { "from": 380, "to": 460, "label": "Response & Cache Fill" }
+  ],
+  "messages": [
+    { "id": "api-call", "from": "browser", "to": "api", "y": 160, "label": "GET /data", "variant": "emphasis" },
+    { "id": "cache-read", "from": "api", "to": "redis", "y": 190, "label": "check cache", "variant": "default" },
+    { "id": "cache-miss", "from": "redis", "to": "api", "y": 220, "label": "miss", "variant": "return" },
+    { "id": "db-query", "from": "api", "to": "postgres", "y": 280, "label": "query data", "variant": "emphasis" },
+    { "id": "db-result", "from": "postgres", "to": "api", "y": 310, "label": "rows", "variant": "return" },
+    { "id": "cache-fill", "from": "api", "to": "redis", "y": 400, "label": "fill cache", "variant": "dashed" },
+    { "id": "api-response", "from": "api", "to": "browser", "y": 430, "label": "200 OK", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "api", "from": 155, "to": 440, "type": "backend" },
+    { "participant": "redis", "from": 185, "to": 225, "type": "database" },
+    { "participant": "postgres", "from": 275, "to": 315, "type": "database" },
+    { "participant": "redis", "from": 395, "to": 415, "type": "database" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Cache Miss Flow",
+      "items": [
+        "The Browser initiates a request to the API.",
+        "The API attempts to retrieve the data from Redis, but experiences a cache miss.",
+        "The API falls back to querying PostgreSQL to fetch the data."
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Cache Population",
+      "items": [
+        "After successfully fetching the data from PostgreSQL, the API asynchronously populates the Redis cache before responding to the Browser."
+      ]
+    }
+  ]
+}
