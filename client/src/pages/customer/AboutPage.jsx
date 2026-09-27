@@ -67,9 +67,6 @@ const STORY_MOMENTS = [
 
 export default function AboutPage() {
   const canvasRef = useRef(null);
-  const progressBarFillRef = useRef(null);
-  const progressDotRef = useRef(null);
-  const progressCounterRef = useRef(null);
   const scrollCueRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -77,6 +74,7 @@ export default function AboutPage() {
   const [exitingMoment, setExitingMoment] = useState(-1);
 
   useEffect(() => {
+    // Scroll to top on page entry
     window.scrollTo(0, 0);
 
     const canvas = canvasRef.current;
@@ -128,7 +126,7 @@ export default function AboutPage() {
       const imgW = img.naturalWidth;
       const imgH = img.naturalHeight;
 
-      // Aspect-ratio cover math
+      // Aspect-ratio cover math with centered crop
       const scale = Math.max(canvasW / imgW, canvasH / imgH);
       const scaledW = imgW * scale;
       const scaledH = imgH * scale;
@@ -140,7 +138,9 @@ export default function AboutPage() {
     }
 
     function resizeCanvas() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const isMobile = window.innerWidth <= 768;
+      // Clamp DPR to avoid mobile GPU memory overhead while maintaining high sharpness
+      const dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 1.75 : 2);
       const width = window.innerWidth;
       const height = window.innerHeight;
 
@@ -150,7 +150,7 @@ export default function AboutPage() {
       canvas.style.height = `${height}px`;
 
       ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
+      ctx.imageSmoothingQuality = isMobile ? 'medium' : 'high';
 
       if (lastDrawnFrame > 0) {
         drawFrame(lastDrawnFrame, true);
@@ -176,6 +176,7 @@ export default function AboutPage() {
     }
 
     function preloadMilestonesAndStream() {
+      // Key milestones first for instant timeline feedback
       const milestones = [24, 48, 72, 96, 120, 144, 168, 192, 216, 240];
       milestones.forEach((idx) => {
         if (idx !== 1 && !frames[idx]) {
@@ -244,14 +245,8 @@ export default function AboutPage() {
       const frameOffset = Math.max(0, Math.min(TOTAL_FRAMES - 1, Math.round(progress * (TOTAL_FRAMES - 1))));
       targetFrame = 1 + frameOffset;
 
-      if (progressBarFillRef.current && progressDotRef.current) {
-        const percent = (progress * 100).toFixed(2);
-        progressBarFillRef.current.style.height = `${percent}%`;
-        progressDotRef.current.style.top = `${percent}%`;
-      }
-
       if (scrollCueRef.current) {
-        if (progress > 0.02) {
+        if (progress > 0.015) {
           scrollCueRef.current.classList.add(styles.isHidden);
         } else {
           scrollCueRef.current.classList.remove(styles.isHidden);
@@ -278,9 +273,10 @@ export default function AboutPage() {
     function renderLoop() {
       onScroll();
 
+      // Fluid interpolation factor (0.20 for tactile touch & smooth desktop lerp)
       const delta = targetFrame - currentFrame;
       if (Math.abs(delta) > 0.005) {
-        currentFrame += delta * 0.18;
+        currentFrame += delta * 0.20;
       } else {
         currentFrame = targetFrame;
       }
@@ -290,10 +286,6 @@ export default function AboutPage() {
 
       drawFrame(clampedFrame);
       updateMoments(clampedFrame);
-
-      if (progressCounterRef.current) {
-        progressCounterRef.current.textContent = `${String(clampedFrame).padStart(3, '0')} / 240`;
-      }
 
       animFrameId = requestAnimationFrame(renderLoop);
     }
@@ -316,12 +308,15 @@ export default function AboutPage() {
         isResizing = false;
       }, 100);
     };
+
     window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
 
     return () => {
       if (animFrameId) cancelAnimationFrame(animFrameId);
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
       clearTimeout(resizeTimeout);
     };
   }, []);
@@ -330,7 +325,7 @@ export default function AboutPage() {
     <div className={styles.pageWrapper}>
       {/* Floating Top Navigation */}
       <header className={styles.topNav} aria-label="Brewhaus Navigation">
-        <Link to="/menu" className={styles.backBtn}>
+        <Link to="/menu" className={styles.backBtn} aria-label="Back to Menu">
           <ArrowLeft size={15} />
           <span>Back to Menu</span>
         </Link>
@@ -362,17 +357,6 @@ export default function AboutPage() {
 
         {/* Ambient Vignette & Warm Glow */}
         <div className={styles.ambientVignette} aria-hidden="true" />
-
-        {/* Minimal Progress Indicator */}
-        <aside className={styles.progressIndicator} aria-label="Experience progress" aria-hidden="true">
-          <div className={styles.progressTrack}>
-            <div ref={progressBarFillRef} className={styles.progressBarFill} />
-            <div ref={progressDotRef} className={styles.progressDot} />
-          </div>
-          <div ref={progressCounterRef} className={styles.progressCounter}>
-            001 / 240
-          </div>
-        </aside>
 
         {/* Initial Scroll Cue */}
         <div ref={scrollCueRef} className={styles.initialScrollCue} aria-hidden="true">
