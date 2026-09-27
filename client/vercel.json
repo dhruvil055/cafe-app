@@ -45,6 +45,24 @@
       ]
     },
     {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/",
       "headers": [
         {
@@ -54,7 +72,7 @@
       ]
     },
     {
-      "source": "/menu",
+      "source": "/(menu|about|offers|contact|gallery|cart|checkout|orders|receipt|track|unsubscribe)(.*)",
       "headers": [
         {
           "key": "Cache-Control",

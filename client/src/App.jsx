@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { Component, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
@@ -20,6 +20,66 @@ const GalleryPage = lazy(() => import('./pages/customer/GalleryPage'));
 const ReceiptPage = lazy(() => import('./pages/customer/ReceiptPage'));
 const OrdersPage = lazy(() => import('./pages/customer/OrdersPage'));
 const UnsubscribePage = lazy(() => import('./pages/customer/UnsubscribePage'));
+
+class ChunkErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    const isChunkError =
+      error?.name === 'ChunkLoadError' ||
+      error?.message?.includes?.('Failed to fetch dynamically imported module') ||
+      error?.message?.includes?.('dynamically imported module') ||
+      error?.message?.includes?.('Expected a JavaScript-or-Wasm module script');
+    return { hasError: true, isChunkError };
+  }
+
+  componentDidCatch(error) {
+    const isChunkError =
+      error?.name === 'ChunkLoadError' ||
+      error?.message?.includes?.('Failed to fetch dynamically imported module') ||
+      error?.message?.includes?.('dynamically imported module') ||
+      error?.message?.includes?.('Expected a JavaScript-or-Wasm module script');
+
+    if (isChunkError) {
+      const reloadKey = 'chunk_boundary_reload';
+      const lastReload = sessionStorage.getItem(reloadKey);
+      const now = Date.now();
+      if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
+        sessionStorage.setItem(reloadKey, now.toString());
+        window.location.reload();
+      }
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-[#120804] text-[#FAF6F0] flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-12 h-12 rounded-full border border-[#d4862a]/40 bg-[#d4862a]/10 flex items-center justify-center mb-4 text-2xl">
+            ☕
+          </div>
+          <h2 className="text-xl font-bold font-serif mb-2 tracking-wide">Updated Version Available</h2>
+          <p className="text-sm text-stone-300 max-w-sm mb-6 leading-relaxed">
+            A new version of Brewhaus Café was just deployed. Please refresh to load the updated page.
+          </p>
+          <button
+            onClick={() => {
+              sessionStorage.removeItem('chunk_boundary_reload');
+              window.location.reload();
+            }}
+            className="px-6 py-2.5 rounded-full bg-[#d4862a] text-[#1a0f08] font-semibold text-sm hover:bg-[#b86f1e] transition-colors cursor-pointer"
+          >
+            Refresh Now
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function PageFallback() {
   return (
@@ -50,30 +110,32 @@ export default function App() {
         }}
       />
 
-      <Suspense fallback={<PageFallback />}>
-        <Routes>
-          <Route path="/" element={<Navigate to="/menu" replace />} />
-          <Route path="/menu" element={<MenuPage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/offers" element={<OffersPage />} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/gallery" element={<GalleryPage />} />
-          <Route path="/cart" element={<CartPage />} />
-          <Route path="/checkout" element={<CheckoutPage />} />
-          <Route path="/unsubscribe" element={<UnsubscribePage />} />
+      <ChunkErrorBoundary>
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
+            <Route path="/" element={<Navigate to="/menu" replace />} />
+            <Route path="/menu" element={<MenuPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/offers" element={<OffersPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/gallery" element={<GalleryPage />} />
+            <Route path="/cart" element={<CartPage />} />
+            <Route path="/checkout" element={<CheckoutPage />} />
+            <Route path="/unsubscribe" element={<UnsubscribePage />} />
 
-          <Route path="/receipt" element={<ReceiptPage />} />
-          <Route path="/receipt/:orderId" element={<ReceiptPage />} />
-          <Route path="/orders" element={<OrdersPage />} />
-          <Route path="/order-confirm/:orderId" element={<OrderConfirmPage />} />
-          <Route path="/track/:orderId" element={<TrackOrderPage />} />
+            <Route path="/receipt" element={<ReceiptPage />} />
+            <Route path="/receipt/:orderId" element={<ReceiptPage />} />
+            <Route path="/orders" element={<OrdersPage />} />
+            <Route path="/order-confirm/:orderId" element={<OrderConfirmPage />} />
+            <Route path="/track/:orderId" element={<TrackOrderPage />} />
 
-          <Route path="/admin" element={<Navigate to="/menu" replace />} />
-          <Route path="/admin/*" element={<Navigate to="/menu" replace />} />
+            <Route path="/admin" element={<Navigate to="/menu" replace />} />
+            <Route path="/admin/*" element={<Navigate to="/menu" replace />} />
 
-          <Route path="*" element={<Navigate to="/menu" replace />} />
-        </Routes>
-      </Suspense>
+            <Route path="*" element={<Navigate to="/menu" replace />} />
+          </Routes>
+        </Suspense>
+      </ChunkErrorBoundary>
     </BrowserRouter>
   );
 }
