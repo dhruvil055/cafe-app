@@ -7,6 +7,6 @@ const apiUrl = configuredApiUrl.endsWith('/api') ? configuredApiUrl : `${configu
 
 export const env = {
   apiUrl,
-  customerUrl: import.meta.env.VITE_CUSTOMER_APP_URL || 'https://client-ten-peach-93.vercel.app',
-  adminUrl: import.meta.env.VITE_ADMIN_APP_URL || 'https://admin-app-delta-eight.vercel.app',
+  customerUrl: import.meta.env.VITE_CUSTOMER_APP_URL || 'https://cafe.infinigrowsoftech.com',
+  adminUrl: import.meta.env.VITE_ADMIN_APP_URL || 'https://admin-cafe.infinigrowsoftech.com',
 };

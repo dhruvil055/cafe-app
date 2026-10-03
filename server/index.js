@@ -43,7 +43,7 @@ export const createApp = ({ razorpayFactory } = {}) => {
   }));
   app.use(cookieParser());
 
-  const allowedOrigins = new Set([
+  const explicitAllowedOrigins = new Set([
     ...[
       process.env.CLIENT_URL,
       process.env.CUSTOMER_APP_URL,
@@ -55,18 +55,44 @@ export const createApp = ({ razorpayFactory } = {}) => {
       .flatMap((value) => String(value || '').split(','))
       .map(normalizeOrigin)
       .filter(Boolean),
+    'https://cafe.infinigrowsoftech.com',
+    'https://admin-cafe.infinigrowsoftech.com',
+    'https://client-ten-peach-93.vercel.app',
+    'https://admin-app-delta-eight.vercel.app',
     'http://localhost:5173',
     'http://localhost:4173',
     'http://localhost:5174',
     'http://localhost:4174',
     'http://localhost:5175',
+    'http://localhost:3000',
   ]);
+
+  const isAllowedOrigin = (origin) => {
+    if (!origin) return true;
+    const normalized = normalizeOrigin(origin);
+    if (explicitAllowedOrigins.has(normalized)) return true;
+
+    try {
+      const parsed = new URL(normalized);
+      const hostname = parsed.hostname.toLowerCase();
+      if (
+        hostname === 'infinigrowsoftech.com' ||
+        hostname.endsWith('.infinigrowsoftech.com')
+      ) {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+
+    return false;
+  };
 
   // Strict CORS allowlist. Requests without an Origin are allowed for native
   // clients and command-line integrations; browser origins must be explicit.
   app.use(cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.has(normalizeOrigin(origin))) return callback(null, true);
+      if (isAllowedOrigin(origin)) return callback(null, true);
       const error = new Error('Origin is not allowed by CORS');
       error.status = 403;
       return callback(error);

@@ -6,7 +6,7 @@ import { adminOnly, protect, staffOrAdmin } from '../middleware/auth.js';
 const router = express.Router();
 
 const getTrustedClientUrl = () => {
-  const configured = String(process.env.CUSTOMER_APP_URL || process.env.CLIENT_URL || '').trim();
+  const configured = String(process.env.CUSTOMER_APP_URL || process.env.CLIENT_URL || 'https://cafe.infinigrowsoftech.com').trim();
   if (!configured) throw new Error('CUSTOMER_APP_URL or CLIENT_URL is not configured.');
 
   const parsed = new URL(configured);

@@ -22,7 +22,7 @@ import { requireActiveDiningSession } from '../utils/diningSession.js';
 const router = express.Router();
 
 const publicReceiptUrl = (req, orderId, accessToken) => {
-  const baseUrl = process.env.PUBLIC_APP_URL || process.env.CUSTOMER_APP_URL || process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? `https://${req.get('host')}` : '');
+  const baseUrl = process.env.PUBLIC_APP_URL || process.env.CUSTOMER_APP_URL || process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://cafe.infinigrowsoftech.com' : `https://${req.get('host')}`);
   if (!baseUrl) return '';
   return `${baseUrl.replace(/\/$/, '')}/receipt/${orderId}?accessToken=${encodeURIComponent(accessToken)}`;
 };
