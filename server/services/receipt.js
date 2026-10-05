@@ -16,22 +16,22 @@ const COLORS = {
 const cents = (value) => Math.round(Number(value || 0) * 100);
 const fromCents = (value) => value / 100;
 
-export const money = (value) => {
+export const money = (value, currency = 'INR', locale = 'en-IN') => {
   const amount = Number(value || 0);
-  const formattedAmount = new Intl.NumberFormat('en-IN', {
+  const formattedAmount = new Intl.NumberFormat(locale, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Math.abs(amount));
-  return `${amount < 0 ? '-Rs.' : 'Rs.'} ${formattedAmount}`;
+  return `${amount < 0 ? '-' : ''}${currency === 'INR' ? 'Rs.' : currency} ${formattedAmount}`;
 };
 
-export const formatReceiptDate = (value) => new Date(value).toLocaleDateString('en-IN', {
-  day: '2-digit', month: 'short', year: 'numeric',
-});
+export const formatReceiptDate = (value, timezone = 'Asia/Kolkata') => new Intl.DateTimeFormat('en', {
+  timeZone: timezone, day: '2-digit', month: 'short', year: 'numeric',
+}).format(new Date(value));
 
-export const formatReceiptTime = (value) => new Date(value).toLocaleTimeString('en-IN', {
-  hour: '2-digit', minute: '2-digit', hour12: true,
-});
+export const formatReceiptTime = (value, timezone = 'Asia/Kolkata') => new Intl.DateTimeFormat('en', {
+  timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: true,
+}).format(new Date(value));
 
 export const ensureReceiptNumber = async (bill) => {
   if (bill.receiptNumber) return bill.receiptNumber;
@@ -65,13 +65,14 @@ const orderStatusLabel = (orders) => {
   return { pending: 'ORDER RECEIVED', confirmed: 'CONFIRMED', preparing: 'PREPARING', ready: 'READY' }[latest] || 'ORDER RECEIVED';
 };
 
-export const createReceiptData = async ({ orders, bill, tableNumber }) => {
+export const createReceiptData = async ({ orders, bill, tableNumber, tenantSettings = {} }) => {
   const safeOrders = (orders || []).filter((order) => order.orderStatus !== 'cancelled');
   if (!safeOrders.length) throw new Error('No billable orders found.');
 
   const firstOrder = safeOrders[0];
   const lastOrder = safeOrders[safeOrders.length - 1];
   const calculatedSubtotalCents = safeOrders.reduce((sum, order) => sum + cents(order.subtotal), 0);
+  const discountCents = safeOrders.reduce((sum, order) => sum + cents(order.discount || 0), 0);
   const calculatedTaxCents = safeOrders.reduce((sum, order) => sum + cents(order.tax), 0);
   const calculatedTotalCents = safeOrders.reduce((sum, order) => sum + cents(order.total), 0);
   const subtotalCents = Number(bill?.subtotal) > 0 ? cents(bill.subtotal) : calculatedSubtotalCents;
@@ -86,10 +87,10 @@ export const createReceiptData = async ({ orders, bill, tableNumber }) => {
   const taxRows = [...taxGroups.entries()].flatMap(([rate, taxAmountCents]) => {
     if (rate <= 0 || taxAmountCents <= 0) return [];
     const halfRate = rate / 2;
-    const halfTax = Math.round(taxAmountCents / 2);
+    const halfTax = Math.floor(taxAmountCents / 2);
     return [
       { label: `CGST (${halfRate.toFixed(2)}%)`, amount: fromCents(halfTax) },
-      { label: `SGST (${halfRate.toFixed(2)}%)`, amount: fromCents(halfTax) },
+      { label: `SGST (${halfRate.toFixed(2)}%)`, amount: fromCents(taxAmountCents - halfTax) },
     ];
   });
 
@@ -97,17 +98,25 @@ export const createReceiptData = async ({ orders, bill, tableNumber }) => {
   const transactionId = bill?.razorpayPaymentId || safeOrders.find((order) => order.razorpayPaymentId)?.razorpayPaymentId || '';
 
   return {
+    tenant: {
+      name: tenantSettings.cafeName || 'Café',
+      address: tenantSettings.address || '',
+      contactPhone: tenantSettings.contactPhone || '',
+      gstNumber: tenantSettings.gstNumber || '',
+      currency: firstOrder.currency || tenantSettings.currency || 'INR',
+      timezone: tenantSettings.timezone || 'Asia/Kolkata',
+    },
     receiptNumber: bill?.receiptNumber || `ORDER-${firstOrder.orderNumber}`,
     orderNumbers: safeOrders.map((order) => order.orderNumber),
     tableNumber: tableNumber || firstOrder.tableNumber,
-    date: formatReceiptDate(firstOrder.createdAt),
-    time: formatReceiptTime(firstOrder.createdAt),
+    date: formatReceiptDate(firstOrder.createdAt, tenantSettings.timezone || 'Asia/Kolkata'),
+    time: formatReceiptTime(firstOrder.createdAt, tenantSettings.timezone || 'Asia/Kolkata'),
     customer: firstOrder.customer?.name || '',
     phone: firstOrder.customer?.phone || '',
     items: safeOrders.flatMap((order) => (order.items || []).map((item) => ({ ...item, orderNumber: order.orderNumber }))),
     subtotal: fromCents(subtotalCents),
-    discount: 0,
-    taxableAmount: fromCents(subtotalCents),
+    discount: fromCents(discountCents),
+    taxableAmount: fromCents(subtotalCents - discountCents),
     taxRows,
     taxTotal: fromCents(taxCents),
     grandTotal: fromCents(totalCents),
@@ -153,15 +162,15 @@ export const generateReceiptPdf = async (receipt) => {
   const taxRowsHeight = receipt.taxRows.length * 13;
   const infoHeight = receipt.customer || receipt.phone ? 84 : 56;
   const paymentHeight = receipt.transactionId ? 61 : 46;
-  const pageHeight = 30 + 52 + 13 + infoHeight + 16 + 18 + itemRowsHeight + 18 + 16 + taxRowsHeight + 56 + paymentHeight + 19 + 30 + 39 + 30;
+  const pageHeight = 30 + 52 + 13 + infoHeight + 16 + 18 + itemRowsHeight + 18 + 16 + taxRowsHeight + (receipt.discount > 0 ? 13 : 0) + 56 + paymentHeight + 19 + 30 + 39 + 30;
   doc.addPage({ size: [PAGE_WIDTH, Math.max(560, pageHeight)], margin: 0 });
 
   let y = 22;
-  text('BREWHAUS', SIDE_MARGIN, y, CONTENT_WIDTH, { bold: true, size: 17, color: COLORS.ink, align: 'center', lineBreak: false, characterSpacing: 0.8 });
+  text(receipt.tenant?.name || 'Café', SIDE_MARGIN, y, CONTENT_WIDTH, { bold: true, size: 17, color: COLORS.ink, align: 'center', lineBreak: false, characterSpacing: 0.8 });
   y += 20;
   text('FINE COFFEE & DINING', SIDE_MARGIN, y, CONTENT_WIDTH, { size: 7.5, color: COLORS.accent, align: 'center', lineBreak: false, characterSpacing: 0.8 });
   y += 16;
-  text('Surat, Gujarat 395001  |  +91 98765 43210', SIDE_MARGIN, y, CONTENT_WIDTH, { size: 7, color: COLORS.muted, align: 'center', lineBreak: false });
+  text([receipt.tenant?.address, receipt.tenant?.contactPhone, receipt.tenant?.gstNumber ? `GSTIN ${receipt.tenant.gstNumber}` : ''].filter(Boolean).join('  |  '), SIDE_MARGIN, y, CONTENT_WIDTH, { size: 7, color: COLORS.muted, align: 'center', lineBreak: false });
   y += 15;
   line(y, 0.9, COLORS.ink);
   y += 12;
@@ -194,7 +203,7 @@ export const generateReceiptPdf = async (receipt) => {
     const mainHeight = Math.max(12, wrapLines(doc, item.name || 'Item', itemWidth, { font: 'Helvetica-Bold', fontSize: 8.2 }));
     text(item.name || 'Item', itemX, y, itemWidth, { bold: true, size: 8.2 });
     text(item.quantity || 1, qtyX, y, 24, { size: 8.2, align: 'center', lineBreak: false });
-    text(money(item.itemTotal), amountX, y, 65, { size: 8.2, align: 'right', lineBreak: false });
+    text(money(item.itemTotal, receipt.tenant?.currency), amountX, y, 65, { size: 8.2, align: 'right', lineBreak: false });
     y += mainHeight;
     details.forEach((detail) => {
       const detailHeight = wrapLines(doc, detail, itemWidth - 5, { font: 'Helvetica', fontSize: 7.1 });
@@ -208,7 +217,7 @@ export const generateReceiptPdf = async (receipt) => {
   y += 11;
   const summary = (label, value, bold = false) => {
     text(label, itemX, y, CONTENT_WIDTH - 70, { bold, size: bold ? 9.3 : 8.1, color: bold ? COLORS.ink : COLORS.body, lineBreak: false });
-    text(money(value), amountX, y, 65, { bold, size: bold ? 9.3 : 8.1, color: bold ? COLORS.ink : COLORS.body, align: 'right', lineBreak: false });
+    text(money(value, receipt.tenant?.currency), amountX, y, 65, { bold, size: bold ? 9.3 : 8.1, color: bold ? COLORS.ink : COLORS.body, align: 'right', lineBreak: false });
     y += bold ? 17 : 13;
   };
   summary('Subtotal', receipt.subtotal);
@@ -230,11 +239,11 @@ export const generateReceiptPdf = async (receipt) => {
   y += 21;
   line(y, 0.5);
   y += 12;
-  text('Thank you for visiting Brewhaus!', SIDE_MARGIN, y, CONTENT_WIDTH, { bold: true, size: 8.7, color: COLORS.accent, align: 'center', lineBreak: false });
+  text(`Thank you for visiting ${receipt.tenant?.name || 'our café'}!`, SIDE_MARGIN, y, CONTENT_WIDTH, { bold: true, size: 8.7, color: COLORS.accent, align: 'center', lineBreak: false });
   y += 14;
   text('Please visit again. Have a great day!', SIDE_MARGIN, y, CONTENT_WIDTH, { size: 7.1, color: COLORS.muted, align: 'center', lineBreak: false });
   y += 13;
-  text('www.brewhauscafe.com', SIDE_MARGIN, y, CONTENT_WIDTH, { size: 7.1, color: COLORS.muted, align: 'center', lineBreak: false });
+  text(receipt.tenant?.contactPhone || '', SIDE_MARGIN, y, CONTENT_WIDTH, { size: 7.1, color: COLORS.muted, align: 'center', lineBreak: false });
 
   const buffers = [];
   doc.on('data', (chunk) => buffers.push(chunk));

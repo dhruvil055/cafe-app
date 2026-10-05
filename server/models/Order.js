@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantIsolationPlugin } from '../utils/tenantContext.js';
 import Counter from './Counter.js';
 
 const orderItemSchema = new mongoose.Schema({
@@ -34,9 +35,12 @@ const orderSchema = new mongoose.Schema({
   },
   items: [orderItemSchema],
   subtotal: { type: Number, required: true },
+  discount: { type: Number, default: 0, min: 0 },
+  couponCode: { type: String, default: '', trim: true, maxlength: 32 },
   tax: { type: Number, required: true },
   total: { type: Number, required: true },
   taxRate: { type: Number, default: 5 }, // 5% GST
+  currency: { type: String, uppercase: true, default: 'INR' },
   paymentMethod: {
     type: String,
     enum: ['razorpay', 'cash'],
@@ -44,7 +48,7 @@ const orderSchema = new mongoose.Schema({
   },
   paymentStatus: {
     type: String,
-    enum: ['pending', 'payment_created', 'payment_processing', 'paid', 'failed', 'cancelled', 'refunded'],
+    enum: ['pending', 'payment_created', 'payment_processing', 'paid', 'refund_pending', 'failed', 'cancelled', 'refunded'],
     default: 'pending',
   },
   cashVerificationStatus: {
@@ -68,12 +72,20 @@ const orderSchema = new mongoose.Schema({
   inventoryProcessedAt: { type: Date, default: null },
   inventoryRestored: { type: Boolean, default: false },
   inventoryRestoredAt: { type: Date, default: null },
-  idempotencyKey: { type: String, sparse: true, index: true },
+  idempotencyKey: { type: String, sparse: true },
   razorpayOrderId: { type: String, default: '' },
   razorpayPaymentId: { type: String, default: '' },
   razorpaySignature: { type: String, default: '' },
   notes: { type: String, default: '' },
-  accessTokenHash: { type: String, required: true, unique: true },
+  loyaltyPointsAwarded: { type: Boolean, default: false },
+  loyaltyPointsEarned: { type: Number, default: 0, min: 0 },
+  loyaltyPointsReversed: { type: Boolean, default: false },
+  rating: {
+    score: { type: Number, min: 1, max: 5 },
+    comment: { type: String, default: '', maxlength: 500 },
+    submittedAt: { type: Date },
+  },
+  accessTokenHash: { type: String, required: true },
 }, { timestamps: true });
 
 // Generate order number before required-field validation runs.
@@ -115,7 +127,9 @@ orderSchema.pre('validate', async function (next) {
   }
 });
 
-orderSchema.index({ orderNumber: 1 }, { unique: true });
+orderSchema.index({ tenantId: 1, orderNumber: 1 }, { unique: true });
+orderSchema.index({ tenantId: 1, idempotencyKey: 1 }, { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } });
+orderSchema.index({ tenantId: 1, accessTokenHash: 1 }, { unique: true });
 orderSchema.index({ diningSessionId: 1, createdAt: -1 });
 orderSchema.index({ tableNumber: 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1, createdAt: -1 });
@@ -137,4 +151,5 @@ export const initializeOrderNumberCounter = async () => {
   );
 };
 
+orderSchema.plugin(tenantIsolationPlugin);
 export default mongoose.model('Order', orderSchema);
