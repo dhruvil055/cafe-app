@@ -18,6 +18,7 @@ const tenantCollections = [
   'inventorytransactions', 'menuinventorymappings', 'campaigns', 'campaigndeliveries',
   'notificationcampaigns', 'notificationdeliveries', 'pushsubscriptions', 'marketingsettings',
   'galleryitems', 'contactmessages',
+  'counters',
 ];
 
 const collection = (name) => mongoose.connection.collection(name);
@@ -79,6 +80,8 @@ export const migratePhase0A = async () => runWithSystemTenantAccess(async () => 
   for (const name of tenantCollections) {
     await collection(name).updateMany({ tenantId: { $exists: false } }, { $set: { tenantId } });
   }
+  // Backfill tenantId for counters collection (order numbers, receipt numbers)
+  await collection('counters').updateMany({ tenantId: { $exists: false } }, { $set: { tenantId } });
   await migrateUniqueIndexes();
   await regenerateQrCodes(tenantId);
   return tenant;
@@ -94,6 +97,9 @@ export const rollbackPhase0A = async () => runWithSystemTenantAccess(async () =>
     const foreign = await collection(name).countDocuments({ tenantId: { $exists: true, $ne: tenant._id } });
     if (foreign) throw new Error(`Rollback refused: ${name} contains records owned by another tenant.`);
   }
+  // Rollback counters collection
+  const countersForeign = await collection('counters').countDocuments({ tenantId: { $exists: true, $ne: tenant._id } });
+  if (countersForeign) throw new Error(`Rollback refused: counters contains records owned by another tenant.`);
   for (const name of tenantCollections) {
     const coll = collection(name);
     const indexes = await coll.indexes().catch((error) => error.codeName === 'NamespaceNotFound' ? [] : Promise.reject(error));
@@ -116,6 +122,7 @@ export const rollbackPhase0A = async () => runWithSystemTenantAccess(async () =>
   }
   await backup.drop().catch((error) => { if (error.codeName !== 'NamespaceNotFound') throw error; });
   for (const name of tenantCollections) await collection(name).updateMany({}, { $unset: { tenantId: '' } });
+  await collection('counters').updateMany({}, { $unset: { tenantId: '' } });
   await Tenant.deleteOne({ _id: tenant._id });
 });
 

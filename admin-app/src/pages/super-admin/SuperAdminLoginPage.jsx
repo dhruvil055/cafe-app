@@ -56,7 +56,7 @@ export default function SuperAdminLoginPage() {
             <ShieldCheck size={28} />
           </div>
           <h1 className="font-display text-2xl font-bold tracking-tight text-white">
-            Brewhaus Platform Admin
+            Platform Admin
           </h1>
           <p className="mt-1 text-xs text-stone-400">
             Multi-tenant SaaS oversight, metrics & management
@@ -82,7 +82,7 @@ export default function SuperAdminLoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@brewhaus.com"
+                placeholder="admin@yourdomain.com"
                 className="w-full rounded-2xl border border-stone-800 bg-stone-950/60 pl-11 pr-4 py-3 text-sm text-stone-100 placeholder-stone-600 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
               />
             </div>

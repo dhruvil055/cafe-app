@@ -140,7 +140,7 @@ export default function SuperAdminDashboard() {
             </div>
             <div>
               <div className="font-bold text-sm text-white">Platform Administration</div>
-              <div className="text-[11px] text-stone-400">Brewhaus Multi-Tenant Core</div>
+              <div className="text-[11px] text-stone-400">Multi-Tenant SaaS Core</div>
             </div>
           </div>
 
