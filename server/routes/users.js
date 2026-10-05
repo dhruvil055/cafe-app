@@ -49,8 +49,30 @@ router.put('/:id/role', ...ownerOnly, async (req, res) => {
 });
 
 router.get('/audit', ...ownerOnly, async (req, res) => {
-  const events = await AuditEvent.find().sort({ createdAt: -1 }).limit(200).lean();
-  return res.json({ events });
+  try {
+    const { page = '1', limit = '50', action, actorEmail, targetType, startDate, endDate } = req.query;
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit)));
+
+    const query = {};
+    if (action) query.action = { $regex: action, $options: 'i' };
+    if (actorEmail) query.actorEmail = { $regex: actorEmail, $options: 'i' };
+    if (targetType) query.targetType = targetType;
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+
+    const [events, total] = await Promise.all([
+      AuditEvent.find(query).sort({ createdAt: -1 }).skip((pageNum - 1) * limitNum).limit(limitNum).lean(),
+      AuditEvent.countDocuments(query),
+    ]);
+
+    return res.json({ events, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) } });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to fetch audit events.' });
+  }
 });
 
 export default router;

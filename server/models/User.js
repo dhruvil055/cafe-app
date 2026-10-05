@@ -15,6 +15,9 @@ const userSchema = new mongoose.Schema({
   refreshTokenExpiresAt: { type: Date, default: null, select: false },
   twoFactorEnabled: { type: Boolean, default: false },
   twoFactorSecretEncrypted: { type: String, default: '', select: false },
+  // Password reset
+  resetPasswordToken: { type: String, default: '', select: false },
+  resetPasswordExpiresAt: { type: Date, default: null, select: false },
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {

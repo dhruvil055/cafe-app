@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import QRCode from 'qrcode';
 import User from '../models/User.js';
 import AuditEvent from '../models/AuditEvent.js';
@@ -349,6 +350,99 @@ router.post('/setup', async (req, res) => {
   } catch (error) {
     console.error('Setup error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/auth/forgot-password
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required.' });
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
+    if (!user) {
+      // Don't reveal if email exists or not
+      return res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
+    }
+
+    // Generate reset token (valid for 1 hour)
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await user.save();
+
+    // TODO: Send email with reset link
+    // const resetUrl = `${process.env.CUSTOMER_APP_URL}/reset-password?token=${resetToken}&email=${encodeURIComponent(normalizedEmail)}`;
+    // await sendEmail({ to: normalizedEmail, subject: 'Password Reset', html: `...${resetUrl}...` });
+
+    // For development, return token in response (remove in production)
+    if (process.env.NODE_ENV !== 'production') {
+      return res.json({ success: true, message: 'Reset token generated.', devToken: resetToken });
+    }
+
+    res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Failed to process password reset request.' });
+  }
+});
+
+// POST /api/auth/reset-password
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, email, password } = req.body;
+    if (!token || !email || !password) {
+      return res.status(400).json({ error: 'Token, email, and new password are required.' });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await User.findOne({
+      email: normalizedEmail,
+      resetPasswordToken: hashedToken,
+      resetPasswordExpiresAt: { $gt: new Date() },
+    }).select('+password');
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired reset token.' });
+    }
+
+    if (String(password).length < 12) {
+      return res.status(400).json({ error: 'Password must be at least 12 characters.' });
+    }
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*]).{12,}$/.test(password)) {
+      return res.status(400).json({ error: 'Password must be at least 12 characters with uppercase, lowercase, number, and symbol.' });
+    }
+
+    user.password = password;
+    user.resetPasswordToken = '';
+    user.resetPasswordExpiresAt = null;
+    user.failedLoginAttempts = 0;
+    user.loginLockUntil = null;
+    await user.save();
+
+    // Revoke all existing sessions
+    user.refreshTokenHash = '';
+    user.refreshTokenExpiresAt = null;
+    await user.save();
+
+    await AuditEvent.create({
+      actorId: user._id,
+      actorEmail: user.email,
+      actorRole: user.role,
+      action: 'auth.password_reset',
+      targetType: 'User',
+      targetId: user._id,
+      details: { method: 'forgot_password' },
+    });
+
+    res.json({ success: true, message: 'Password has been reset successfully.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Failed to reset password.' });
   }
 });
 
