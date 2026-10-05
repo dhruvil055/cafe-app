@@ -1,8 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { viteImagetools } from 'vite-imagetools'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), viteImagetools()],
   server: {
     proxy: {
       '/api': {
@@ -15,6 +16,7 @@ export default defineConfig({
     target: 'es2020',
     cssCodeSplit: true,
     chunkSizeWarningLimit: 600,
+    assetsInlineLimit: 4096,
     rollupOptions: {
       output: {
         manualChunks: {

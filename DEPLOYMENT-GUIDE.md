@@ -1,14 +1,21 @@
 ---
 title: "Production Deployment & Migration Guide"
-version: "1.0"
-date: 2024-01-15
+version: "2.0"
+date: 2026-10-05
 ---
 
-# Brewhaus Café App — Security Hardening Deployment Guide
+# Brewhaus Café App — Production Hardening Deployment Guide
 
 ## Overview
 
-This guide walks through deploying the security-hardened version of the cafe ordering application. All customer-facing functionality remains unchanged; only backend payment processing and data security have been enhanced.
+This guide walks through deploying the production-hardened version of the cafe ordering application.
+
+**Production URLs:**
+- Customer: https://cafe.infinigrowsoftech.com
+- Admin: https://admin-cafe.infinigrowsoftech.com
+- API: https://cafe-app-api.onrender.com
+
+**Last Updated:** 2026-10-05
 
 ---
 
@@ -22,10 +29,10 @@ This guide walks through deploying the security-hardened version of the cafe ord
 # Server Configuration
 PORT=5000
 NODE_ENV=production
-SERVER_URL=https://your-backend.onrender.com
-CLIENT_URL=https://client-seven-sigma-26.vercel.app
+SERVER_URL=https://cafe-app-api.onrender.com
+CLIENT_URL=https://cafe.infinigrowsoftech.com
 # Optional: comma-separated exact origins for additional approved deployments.
-# CLIENT_URLS=https://client-seven-sigma-26.vercel.app,https://preview.example.com
+# STAGING_ALLOWED_ORIGINS=https://staging-cafe.example.com,https://staging-admin.example.com
 
 # Database
 MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/cafe_db?retryWrites=true&w=majority
@@ -34,9 +41,22 @@ MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/cafe_db?retryWri
 JWT_SECRET=<generate-32-char-random-secret-here>
 ADMIN_SETUP_SECRET=<generate-32-char-random-secret-here>
 
-# Razorpay Payment (from Razorpay Dashboard)
+# Razorpay Payment (from Razorpay Dashboard - LIVE MODE)
 RAZORPAY_KEY_ID=rzp_live_xxxxxxxxxxxxxxxx
 RAZORPAY_KEY_SECRET=<your-razorpay-secret-from-dashboard>
+RAZORPAY_WEBHOOK_SECRET=<generate-32-char-random-secret-here>
+
+# Tenant Encryption (generate: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")
+TENANT_CREDENTIALS_ENCRYPTION_KEY=<32-byte-base64-key>
+
+# Table QR Signing (generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
+TABLE_QR_SECRET=<32-char-hex-secret>
+
+# Optional: Sentry Error Tracking
+# SENTRY_DSN=https://<key>@sentry.io/<project>
+
+# Optional: Cloudinary for persistent image storage
+# CLOUDINARY_URL=cloudinary://<api_key>:<api_secret>@<cloud_name>
 ```
 
 **Generate secure secrets:**
@@ -85,7 +105,7 @@ SETUP_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('
 echo "Setup Secret: $SETUP_SECRET"
 
 # Call setup endpoint (only works once!)
-curl -X POST http://localhost:5000/api/auth/setup \
+curl -X POST https://cafe-app-api.onrender.com/api/auth/setup \
   -H "Content-Type: application/json" \
   -d '{
     "setupToken": "'$SETUP_SECRET'",
@@ -150,6 +170,7 @@ db.orders.createIndex({ accessTokenHash: 1 }, { unique: true })
 db.orders.createIndex({ orderNumber: 1 }, { unique: true })
 db.orders.createIndex({ razorpayOrderId: 1 })
 db.users.createIndex({ email: 1 }, { unique: true })
+db.counters.createIndex({ tenantId: 1, _id: 1 }, { unique: true })
 ```
 
 ---
@@ -325,6 +346,10 @@ db.orders.updateMany({}, { $unset: { accessTokenHash: "", paymentVerifiedAt: "" 
 - [ ] Invalid accessToken returns 403
 - [ ] Search with special characters doesn't cause ReDoS
 - [ ] Rate limiting kicks in after 200 requests
+- [ ] Order numbers unique under 50 concurrent orders
+- [ ] Mobile: QR scan → menu → checkout works on iOS/Android Chrome
+- [ ] Mobile: Razorpay modal opens and completes
+- [ ] Tablet: Admin orders page usable on iPad
 
 ---
 
@@ -352,6 +377,7 @@ db.orders.updateMany({}, { $unset: { accessTokenHash: "", paymentVerifiedAt: "" 
 - API response time (target: <200ms)
 - Database query time
 - Backend error rate (target: <0.1%)
+- Order number generation latency
 
 ### Recommended Tools
 
@@ -383,6 +409,10 @@ db.orders.updateMany({}, { $unset: { accessTokenHash: "", paymentVerifiedAt: "" 
 **Cause**: Uploading non-image file type  
 **Fix**: Only upload .jpg, .png, or .webp images
 
+### Issue: "Order numbers have gaps/duplicates"
+**Cause**: High concurrency without tenant-scoped counter  
+**Fix**: Ensure Counter model has tenantId + compound index; restart server
+
 ---
 
 ## FAQ
@@ -408,6 +438,9 @@ A: No. Only customers receive tokens on order creation. Admin dashboard uses JWT
 **Q: Is payment information stored?**  
 A: Only order ID, payment ID, signature, and status. Never store card details (handled by Razorpay).
 
+**Q: Where are uploaded images stored?**  
+A: Local `uploads/` folder (ephemeral on Render). For production, configure `CLOUDINARY_URL` for persistent storage.
+
 ---
 
 ## Post-Deployment Tasks
@@ -427,6 +460,7 @@ A: Only order ID, payment ID, signature, and status. Never store card details (h
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.0 | 2026-10-05 | Production hardening: CORS, order numbers, media, uploads, monitoring |
 | 1.0 | 2024-01-15 | Initial security hardening deployment |
 
 ---

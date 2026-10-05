@@ -23,13 +23,11 @@ services:
         value: https://admin-cafe.infinigrowsoftech.com
       - key: ADMIN_CLIENT_URL
         value: https://admin-cafe.infinigrowsoftech.com
-      - key: CLIENT_URLS
-        value: https://cafe.infinigrowsoftech.com,https://client-ten-peach-93.vercel.app
-      - key: ADMIN_CLIENT_URLS
-        value: https://admin-cafe.infinigrowsoftech.com,https://admin-app-delta-eight.vercel.app
       - key: SERVER_URL
         sync: false
       - key: NODE_ENV
         value: production
-      - key: DEMO_PAYMENTS_ENABLED
-        value: "true"
+      - key: SENTRY_DSN
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false

@@ -93,35 +93,13 @@ orderSchema.pre('validate', async function (next) {
   if (this.orderNumber) return next();
 
   try {
-    // The counter is the source of truth for new order numbers. The upsert
-    // makes the first allocation safe even when the counter has not existed
-    // in an older database yet.
-    const latest = await mongoose.model('Order')
-      .findOne({ orderNumber: /^CAF\d+$/ })
-      .sort({ orderNumber: -1 })
-      .select('orderNumber')
-      .lean();
-    const latestNumber = latest ? Number(String(latest.orderNumber).slice(3)) : 1000;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      try {
-        await Counter.updateOne(
-          { _id: 'orderNumber' },
-          { $setOnInsert: { seq: Math.max(1000, latestNumber) } },
-          { upsert: true }
-        );
-        const counter = await Counter.findOneAndUpdate(
-          { _id: 'orderNumber' },
-          { $inc: { seq: 1 } },
-          { new: true }
-        );
-        this.orderNumber = `CAF${String(counter.seq).padStart(4, '0')}`;
-        return next();
-      } catch (error) {
-        // Two first-ever orders can race while creating the counter. The
-        // unique counter key makes one retry against the now-existing row.
-        if (error?.code !== 11000 || attempt === 2) throw error;
-      }
-    }
+    const counter = await Counter.findOneAndUpdate(
+      { _id: 'orderNumber', tenantId: this.tenantId },
+      { $inc: { seq: 1 }, $setOnInsert: { seq: 1000 } },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+    this.orderNumber = `CAF${String(counter.seq).padStart(4, '0')}`;
+    return next();
   } catch (error) {
     next(error);
   }
@@ -137,16 +115,11 @@ orderSchema.index({ paymentStatus: 1 });
 orderSchema.index({ createdAt: -1 });
 orderSchema.index({ razorpayOrderId: 1 }, { sparse: true });
 
-export const initializeOrderNumberCounter = async () => {
-  const latest = await mongoose.model('Order')
-    .findOne({ orderNumber: /^CAF\d+$/ })
-    .sort({ orderNumber: -1 })
-    .select('orderNumber')
-    .lean();
-  const latestNumber = latest ? Number(String(latest.orderNumber).slice(3)) : 1000;
+export const initializeOrderNumberCounter = async (tenantId) => {
+  if (!tenantId) return;
   await Counter.findOneAndUpdate(
-    { _id: 'orderNumber' },
-    { $max: { seq: Math.max(1000, latestNumber) } },
+    { _id: 'orderNumber', tenantId },
+    { $max: { seq: 1000 } },
     { upsert: true, setDefaultsOnInsert: true }
   );
 };

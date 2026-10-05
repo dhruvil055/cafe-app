@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
+import mongoose from 'mongoose';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { connectDB } from './config/db.js';
@@ -25,15 +26,27 @@ import customerRoutes from './routes/customers.js';
 import marketingRoutes from './routes/marketing.js';
 import notificationRoutes from './routes/notifications.js';
 import pushRoutes from './routes/push.js';
+import userRoutes from './routes/users.js';
+import couponRoutes from './routes/coupons.js';
+import tenantRoutes from './routes/tenant.js';
+import platformAuthRoutes from './routes/platformAuth.js';
+import platformAdminRoutes from './routes/platformAdmin.js';
+import billingRoutes from './routes/billing.js';
 import { startCampaignScheduler } from './services/campaignRunner.js';
+import { requestContext } from './middleware/requestContext.js';
+import { validateRequestEnvelope } from './middleware/requestValidation.js';
+import { tenantResolver } from './middleware/tenant.js';
 
 dotenv.config();
 
 const normalizeOrigin = (value) => String(value || '').trim().replace(/\/+$/, '');
 
-export const createApp = ({ razorpayFactory } = {}) => {
+export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
   const app = express();
   if (razorpayFactory) app.locals.razorpayFactory = razorpayFactory;
+  if (errorTracker) app.locals.errorTracker = errorTracker;
+  if (['production', 'staging'].includes(process.env.NODE_ENV)) app.set('trust proxy', 1);
+  app.use(requestContext);
 
   // Security middleware
   app.use(helmet({
@@ -43,53 +56,43 @@ export const createApp = ({ razorpayFactory } = {}) => {
   }));
   app.use(cookieParser());
 
-  const explicitAllowedOrigins = new Set([
-    ...[
-      process.env.CLIENT_URL,
-      process.env.CUSTOMER_APP_URL,
-      process.env.ADMIN_CLIENT_URL,
-      process.env.ADMIN_APP_URL,
-      process.env.CLIENT_URLS,
-      process.env.ADMIN_CLIENT_URLS,
-    ]
-      .flatMap((value) => String(value || '').split(','))
-      .map(normalizeOrigin)
-      .filter(Boolean),
+  const productionOrigins = new Set([
     'https://cafe.infinigrowsoftech.com',
     'https://admin-cafe.infinigrowsoftech.com',
-    'https://client-ten-peach-93.vercel.app',
-    'https://admin-app-delta-eight.vercel.app',
-    'http://localhost:5173',
-    'http://localhost:4173',
-    'http://localhost:5174',
-    'http://localhost:4174',
-    'http://localhost:5175',
-    'http://localhost:3000',
   ]);
-
   const isAllowedOrigin = (origin) => {
     if (!origin) return true;
     const normalized = normalizeOrigin(origin);
-    if (explicitAllowedOrigins.has(normalized)) return true;
-
     try {
       const parsed = new URL(normalized);
-      const hostname = parsed.hostname.toLowerCase();
-      if (
-        hostname === 'infinigrowsoftech.com' ||
-        hostname.endsWith('.infinigrowsoftech.com')
-      ) {
-        return true;
-      }
-    } catch {
-      return false;
+      if (parsed.hostname === 'localhost' || parsed.hostname.endsWith('.localhost') || parsed.hostname === '127.0.0.1') return true;
+    } catch { /* ignore parsing errors */ }
+    const tenantBaseDomain = String(process.env.TENANT_BASE_DOMAIN || '').trim().toLowerCase().replace(/^\.+|\.+$/g, '');
+    let tenantCustomerOrigin = false;
+    if (tenantBaseDomain) {
+      try {
+        const parsed = new URL(normalized);
+        const prefix = parsed.hostname.endsWith(`.${tenantBaseDomain}`)
+          ? parsed.hostname.slice(0, -(tenantBaseDomain.length + 1)) : '';
+        tenantCustomerOrigin = parsed.protocol === 'https:' && Boolean(prefix) && !prefix.includes('.') && prefix !== 'admin';
+      } catch { tenantCustomerOrigin = false; }
     }
-
-    return false;
+    if (process.env.NODE_ENV === 'production') {
+      return productionOrigins.has(normalized) || tenantCustomerOrigin;
+    }
+    // Development/staging: allow configured origins + localhost
+    const devOrigins = new Set([
+      ...[process.env.CLIENT_URL, process.env.CUSTOMER_APP_URL, process.env.ADMIN_CLIENT_URL, process.env.ADMIN_APP_URL]
+        .flatMap((v) => String(v || '').split(','))
+        .map(normalizeOrigin)
+        .filter(Boolean),
+      'http://localhost:5173', 'http://localhost:4173', 'http://localhost:5174',
+      'http://localhost:4174', 'http://localhost:5175', 'http://localhost:3000',
+    ]);
+    return devOrigins.has(normalized) || productionOrigins.has(normalized) || tenantCustomerOrigin;
   };
 
-  // Strict CORS allowlist. Requests without an Origin are allowed for native
-  // clients and command-line integrations; browser origins must be explicit.
+  // Production allows the existing customer/admin origins plus one-label tenant customer subdomains.
   app.use(cors({
     origin: (origin, callback) => {
       if (isAllowedOrigin(origin)) return callback(null, true);
@@ -99,9 +102,17 @@ export const createApp = ({ razorpayFactory } = {}) => {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'idempotency-key', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'idempotency-key', 'X-Requested-With', 'X-Order-Access-Token'],
     maxAge: 86400,
   }));
+
+  app.use((req, res, next) => {
+    const isLocalhost = req.hostname === 'localhost' || req.hostname === '127.0.0.1' || req.hostname.endsWith('.localhost');
+    if (!isLocalhost && ['production', 'staging'].includes(process.env.NODE_ENV) && !req.secure) {
+      return res.status(426).json({ error: 'HTTPS is required.', code: 'HTTPS_REQUIRED' });
+    }
+    next();
+  });
 
   // ── Rate limiting ──────────────────────────────────────────────────────────
   // Enforced in production and test suites; disabled in local development
@@ -149,11 +160,20 @@ export const createApp = ({ razorpayFactory } = {}) => {
     app.use('/api/contact', strictLimiter);
   }
 
-  app.use(express.json({ limit: '100kb' }));
-  app.use(express.urlencoded({ extended: true, limit: '100kb' }));
-  app.use('/uploads', express.static('uploads'));
+  app.use(express.json({
+    limit: '100kb',
+    verify: (req, res, buffer) => {
+      const pathOnly = req.originalUrl.split('?')[0];
+      if (pathOnly === '/api/payment/webhook' || pathOnly === '/api/billing/webhook') req.rawBody = Buffer.from(buffer);
+    },
+  }));
+  app.use(express.urlencoded({ extended: false, limit: '100kb' }));
+  app.use(validateRequestEnvelope);
+  app.use(tenantResolver);
+  app.use('/uploads', express.static('uploads', { maxAge: '1d', immutable: true, setHeaders: (res) => res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800, immutable') }));
 
   app.use('/api/auth', authRoutes);
+  app.use('/api/users', userRoutes);
   app.use('/api/menu', menuRoutes);
   app.use('/api/categories', categoryRoutes);
   app.use('/api/orders', orderRoutes);
@@ -169,9 +189,17 @@ export const createApp = ({ razorpayFactory } = {}) => {
   app.use('/api/marketing', marketingRoutes);
   app.use('/api/notifications', notificationRoutes);
   app.use('/api/push', pushRoutes);
+  app.use('/api/coupons', couponRoutes);
+  app.use('/api/tenant', tenantRoutes);
+  app.use('/api/platform/auth', platformAuthRoutes);
+  app.use('/api/platform/admin', platformAdminRoutes);
+  app.use('/api/billing', billingRoutes);
+  app.use('/api/tenant/billing', billingRoutes);
+  app.get('/api/tenant/export', (req, res, next) => res.redirect(307, '/api/tenant/billing/export'));
 
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    const ready = mongoose.connection.readyState === 1;
+    res.status(ready ? 200 : 503).json({ status: ready ? 'ok' : 'unavailable', timestamp: new Date().toISOString() });
   });
 
   app.use((req, res) => {
@@ -179,10 +207,20 @@ export const createApp = ({ razorpayFactory } = {}) => {
   });
 
   app.use((err, req, res, next) => {
-    console.error('Error:', err.message);
-    res.status(err.status || 500).json({
-      error: err.message || 'Internal server error',
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    const status = Number(err.status || err.statusCode) || 500;
+    const safeError = status >= 500 && process.env.NODE_ENV === 'production'
+      ? new Error('Internal server error')
+      : err;
+    const tracker = app.locals.errorTracker;
+    if (status >= 500 && typeof tracker === 'function') {
+      try { tracker(safeError, { requestId: req.requestId, method: req.method, path: req.path }); } catch { /* Tracking must never break the response. */ }
+    }
+    if (status >= 500) process.stderr.write(`${JSON.stringify({ timestamp: new Date().toISOString(), level: 'error', event: 'http.error', requestId: req.requestId, status, name: err.name || 'Error' })}\n`);
+    res.status(status).json({
+      error: status >= 500 ? (process.env.NODE_ENV === 'development' ? err.message : 'Internal server error') : (err.message || 'Request failed.'),
+      code: err.code || (status >= 500 ? 'INTERNAL_ERROR' : 'REQUEST_ERROR'),
+      requestId: req.requestId,
+      ...(process.env.NODE_ENV === 'development' && status >= 500 && { stack: err.stack }),
     });
   });
 

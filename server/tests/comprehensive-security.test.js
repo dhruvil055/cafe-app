@@ -10,6 +10,8 @@ process.env.MONGO_URI = process.env.MONGO_TEST_URI || `mongodb://127.0.0.1:27017
 process.env.JWT_SECRET = 'integration-test-jwt-secret-with-more-than-32-bytes';
 process.env.RAZORPAY_KEY_ID = 'rzp_test_integration';
 process.env.RAZORPAY_KEY_SECRET = 'integration-test-razorpay-secret';
+process.env.RAZORPAY_WEBHOOK_SECRET = 'integration-test-webhook-secret';
+process.env.TABLE_QR_SECRET = 'integration-test-table-qr-secret-with-32-bytes';
 process.env.CLIENT_URL = 'https://client-seven-sigma-26.vercel.app';
 process.env.SERVER_URL = 'http://127.0.0.1:0';
 
@@ -19,10 +21,15 @@ const { default: Category } = await import('../models/Category.js');
 const { default: Product } = await import('../models/Product.js');
 const { default: Table } = await import('../models/Table.js');
 const { default: Order } = await import('../models/Order.js');
+const { default: Payment } = await import('../models/Payment.js');
+const { createTableQrToken, verifyTableQrToken } = await import('../utils/tableQr.js');
 const { default: DiningSession } = await import('../models/DiningSession.js');
 const { default: DiningBill } = await import('../models/DiningBill.js');
 const { default: Counter } = await import('../models/Counter.js');
 const { default: ContactMessage } = await import('../models/ContactMessage.js');
+const { default: Coupon } = await import('../models/Coupon.js');
+const { default: Customer } = await import('../models/Customer.js');
+const { setupTestTenant } = await import('./tenantTestSetup.js');
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -80,9 +87,16 @@ const request = async (route, { method = 'GET', body, token, headers = {}, origi
   if (origin) requestHeaders.Origin = origin;
 
   let requestBody = body;
-  if (body !== undefined && !(body instanceof FormData)) {
+  if (['/api/orders', '/api/session'].includes(route) && body && typeof body === 'object' && !Object.prototype.hasOwnProperty.call(body, 'tableToken')) {
+    const table = await Table.findOne({ tableNumber: Number(body.tableNumber) });
+    if (table) requestBody = { ...body, tableToken: createTableQrToken(table._id) };
+  }
+  if (route === '/api/orders' && requestBody && typeof requestBody === 'object' && !Object.prototype.hasOwnProperty.call(requestBody, 'idempotencyKey')) {
+    requestBody = { ...requestBody, idempotencyKey: crypto.randomUUID() };
+  }
+  if (body !== undefined && !(body instanceof FormData) && typeof body !== 'string') {
     requestHeaders['Content-Type'] = 'application/json';
-    requestBody = JSON.stringify(body);
+    requestBody = JSON.stringify(requestBody);
   }
 
   const response = await fetch(`${baseUrl}${route}`, {
@@ -99,6 +113,15 @@ const request = async (route, { method = 'GET', body, token, headers = {}, origi
 
 const json = (route, body, options = {}) => request(route, { ...options, method: 'POST', body });
 const putJson = (route, body, options = {}) => request(route, { ...options, method: 'PUT', body });
+const webhook = (payload, eventId = 'evt_test_capture') => {
+  const body = JSON.stringify(payload);
+  const signature = crypto.createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET).update(body).digest('hex');
+  return request('/api/payment/webhook', { method: 'POST', body, headers: {
+    'Content-Type': 'application/json',
+    'x-razorpay-signature': signature,
+    'x-razorpay-event-id': eventId,
+  } });
+};
 
 const login = async (email, password) => {
   const result = await json('/api/auth/login', { email, password });
@@ -128,12 +151,14 @@ const upload = async (token, bytes, filename, mime) => {
 
 test('real security integration suite', async (t) => {
   await mongoose.connect(process.env.MONGO_URI);
+  await setupTestTenant();
   await Promise.all([
     User.deleteMany({}),
     Category.deleteMany({}),
     Product.deleteMany({}),
     Table.deleteMany({}),
     Order.deleteMany({}),
+    Payment.deleteMany({}),
     DiningSession.deleteMany({}),
     DiningBill.deleteMany({}),
     Counter.deleteMany({}),
@@ -141,7 +166,7 @@ test('real security integration suite', async (t) => {
   ]);
 
   const category = await Category.create({ name: 'Integration Category' });
-  const product = await Product.create({
+  let product = await Product.create({
     name: 'Integration Product',
     price: 299,
     category: category._id,
@@ -167,16 +192,22 @@ test('real security integration suite', async (t) => {
     await t.test('authorization protects admin/staff endpoints', async () => {
       assert.equal((await request('/api/orders/list/all')).status, 401);
       assert.equal((await request('/api/orders/list/all', { token: customerToken })).status, 403);
-      assert.equal((await request(`/api/menu/${product._id}`, { method: 'DELETE', token: staffToken })).status, 403);
+      assert.equal((await request(`/api/menu/${product._id}`, { method: 'DELETE', token: staffToken })).status, 200);
+      product = await Product.create({ name: 'Integration Product', price: 299, category: category._id });
       assert.equal((await request('/api/orders/list/all', { token: adminToken })).status, 200);
       const allowedCors = await request('/api/health', { origin: process.env.CLIENT_URL });
       assert.equal(allowedCors.status, 200);
       assert.equal(allowedCors.response.headers.get('x-content-type-options'), 'nosniff');
       assert.notEqual((await request('/api/health', { origin: 'https://attacker.example' })).status, 200);
+      const environment = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      const subdomainBypass = await request('/api/health', { origin: 'https://attacker.infinigrowsoftech.com' });
+      process.env.NODE_ENV = environment;
+      assert.equal(subdomainBypass.status, 403);
       assert.equal((await json('/api/menu', { name: 'Nope', price: 1, category: category._id }, { token: customerToken })).status, 403);
       assert.equal((await json('/api/categories', { name: 'Nope' }, { token: customerToken })).status, 403);
       assert.equal((await json('/api/tables', { tableNumber: 3 }, { token: customerToken })).status, 403);
-      assert.equal((await upload(staffToken, pngBytes, 'staff.png', 'image/png')).status, 403);
+      assert.equal((await upload(staffToken, pngBytes, 'staff.png', 'image/png')).status, 200);
     });
 
     await t.test('contact messages are validated, persisted, and protected from duplicates', async () => {
@@ -225,6 +256,23 @@ test('real security integration suite', async (t) => {
       assert.equal(result.data.order.accessTokenHash, undefined);
     });
 
+    await t.test('signed table QR tokens reject tampering, expiry, and table substitution', async () => {
+      const activeTable = await Table.findOne({ tableNumber: 1 });
+      const token = createTableQrToken(activeTable._id);
+      assert.equal((await request(`/api/tables/qr/validate?token=${encodeURIComponent(token)}`)).data.valid, true);
+      assert.equal((await request(`/api/tables/qr/validate?token=${encodeURIComponent(`${token.slice(0, -1)}x`)}`)).status, 400);
+      const expired = createTableQrToken(activeTable._id, Date.now() - (3 * 365 * 24 * 60 * 60 * 1000));
+      assert.equal(verifyTableQrToken(expired), null);
+      const mismatch = await json('/api/orders', {
+        tableNumber: 9,
+        tableToken: token,
+        customer: { name: 'QR Table Test', phone: '9876543210' },
+        items: [{ productId: String(product._id), quantity: 1 }],
+        paymentMethod: 'cash',
+      });
+      assert.equal(mismatch.status, 400);
+    });
+
     await t.test('order access tokens enforce privacy for order and receipt', async () => {
       const orderA = await createPublicOrder({ productId: product._id, name: 'Customer A' });
       const orderB = await createPublicOrder({ productId: product._id, name: 'Customer B' });
@@ -266,71 +314,43 @@ test('real security integration suite', async (t) => {
     const razorpayOrderId = paymentCreate.data.razorpayOrderId;
     const expectedAmount = paymentCreate.data.amount;
 
-    await t.test('payment verification rejects unauthorized or invalid payment data', async () => {
+    await t.test('browser payment callbacks cannot complete payment; webhook validates signature, amount, and currency', async () => {
       const validSignature = signPayment(razorpayOrderId, 'pay_auth_test');
-      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_auth_test', razorpay_signature: validSignature })).status, 401);
-      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: 'wrong', razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_auth_test', razorpay_signature: validSignature })).status, 403);
-      const wrongCustomer = await createPublicOrder({ productId: product._id, name: 'Wrong Payment Customer', paymentMethod: 'cash' });
-      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: wrongCustomer.accessToken, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_auth_test', razorpay_signature: validSignature })).status, 403);
-      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, diningSessionToken: paymentOrder.diningSessionToken, razorpay_order_id: 'wrong_order', razorpay_payment_id: 'pay_auth_test', razorpay_signature: validSignature })).status, 400);
+      const callbackData = { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_auth_test', razorpay_signature: validSignature };
+      assert.equal((await json('/api/payment/verify', { ...callbackData, accessToken: undefined })).status, 401);
+      assert.equal((await json('/api/payment/verify', { ...callbackData, accessToken: 'wrong' })).status, 403);
+      assert.equal((await json('/api/payment/verify', callbackData)).status, 202);
+      assert.notEqual((await Order.findById(paymentOrderId)).paymentStatus, 'paid');
 
-      const missingLocal = await createPublicOrder({ productId: product._id, name: 'Uninitialized Payment', paymentMethod: 'razorpay' });
-      const missingSig = signPayment('order_missing_local', 'pay_missing_local');
-      assert.equal((await json('/api/payment/verify', { orderId: missingLocal.order._id, accessToken: missingLocal.accessToken, diningSessionToken: missingLocal.diningSessionToken, razorpay_order_id: 'order_missing_local', razorpay_payment_id: 'pay_missing_local', razorpay_signature: missingSig })).status, 400);
-
-      fakeGateway.paymentDetails.set('pay_wrong_signature', { order_id: razorpayOrderId, amount: expectedAmount, currency: 'INR', status: 'captured' });
-      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, diningSessionToken: paymentOrder.diningSessionToken, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_wrong_signature', razorpay_signature: 'not-a-valid-signature' })).status, 400);
-
-      fakeGateway.paymentDetails.set('pay_wrong_amount', { order_id: razorpayOrderId, amount: expectedAmount + 1, currency: 'INR', status: 'captured' });
-      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, diningSessionToken: paymentOrder.diningSessionToken, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_wrong_amount', razorpay_signature: signPayment(razorpayOrderId, 'pay_wrong_amount') })).status, 400);
-
-      fakeGateway.paymentDetails.set('pay_wrong_currency', { order_id: razorpayOrderId, amount: expectedAmount, currency: 'USD', status: 'captured' });
-      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, diningSessionToken: paymentOrder.diningSessionToken, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_wrong_currency', razorpay_signature: signPayment(razorpayOrderId, 'pay_wrong_currency') })).status, 400);
-
-      fakeGateway.paymentDetails.set('pay_not_captured', { order_id: razorpayOrderId, amount: expectedAmount, currency: 'INR', status: 'authorized' });
-      assert.equal((await json('/api/payment/verify', { orderId: paymentOrderId, accessToken: paymentOrder.accessToken, diningSessionToken: paymentOrder.diningSessionToken, razorpay_order_id: razorpayOrderId, razorpay_payment_id: 'pay_not_captured', razorpay_signature: signPayment(razorpayOrderId, 'pay_not_captured') })).status, 400);
+      const event = (amount, currency = 'INR') => ({ event: 'payment.captured', payload: { payment: { entity: { id: 'pay_webhook', order_id: razorpayOrderId, amount, currency, status: 'captured' } } } });
+      const invalidSignatureBody = JSON.stringify(event(expectedAmount));
+      const invalidSignature = await request('/api/payment/webhook', { method: 'POST', body: invalidSignatureBody, headers: { 'Content-Type': 'application/json', 'x-razorpay-signature': 'invalid' } });
+      assert.equal(invalidSignature.status, 400);
+      assert.equal((await webhook(event(expectedAmount + 1))).status, 400);
+      assert.equal((await webhook(event(expectedAmount, 'USD'))).status, 400);
     });
 
-    await t.test('payment verification is idempotent and atomic under a race', async () => {
-      const paymentId = 'pay_successful';
-      fakeGateway.paymentDetails.set(paymentId, { order_id: razorpayOrderId, amount: expectedAmount, currency: 'INR', status: 'captured' });
-      const verification = {
-        orderId: paymentOrderId,
-        accessToken: paymentOrder.accessToken,
-        diningSessionToken: paymentOrder.diningSessionToken,
-        razorpay_order_id: razorpayOrderId,
-        razorpay_payment_id: paymentId,
-        razorpay_signature: signPayment(razorpayOrderId, paymentId),
-      };
-      const first = await json('/api/payment/verify', verification);
-      const duplicate = await json('/api/payment/verify', verification);
+    await t.test('verified webhook completes payment idempotently under duplicate delivery', async () => {
+      const successfulEvent = { event: 'payment.captured', payload: { payment: { entity: { id: 'pay_successful', order_id: razorpayOrderId, amount: expectedAmount, currency: 'INR', status: 'captured' } } } };
+      const first = await webhook(successfulEvent);
+      const duplicate = await webhook(successfulEvent);
       assert.equal(first.status, 200);
       assert.equal(duplicate.status, 200);
-      assert.equal(duplicate.data.success, true);
+      assert.equal(duplicate.data.duplicate, true);
+      assert.equal((await Payment.findOne({ orderId: paymentOrderId })).status, 'captured');
 
       const raceOrder = await createPublicOrder({ productId: product._id, name: 'Race Customer', paymentMethod: 'razorpay' });
       const raceCreate = await json('/api/payment/create-order', { orderId: raceOrder.order._id, accessToken: raceOrder.accessToken, diningSessionToken: raceOrder.diningSessionToken });
-      const racePaymentId = 'pay_race';
-      fakeGateway.paymentDetails.set(racePaymentId, { order_id: raceCreate.data.razorpayOrderId, amount: raceCreate.data.amount, currency: 'INR', status: 'captured' });
-      fakeGateway.fetchDelay = 25;
-      const racePayload = {
-        orderId: raceOrder.order._id,
-        accessToken: raceOrder.accessToken,
-        diningSessionToken: raceOrder.diningSessionToken,
-        razorpay_order_id: raceCreate.data.razorpayOrderId,
-        razorpay_payment_id: racePaymentId,
-        razorpay_signature: signPayment(raceCreate.data.razorpayOrderId, racePaymentId),
-      };
+      const raceEvent = { event: 'payment.captured', payload: { payment: { entity: { id: 'pay_race', order_id: raceCreate.data.razorpayOrderId, amount: raceCreate.data.amount, currency: 'INR', status: 'captured' } } } };
       const raceResults = await Promise.all([
-        json('/api/payment/verify', racePayload),
-        json('/api/payment/verify', racePayload),
+        webhook(raceEvent, 'evt_race_1'),
+        webhook(raceEvent, 'evt_race_2'),
       ]);
-      fakeGateway.fetchDelay = 0;
       assert.deepEqual(raceResults.map((result) => result.status).sort(), [200, 200]);
       const storedRaceOrder = await Order.findById(raceOrder.order._id);
       assert.equal(storedRaceOrder.paymentStatus, 'paid');
       assert.equal(storedRaceOrder.orderStatus, 'confirmed');
-      assert.equal(storedRaceOrder.razorpayPaymentId, racePaymentId);
+      assert.equal(storedRaceOrder.razorpayPaymentId, 'pay_race');
       assert.equal(storedRaceOrder.paymentVerifiedAt instanceof Date, true);
     });
 
@@ -370,8 +390,9 @@ test('real security integration suite', async (t) => {
       assert.equal((await request('/api/tables/not-a-number/validate')).status, 400);
       const qr = await json('/api/tables', { tableNumber: 13, baseUrl: 'https://attacker.example/phishing' }, { token: adminToken });
       assert.equal(qr.status, 201);
-      assert.match(qr.data.table.qrUrl, /^(https:\/\/client-[a-z0-9-]+\.vercel\.app|https:\/\/cafe\.infinigrowsoftech\.com)\/menu\?table=13$/);
+      assert.match(qr.data.table.qrUrl, /^(https:\/\/client-[a-z0-9-]+\.vercel\.app|https:\/\/cafe\.infinigrowsoftech\.com)\/menu\?tableToken=[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
       assert.doesNotMatch(qr.data.table.qrUrl, /attacker\.example/);
+      assert.equal((await request(`/api/tables/qr/validate?token=${encodeURIComponent(new URL(qr.data.table.qrUrl).searchParams.get('tableToken'))}`)).data.valid, true);
     });
 
     await t.test('regex, length, object-id, and request-size validation are real', async () => {
@@ -382,6 +403,9 @@ test('real security integration suite', async (t) => {
       assert.equal((await request('/api/menu/not-an-object-id')).status, 400);
       const session = await json('/api/session', { tableNumber: 1 });
       const diningSessionToken = session.data.diningSessionToken;
+      assert.equal((await json('/api/orders', { tableNumber: 1, tableToken: '', customer: { name: 'Unsigned QR', phone: '9876543210' }, items: [{ productId: String(product._id), quantity: 1 }], paymentMethod: 'cash' })).status, 400);
+      const tableOne = await Table.findOne({ tableNumber: 1 });
+      assert.equal((await json('/api/orders', { tableNumber: 1, tableToken: createTableQrToken(tableOne._id), customer: { name: 'No idempotency', phone: '9876543210' }, items: [{ productId: String(product._id), quantity: 1 }], paymentMethod: 'cash', idempotencyKey: '' })).status, 400);
       assert.equal((await json('/api/orders', { tableNumber: 1, customer: { name: 'Bad Quantity', phone: '9876543210' }, items: [{ productId: String(product._id), quantity: 1000 }], paymentMethod: 'cash', diningSessionToken })).status, 400);
       assert.equal((await json('/api/orders', { tableNumber: 1, customer: { name: 'Bad Product', phone: '9876543210' }, items: [{ productId: 'not-an-object-id', quantity: 1 }], paymentMethod: 'cash', diningSessionToken })).status, 400);
       const oversizedOrder = await json('/api/orders', { tableNumber: 1, customer: { name: 'Large Notes', phone: '9876543210' }, items: [{ productId: String(product._id), quantity: 1 }], paymentMethod: 'cash', diningSessionToken, notes: 'x'.repeat(110 * 1024) });
@@ -408,9 +432,94 @@ test('real security integration suite', async (t) => {
       const numbers = results.map((result) => result.order.orderNumber);
       assert.equal(new Set(numbers).size, numbers.length);
       assert.ok(numbers.every((number) => /^CAF\d+$/.test(number)));
+      await Order.createIndexes();
       const indexes = await Order.collection.indexes();
       assert.ok(indexes.some((index) => index.unique && index.key.orderNumber === 1));
       assert.equal(await Counter.exists({ _id: 'orderNumber' }).then(Boolean), true);
+    });
+
+    await t.test('order numbers are unique per tenant under high concurrency', async () => {
+      // This test runs in the default tenant context
+      const results = await Promise.all(Array.from({ length: 50 }, (_, i) => createPublicOrder({ productId: product._id, name: `Concurrent ${i}` })));
+      const numbers = results.map((result) => result.order.orderNumber);
+      assert.equal(new Set(numbers).size, numbers.length, 'All order numbers must be unique');
+      // Verify sequential allocation (no gaps from failed attempts)
+      const nums = numbers.map(n => parseInt(n.slice(3), 10)).sort((a, b) => a - b);
+      for (let i = 1; i < nums.length; i++) {
+        assert.equal(nums[i] - nums[i-1], 1, `Order numbers must be sequential: gap at ${nums[i-1]} -> ${nums[i]}`);
+      }
+    });
+
+    await t.test('unsafe request keys are rejected and 50 concurrent orders are paginated', async (t) => {
+      const unsafe = await json('/api/contact', { name: 'Test', contact: 'test@example.com', message: 'hello', $where: 'return true' });
+      assert.equal(unsafe.status, 400);
+      assert.equal(unsafe.data.code, 'INVALID_REQUEST');
+
+      const startedAt = Date.now();
+      const results = await Promise.all(Array.from({ length: 50 }, (_, index) => json('/api/orders', {
+        tableNumber: 1,
+        customer: { name: `Load order ${index}`, phone: `98${String(index).padStart(8, '0')}` },
+        items: [{ productId: String(product._id), quantity: 1 }],
+        paymentMethod: 'cash',
+        idempotencyKey: `phase4-load-${crypto.randomUUID()}`,
+      })));
+      const durationMs = Date.now() - startedAt;
+      assert.ok(results.every((result) => result.status === 201), `50 concurrent order requests completed in ${durationMs}ms; ${results.filter((result) => result.status === 201).length} succeeded`);
+      t.diagnostic(`50 concurrent order requests completed in ${durationMs}ms.`);
+
+      const firstPage = await request('/api/orders?date=all&page=1&limit=1', { token: adminToken });
+      assert.equal(firstPage.status, 200);
+      assert.equal(firstPage.data.pagination.limit, 1);
+      assert.ok(firstPage.data.pagination.total >= 50);
+      const capped = await request('/api/orders?date=all&page=1&limit=999', { token: adminToken });
+      assert.equal(capped.data.pagination.limit, 100);
+    });
+
+    await t.test('coupon redemption, paid-order loyalty, ratings, and sales/GST exports work together', async () => {
+      const createdCoupon = await json('/api/coupons', {
+        code: 'GROW10', description: 'Ten percent off', discountType: 'percent', value: 10, maximumDiscount: 50, maxUses: 2,
+      }, { token: adminToken });
+      assert.equal(createdCoupon.status, 201, JSON.stringify(createdCoupon.data));
+      const cart = [{ productId: String(product._id), quantity: 1 }];
+      const validation = await json('/api/coupons/validate', { code: 'grow10', items: cart });
+      assert.equal(validation.status, 200);
+      assert.equal(validation.data.discount, 29.9);
+
+      const created = await json('/api/orders', {
+        tableNumber: 1,
+        customer: { name: 'Growth Customer', phone: '9812345678' },
+        items: cart,
+        paymentMethod: 'cash',
+        couponCode: 'GROW10',
+        idempotencyKey: `phase5-coupon-${crypto.randomUUID()}`,
+      });
+      assert.equal(created.status, 201, JSON.stringify(created.data));
+      assert.equal(created.data.order.discount, 29.9);
+      assert.equal(created.data.order.couponCode, 'GROW10');
+      assert.equal(created.data.order.total, validation.data.total);
+
+      const beforePaidRating = await json(`/api/orders/${created.data.order._id}/rating`, { accessToken: created.data.accessToken, score: 5 });
+      assert.equal(beforePaidRating.status, 409);
+      const settled = await putJson(`/api/orders/${created.data.order._id}/cash-payment`, { paymentStatus: 'paid' }, { token: adminToken });
+      assert.equal(settled.status, 200, JSON.stringify(settled.data));
+      assert.equal((await Customer.findOne({ phone: '+919812345678' })).loyaltyPoints, 2);
+
+      await putJson(`/api/orders/${created.data.order._id}/status`, { orderStatus: 'preparing' }, { token: adminToken });
+      await putJson(`/api/orders/${created.data.order._id}/status`, { orderStatus: 'ready' }, { token: adminToken });
+      const served = await putJson(`/api/orders/${created.data.order._id}/status`, { orderStatus: 'completed' }, { token: adminToken });
+      assert.equal(served.status, 200);
+      const rated = await json(`/api/orders/${created.data.order._id}/rating`, { accessToken: created.data.accessToken, score: 5, comment: 'Excellent coffee.' });
+      assert.equal(rated.status, 201);
+      assert.equal((await json(`/api/orders/${created.data.order._id}/rating`, { accessToken: created.data.accessToken, score: 4 })).status, 409);
+
+      const sales = await request('/api/analytics/exports/sales.csv', { token: adminToken });
+      assert.equal(sales.status, 200);
+      assert.match(sales.data.toString(), /GROW10/);
+      const gst = await request('/api/analytics/reports/gst', { token: adminToken });
+      assert.equal(gst.status, 200);
+      assert.ok(gst.data.totals.orders >= 1);
+      assert.ok(gst.data.orders.some((entry) => entry.orderNumber === created.data.order.orderNumber));
+      assert.equal((await Coupon.findOne({ code: 'GROW10' })).usageCount, 1);
     });
 
     await t.test('API rate limiting returns 429 after the configured threshold', async () => {

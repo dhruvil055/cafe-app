@@ -6,7 +6,18 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed": "node utils/seed.js",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "migrate:phase1": "node migrations/20261004_phase1_payment_integrity.js",
+    "migrate:phase2": "node migrations/20261004_phase2_live_order_flow.js",
+    "migrate:phase3": "node migrations/20261004_phase3_admin_security.js",
+    "migrate:phase4": "node migrations/20261004_phase4_production_hardening.js",
+    "migrate:phase5": "node migrations/20261004_phase5_growth_features.js",
+    "migrate:phase0a": "node migrations/20261004_phase0a_tenancy.js",
+    "rollback:phase0a": "node migrations/20261004_phase0a_tenancy.js --rollback",
+    "migrate:phase0b": "node migrations/20261004_phase0b_white_label_settings.js",
+    "rollback:phase0b": "node migrations/20261004_phase0b_white_label_settings.js --rollback",
+    "backup:db": "node scripts/backup-db.js",
+    "restore:db": "node scripts/restore-db.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -23,6 +34,8 @@
     "pdfkit": "^0.14.0",
     "qrcode": "^1.5.3",
     "razorpay": "^2.9.2",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "@sentry/node": "^8.0.0",
+    "@sentry/profiling-node": "^8.0.0"
   }
 }
