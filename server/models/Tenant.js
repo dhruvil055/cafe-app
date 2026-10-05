@@ -13,6 +13,7 @@ const tenantSchema = new mongoose.Schema({
     gracePeriodUntil: { type: Date, default: null },
     razorpaySubscriptionId: { type: String, default: '' },
     razorpayCustomerId: { type: String, default: '' },
+    subscriptionCreatedAt: { type: Date, default: null },
   },
   settings: {
     cafeName: { type: String, trim: true, maxlength: 100, default: '' },
@@ -29,6 +30,7 @@ const tenantSchema = new mongoose.Schema({
     openingHours: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   paymentCredentialsEncrypted: { type: String, select: false, default: '' },
+  razorpayWebhookSecret: { type: String, select: false, default: '' },
   deletionRequestedAt: { type: Date, default: null },
   scheduledPurgeAt: { type: Date, default: null },
 }, { timestamps: { createdAt: true, updatedAt: true } });

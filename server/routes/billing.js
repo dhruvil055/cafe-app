@@ -10,19 +10,117 @@ import Customer from '../models/Customer.js';
 import BillingWebhookEvent from '../models/BillingWebhookEvent.js';
 import { PLANS } from '../config/plans.js';
 import { protect, adminOnly } from '../middleware/auth.js';
-import { runWithSystemTenantAccess } from '../utils/tenantContext.js';
+import { runWithSystemTenantAccess, getTenantId } from '../utils/tenantContext.js';
 
 const router = express.Router();
 
-const webhookSecret = () => {
-  return process.env.RAZORPAY_WEBHOOK_SECRET || process.env.JWT_SECRET || 'brewhaus-billing-webhook-secret-min32chars';
+const getTenantWebhookSecret = (tenant) => {
+  // Per-tenant webhook secret takes precedence, fallback to platform secret
+  return tenant?.razorpayWebhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET || process.env.JWT_SECRET || 'brewhaus-billing-webhook-secret-min32chars';
 };
 
-const verifyWebhookSignature = (rawBody, signature) => {
-  if (!rawBody || !signature) return false;
-  const expected = crypto.createHmac('sha256', webhookSecret()).update(rawBody).digest('hex');
-  if (expected.length !== signature.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+const verifyWebhookSignature = (rawBody, signature, secret) => {
+  if (!Buffer.isBuffer(rawBody) || !signature || !secret) return false;
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+  const suppliedBytes = Buffer.from(String(signature));
+  const expectedBytes = Buffer.from(expected);
+  return suppliedBytes.length === expectedBytes.length && crypto.timingSafeEqual(suppliedBytes, expectedBytes);
+};
+
+const getTenantIdFromWebhook = async (subId, tenantNotesId) => {
+  let tenant = null;
+  if (subId) {
+    tenant = await Tenant.findOne({ 'subscription.razorpaySubscriptionId': subId });
+  }
+  if (!tenant && tenantNotesId) {
+    tenant = await Tenant.findById(tenantNotesId);
+  }
+  return tenant;
+};
+
+const verifyWebhookSignatureForTenant = (rawBody, signature, tenant) => {
+  const secret = getTenantWebhookSecret(tenant);
+  return verifyWebhookSignature(rawBody, signature, secret);
+};
+
+const verifyWebhookSignature = (rawBody, signature, secret) => {
+  if (!Buffer.isBuffer(rawBody) || !signature || !secret) return false;
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+  const suppliedBytes = Buffer.from(String(signature));
+  const expectedBytes = Buffer.from(expected);
+  return suppliedBytes.length === expectedBytes.length && crypto.timingSafeEqual(suppliedBytes, expectedBytes);
+};
+
+const getTenantIdFromWebhook = async (subId, tenantNotesId) => {
+  let tenant = null;
+  if (subId) {
+    tenant = await Tenant.findOne({ 'subscription.razorpaySubscriptionId': subId });
+  }
+  if (!tenant && tenantNotesId) {
+    tenant = await Tenant.findById(tenantNotesId);
+  }
+  return tenant;
+};
+
+const verifyWebhookSignatureForTenant = (rawBody, signature, tenant) => {
+  const secret = tenant?.razorpayWebhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET || process.env.JWT_SECRET || 'brewhaus-billing-webhook-secret-min32chars';
+  return verifyWebhookSignature(rawBody, signature, secret);
+};
+
+const getTenantIdFromWebhook = async (subId, tenantNotesId) => {
+  let tenant = null;
+  if (subId) {
+    tenant = await Tenant.findOne({ 'subscription.razorpaySubscriptionId': subId });
+  }
+  if (!tenant && tenantNotesId) {
+    tenant = await Tenant.findById(tenantNotesId);
+  }
+  return tenant;
+};
+
+const verifyWebhookSignatureForTenant = (rawBody, signature, tenant) => {
+  const secret = tenant?.razorpayWebhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET || process.env.JWT_SECRET || 'brewhaus-billing-webhook-secret-min32chars';
+  return verifyWebhookSignature(rawBody, signature, secret);
+};
+
+const getTenantIdFromWebhook = async (subId, tenantNotesId) => {
+  let tenant = null;
+  if (subId) {
+    tenant = await Tenant.findOne({ 'subscription.razorpaySubscriptionId': subId });
+  }
+  if (!tenant && tenantNotesId) {
+    tenant = await Tenant.findById(tenantNotesId);
+  }
+  return tenant;
+};
+
+const verifyWebhookSignatureForTenant = (rawBody, signature, tenant) => {
+  const secret = tenant?.razorpayWebhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET || process.env.JWT_SECRET || 'brewhaus-billing-webhook-secret-min32chars';
+  return verifyWebhookSignature(rawBody, signature, secret);
+};
+
+const verifyWebhookSignature = (rawBody, signature, secret) => {
+  if (!Buffer.isBuffer(rawBody) || !signature || !secret) return false;
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+  const suppliedBytes = Buffer.from(String(signature));
+  const expectedBytes = Buffer.from(expected);
+  return suppliedBytes.length === expectedBytes.length && crypto.timingSafeEqual(suppliedBytes, expectedBytes);
+};
+
+const getTenantIdFromWebhook = async (subId, tenantNotesId) => {
+  let tenant = null;
+  if (subId) {
+    tenant = await Tenant.findOne({ 'subscription.razorpaySubscriptionId': subId });
+  }
+  if (!tenant && tenantNotesId) {
+    tenant = await Tenant.findById(tenantNotesId);
+  }
+  return tenant;
+};
+
+const verifyWebhookSignatureForTenant = (rawBody, signature, tenant) => {
+  const secret = tenant?.razorpayWebhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET || process.env.JWT_SECRET || 'brewhaus-billing-webhook-secret-min32chars';
+  return verifyWebhookSignature(rawBody, signature, secret);
 };
 
 // POST /api/billing/webhook - Razorpay Subscription Webhook
@@ -30,10 +128,6 @@ router.post('/webhook', async (req, res, next) => {
   try {
     const signature = req.headers['x-razorpay-signature'];
     const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body));
-
-    if (!verifyWebhookSignature(rawBody, signature)) {
-      return res.status(400).json({ error: 'Invalid webhook signature.' });
-    }
 
     const payload = req.body || {};
     const event = String(payload.event || '');
@@ -64,17 +158,15 @@ router.post('/webhook', async (req, res, next) => {
     const tenantNotesId = subscriptionEntity?.notes?.tenantId || paymentEntity?.notes?.tenantId;
 
     await runWithSystemTenantAccess(async () => {
-      let tenant = null;
-      if (subId) {
-        tenant = await Tenant.findOne({ 'subscription.razorpaySubscriptionId': subId });
-      }
-      if (!tenant && tenantNotesId) {
-        tenant = await Tenant.findById(tenantNotesId);
-      }
+      const tenant = await getTenantIdFromWebhook(subId, tenantNotesId);
 
       if (!tenant) {
         // Acknowledge webhook even if tenant not yet linked to prevent webhook retries
         return;
+      }
+
+      if (!verifyWebhookSignatureForTenant(rawBody, signature, tenant)) {
+        return res.status(400).json({ error: 'Invalid Razorpay webhook signature.' });
       }
 
       if (event === 'subscription.charged') {

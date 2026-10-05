@@ -1,6 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import QRCode from 'qrcode';
+import Razorpay from 'razorpay';
 import Tenant from '../models/Tenant.js';
 import User from '../models/User.js';
 import Category from '../models/Category.js';
@@ -142,6 +143,7 @@ router.post('/verify-email', async (req, res, next) => {
           gracePeriodUntil: null,
           razorpaySubscriptionId: '',
           razorpayCustomerId: '',
+          subscriptionCreatedAt: null,
         },
         settings: {
           cafeName: pending.cafeName,
@@ -246,6 +248,94 @@ router.post('/verify-email', async (req, res, next) => {
           qrCode,
           qrUrl,
         });
+      }
+
+      // 6. Create Razorpay Subscription (if configured)
+      let razorpaySubscription = null;
+      let razorpayCustomer = null;
+      if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+        try {
+          const razorpay = new Razorpay({
+            key_id: process.env.RAZORPAY_KEY_ID,
+            key_secret: process.env.RAZORPAY_KEY_SECRET,
+          });
+
+          // Create Razorpay customer
+          const customer = await razorpay.customers.create({
+            name: pending.cafeName,
+            email: pending.email,
+            contact: pending.email, // Use email as contact for now
+            notes: {
+              tenant_id: tenant._id.toString(),
+            },
+          });
+          razorpayCustomer = customer.id;
+
+          // Create subscription (14-day trial, then ₹999/month)
+          const subscription = await razorpay.subscriptions.create({
+            plan_id: process.env.RAZORPAY_STARTER_PLAN_ID || 'plan_starter', // Should be created in Razorpay dashboard
+            customer_notify: 1,
+            total_count: 0, // Infinite cycles
+            quantity: 1,
+            addons: [],
+            notes: {
+              tenant_id: tenant._id.toString(),
+            },
+          });
+          razorpaySubscription = subscription.id;
+
+          // Update tenant with Razorpay details
+          tenant.razorpayCustomerId = razorpayCustomer;
+          tenant.razorpaySubscriptionId = razorpaySubscription;
+          tenant.subscription.razorpaySubscriptionId = razorpaySubscription;
+          tenant.razorpayCustomerId = razorpayCustomer;
+          tenant.subscription.razorpaySubscriptionId = razorpaySubscription;
+          tenant.subscription.razorpayCustomerId = razorpayCustomer;
+          tenant.subscription.subscriptionCreatedAt = new Date();
+          await tenant.save();
+
+        } catch (razorpayError) {
+          console.error('Razorpay subscription creation failed:', razorpayError.message);
+          // Don't fail the signup - let them configure payments later
+        }
+      }
+
+      // 5. Create Starter Tables with Signed QR Tokens
+      for (let i = 1; i <= 3; i++) {
+        const tableId = new mongoose.Types.ObjectId();
+        const qrToken = createTableQrToken(tableId, tenant._id);
+        const qrUrl = `${clientUrl}/menu?tableToken=${encodeURIComponent(qrToken)}`;
+        const qrCode = await QRCode.toDataURL(qrUrl, {
+          width: 400,
+          margin: 2,
+          color: { dark: '#1a0f08', light: '#FFFFFF' },
+          errorCorrectionLevel: 'H',
+        });
+
+        await Table.create({
+          _id: tableId,
+          tenantId: tenant._id,
+          tableNumber: i,
+          label: `Table ${i}`,
+          seats: 4,
+          active: true,
+          qrCode,
+          qrUrl,
+        });
+      }
+
+      // 7. Send Welcome Email (placeholder)
+      if (process.env.SMTP_HOST && process.env.SMTP_PORT) {
+        try {
+          // TODO: Implement email sending
+          // await sendEmail({
+          //   to: pending.email,
+          //   subject: `Welcome to ${pending.cafeName}!`,
+          //   html: welcomeEmailTemplate(pending.cafeName, clientUrl),
+          // });
+        } catch (emailError) {
+          console.error('Welcome email failed:', emailError.message);
+        }
       }
 
       // Cleanup pending record
