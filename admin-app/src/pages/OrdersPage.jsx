@@ -273,6 +273,9 @@ export default function OrdersPage() {
           <button onClick={() => setViewMode((current) => current === 'kitchen' ? 'orders' : 'kitchen')} className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-sm font-medium ${viewMode === 'kitchen' ? 'border-espresso-900 bg-espresso-900 text-white' : 'border-stone-200 bg-white text-stone-700'}`}>
             <BellRing size={15} /> {viewMode === 'kitchen' ? 'Kitchen display on' : 'Kitchen display'}
           </button>
+          <a href="/orders/kitchen" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-50/10 px-3 text-sm font-medium text-amber-800 hover:bg-amber-50/20">
+            <span className="inline-flex items-center gap-1"><span className="text-xl">🍳</span> Full Kitchen Display</span>
+          </a>
           <button onClick={() => {
             if (!audioContext.current) {
               const AudioContextClass = window.AudioContext || window.webkitAudioContext;

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Clock, Loader2 } from 'lucide-react';
+import { ArrowLeft, Clock, Loader2, CheckCircle2 } from 'lucide-react';
 import api from '../../services/api';
+import { subscribeToLiveStream } from '../../utils/liveStream';
 
 const STATUS_STEPS = ['pending', 'confirmed', 'preparing', 'ready', 'completed'];
 const STATUS_LABELS = { pending: 'Order Received', confirmed: 'Confirmed', preparing: 'Being Prepared', ready: 'Ready to Serve!', completed: 'Completed' };
@@ -14,17 +15,39 @@ export default function TrackOrderPage() {
   const accessToken = searchParams.get('token');
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sseConnected, setSseConnected] = useState(false);
+  const unsubRef = useRef(null);
 
+  // Initial fetch
   useEffect(() => {
-    const fetch = () => api.get(`/orders/${orderId}?accessToken=${accessToken}`).then(r => { setOrder(r.data.order); setLoading(false); }).catch(() => setLoading(false));
-    if (accessToken) {
-      fetch();
-      const interval = setInterval(fetch, 10000);
-      return () => clearInterval(interval);
+    if (!accessToken) {
+      setLoading(false);
+      return;
     }
+    const fetch = () => api.get(`/orders/${orderId}?accessToken=${accessToken}`)
+      .then(r => { setOrder(r.data.order); setLoading(false); })
+      .catch(() => setLoading(false));
+    fetch();
   }, [orderId, accessToken]);
 
-  if (loading) return <div className="min-h-screen bg-cream flex items-center justify-center"><Loader2 className="animate-spin text-brew-500" size={32} /></div>;
+  // SSE for live updates
+  useEffect(() => {
+    if (!accessToken || loading) return;
+    unsubRef.current = subscribeToLiveStream(`/orders/${orderId}/events`, {
+      headers: { 'X-Order-Access-Token': accessToken },
+      onEvent: (type, payload) => {
+        if (type === 'connected') {
+          setSseConnected(true);
+        } else if (type === 'order-update' && payload.order) {
+          setOrder((current) => ({ ...current, ...payload.order }));
+          setLoading(false);
+        }
+      },
+    });
+    return () => { if (unsubRef.current) unsubRef.current(); };
+  }, [orderId, accessToken, loading]);
+
+  if (loading) return <div className="min-h-screen bg-cream flex items-center justify-center"><Loader2 size={32} className="animate-spin text-brew-500" /></div>;
   if (!order) return <div className="min-h-screen bg-cream flex items-center justify-center flex-col gap-4"><p className="font-display text-xl">Order not found</p><Link to="/menu" className="btn-primary">Back to Menu</Link></div>;
 
   const currentIdx = STATUS_STEPS.indexOf(order.orderStatus);
@@ -36,7 +59,16 @@ export default function TrackOrderPage() {
           <ArrowLeft size={18} />
         </Link>
         <h1 className="font-display text-xl font-bold text-espresso-900">Track Order</h1>
-        <span className="ml-auto text-xs text-espresso-400 flex items-center gap-1"><Clock size={11} />Auto-updates</span>
+        <span className="ml-auto text-xs text-espresso-400 flex items-center gap-1">
+          {sseConnected ? (
+            <span className="inline-flex items-center gap-1 text-emerald-600">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              <Clock size={11} />Live
+            </span>
+          ) : (
+            <span className="flex items-center gap-1"><Clock size={11} />Polling</span>
+          )}
+        </span>
       </div>
 
       <div className="p-4 space-y-4">

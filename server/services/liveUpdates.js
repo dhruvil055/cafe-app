@@ -1,5 +1,7 @@
 const subscribers = new Map();
 
+export const getSubscribers = () => subscribers;
+
 export const publishLiveUpdate = (channel, type, data = {}) => {
   const listeners = subscribers.get(channel);
   if (!listeners) return;

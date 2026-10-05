@@ -4,6 +4,7 @@ import AdminLayout from './layouts/AdminLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import OrdersPage from './pages/OrdersPage';
+import KitchenDisplayPage from './pages/KitchenDisplayPage';
 import ProductsPage from './pages/ProductsPage';
 import CategoriesPage from './pages/CategoriesPage';
 import TablesPage from './pages/TablesPage';
@@ -57,6 +58,7 @@ export default function App() {
       <Route path="/" element={<ProtectedRoute><Navigate to="/dashboard" replace /></ProtectedRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Dashboard"><DashboardPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/orders" element={<ProtectedRoute allowedRoles={['owner', 'manager', 'cashier', 'kitchen']}><AdminLayout title="Orders"><OrdersPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/orders/kitchen" element={<ProtectedRoute allowedRoles={['owner', 'manager', 'cashier', 'kitchen']}><AdminLayout title="Kitchen Display"><KitchenDisplayPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/customers" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Customers CRM"><CustomersPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/coupons" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Coupons & Offers"><CouponsPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/notifications" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Website Notifications"><NotificationsPage /></AdminLayout></ProtectedRoute>} />
