@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantIsolationPlugin } from '../utils/tenantContext.js';
 
 /**
  * MenuInventoryMapping — links a menu Product to one or more InventoryItems
@@ -15,8 +16,9 @@ const menuInventoryMappingSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Prevent duplicate mappings for the same product-inventoryItem pair
-menuInventoryMappingSchema.index({ product: 1, inventoryItem: 1 }, { unique: true });
+menuInventoryMappingSchema.index({ tenantId: 1, product: 1, inventoryItem: 1 }, { unique: true });
 menuInventoryMappingSchema.index({ product: 1, active: 1 });
 menuInventoryMappingSchema.index({ inventoryItem: 1 });
 
+menuInventoryMappingSchema.plugin(tenantIsolationPlugin);
 export default mongoose.model('MenuInventoryMapping', menuInventoryMappingSchema);

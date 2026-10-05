@@ -1,0 +1,14 @@
+{
+  "id": "/",
+  "name": "Brewhaus Café",
+  "short_name": "Brewhaus",
+  "description": "Browse the Brewhaus menu and order from your table.",
+  "start_url": "/menu",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#120804",
+  "theme_color": "#1a0f08",
+  "icons": [
+    { "src": "/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

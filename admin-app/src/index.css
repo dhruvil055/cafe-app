@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+:focus-visible {
+  outline: 3px solid #b45309;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 :root {
   font-family: 'Inter', system-ui, sans-serif;
   color: #1a0f08;
@@ -46,3 +60,8 @@ button, input, select, textarea {
 .status-ready { @apply bg-emerald-50 text-emerald-700 border border-emerald-200; }
 .status-completed { @apply bg-emerald-100 text-emerald-800 border border-emerald-200; }
 .status-cancelled { @apply bg-rose-50 text-rose-700 border border-rose-200; }
+
+/* Tenant-configurable brand accents */
+.btn-primary { background-color: var(--tenant-accent, #1a0f08); }
+.bg-brew-500 { background-color: var(--tenant-primary, #c96b18); }
+.text-brew-500, .text-brew-600 { color: var(--tenant-primary, #c96b18); }

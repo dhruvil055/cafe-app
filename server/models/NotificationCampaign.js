@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantIsolationPlugin } from '../utils/tenantContext.js';
 
 const notificationCampaignSchema = new mongoose.Schema({
   name: {
@@ -90,4 +91,5 @@ const notificationCampaignSchema = new mongoose.Schema({
 notificationCampaignSchema.index({ createdAt: -1 });
 notificationCampaignSchema.index({ status: 1, scheduledAt: 1 });
 
+notificationCampaignSchema.plugin(tenantIsolationPlugin);
 export default mongoose.model('NotificationCampaign', notificationCampaignSchema);

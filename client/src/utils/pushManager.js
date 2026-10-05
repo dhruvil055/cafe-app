@@ -53,14 +53,13 @@ export const subscribeToWebPush = async ({ customerId, phone } = {}) => {
   await navigator.serviceWorker.ready;
 
   // 3. Fetch VAPID public key (never the private key)
-  let publicKey = null;
+  let keyResponse;
   try {
-    const res = await api.get('/notifications/vapid-public-key');
-    publicKey = res.data?.publicKey;
+    keyResponse = await api.get('/notifications/vapid-public-key');
   } catch {
-    const res = await api.get('/push/vapid-public-key');
-    publicKey = res.data?.publicKey;
+    keyResponse = await api.get('/push/vapid-public-key');
   }
+  const publicKey = keyResponse.data?.publicKey;
 
   if (!publicKey) {
     throw new Error('VAPID public key could not be retrieved from server.');

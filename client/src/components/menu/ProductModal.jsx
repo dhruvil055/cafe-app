@@ -3,10 +3,13 @@ import { motion } from 'framer-motion';
 import { X, Plus, Minus, ShoppingBag, Star, Clock, AlertTriangle, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useCartStore from '../../context/cartStore';
+import { useTenant } from '../../context/TenantContext';
+import { formatMoney } from '../../utils/money';
 
 const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=600&q=80';
 
 export default function ProductModal({ product, onClose }) {
+  const tenant = useTenant();
   const { addItem, tableNumber, openScanner } = useCartStore();
   const [quantity, setQuantity] = useState(1);
   const [selectedAddons, setSelectedAddons] = useState([]);
@@ -15,9 +18,11 @@ export default function ProductModal({ product, onClose }) {
 
   const variants = Array.isArray(product?.variants) ? product.variants : [];
   const addons = Array.isArray(product?.addons) ? product.addons : [];
+  const milkAddons = addons.filter((addon) => /milk/i.test(addon.name));
+  const regularAddons = addons.filter((addon) => !/milk/i.test(addon.name));
 
   // Inventory-based availability
-  const isAvailable = product.available && product.inventoryAvailable !== false;
+  const isAvailable = product.available && product.scheduledAvailable !== false && product.inventoryAvailable !== false;
   const maxQty = product.maxOrderableQty ?? 99; // null = unlimited
   const isLimited = product.maxOrderableQty !== null && product.maxOrderableQty !== undefined && product.maxOrderableQty <= 10;
 
@@ -28,11 +33,15 @@ export default function ProductModal({ product, onClose }) {
   }, [variants]);
 
   const toggleAddon = (addon) => {
-    setSelectedAddons(prev =>
-      prev.find(a => a.name === addon.name)
-        ? prev.filter(a => a.name !== addon.name)
-        : [...prev, addon]
-    );
+    setSelectedAddons((previous) => {
+      const selected = previous.some((item) => item.name === addon.name);
+      if (/milk/i.test(addon.name)) {
+        return [...previous.filter((item) => !/milk/i.test(item.name)), ...(selected ? [] : [addon])];
+      }
+      return selected
+        ? previous.filter((item) => item.name !== addon.name)
+        : [...previous, addon];
+    });
   };
 
   const changeQty = (delta) => {
@@ -148,19 +157,31 @@ export default function ProductModal({ product, onClose }) {
                         : 'border-foam text-espresso-700 bg-white hover:border-brew-300'
                     }`}
                   >
-                    {v.name} {v.price > 0 && `(+${String.fromCharCode(8377)}${v.price})`}
+                    {v.name} {v.price > 0 && `(+${formatMoney(v.price, tenant.currency)})`}
                   </button>
                 ))}
               </div>
             </div>
           )}
 
+          {milkAddons.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-espresso-400 mb-2">Milk</p>
+              <div className="flex flex-wrap gap-2">
+                {milkAddons.map((milk) => {
+                  const selected = selectedAddons.some((addon) => addon.name === milk.name);
+                  return <button key={milk.name} type="button" onClick={() => toggleAddon(milk)} aria-pressed={selected} className={`rounded-xl border px-3 py-2 text-xs font-medium ${selected ? 'border-brew-500 bg-brew-50 text-espresso-900' : 'border-foam bg-white text-espresso-700'}`}>{milk.name} (+{formatMoney(milk.price, tenant.currency)})</button>;
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Addons */}
-          {addons.length > 0 && (
+          {regularAddons.length > 0 && (
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-espresso-400 mb-2">Add-ons</p>
               <div className="space-y-2">
-                {addons.map(addon => {
+                {regularAddons.map(addon => {
                   const selected = selectedAddons.some(a => a.name === addon.name);
                   return (
                     <button
@@ -173,7 +194,7 @@ export default function ProductModal({ product, onClose }) {
                       }`}
                     >
                       <span className="font-medium text-xs">{addon.name}</span>
-                      <span className="text-xs text-brew-600 font-semibold">+{String.fromCharCode(8377)}{addon.price}</span>
+                      <span className="text-xs text-brew-600 font-semibold">+{formatMoney(addon.price, tenant.currency)}</span>
                     </button>
                   );
                 })}
@@ -247,7 +268,7 @@ export default function ProductModal({ product, onClose }) {
             </div>
             {isAvailable && (
               <span className={`font-mono text-base font-semibold ${!tableNumber ? 'text-amber-100' : 'text-brew-300'}`}>
-                {String.fromCharCode(8377)}{total}
+                {formatMoney(total, tenant.currency)}
               </span>
             )}
           </motion.button>

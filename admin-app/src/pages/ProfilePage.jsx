@@ -72,6 +72,10 @@ export default function ProfilePage() {
   const [confirmPw, setConfirmPw] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg, setPwMsg] = useState(null);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [twoFactorSetup, setTwoFactorSetup] = useState(null);
+  const [twoFactorMsg, setTwoFactorMsg] = useState(null);
+  const [twoFactorBusy, setTwoFactorBusy] = useState(false);
 
   /* derived */
   const initials = (user?.name || 'A')
@@ -127,6 +131,35 @@ export default function ProfilePage() {
       setPwMsg({ type: 'error', text: err.message });
     } finally {
       setPwSaving(false);
+    }
+  };
+
+  const startTwoFactorSetup = async () => {
+    setTwoFactorBusy(true);
+    setTwoFactorMsg(null);
+    try {
+      const { data } = await api.post('/auth/2fa/setup');
+      setTwoFactorSetup(data);
+    } catch (error) {
+      setTwoFactorMsg({ type: 'error', text: error.message });
+    } finally {
+      setTwoFactorBusy(false);
+    }
+  };
+
+  const updateTwoFactor = async () => {
+    setTwoFactorBusy(true);
+    setTwoFactorMsg(null);
+    try {
+      const { data } = await api.post(user?.twoFactorEnabled ? '/auth/2fa/disable' : '/auth/2fa/enable', { code: twoFactorCode });
+      updateUser({ ...user, twoFactorEnabled: data.enabled });
+      setTwoFactorSetup(null);
+      setTwoFactorCode('');
+      setTwoFactorMsg({ type: 'success', text: data.enabled ? 'Two-factor authentication is enabled.' : 'Two-factor authentication is disabled.' });
+    } catch (error) {
+      setTwoFactorMsg({ type: 'error', text: error.message });
+    } finally {
+      setTwoFactorBusy(false);
     }
   };
 
@@ -345,6 +378,14 @@ export default function ProfilePage() {
       </motion.div>
 
       {/* ── Account details (read-only) ──────────────── */}
+      {(user?.role === 'owner' || user?.role === 'admin') && <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-stone-200 bg-white p-6 shadow-soft">
+        <div className="mb-4 flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><Shield size={18} /></div><div><h3 className="font-display text-lg font-bold text-espresso-900">Owner two-factor authentication</h3><p className="text-xs text-stone-500">Use an authenticator app for an extra sign-in check.</p></div></div>
+        {twoFactorMsg && <div className="mb-3"><Alert type={twoFactorMsg.type} message={twoFactorMsg.text} /></div>}
+        {!user.twoFactorEnabled && !twoFactorSetup && <button type="button" onClick={startTwoFactorSetup} disabled={twoFactorBusy} className="btn-primary rounded-xl px-4 py-2.5 text-sm">{twoFactorBusy ? 'Preparing…' : 'Set up authenticator'}</button>}
+        {twoFactorSetup && !user.twoFactorEnabled && <div className="space-y-3"><p className="text-sm text-stone-600">Scan this QR code in your authenticator app, then enter its current code to enable protection.</p><img src={twoFactorSetup.qrCode} alt="Authenticator setup QR code" className="h-48 w-48 rounded-xl border border-stone-200 p-2" /><p className="break-all rounded-lg bg-stone-50 p-3 font-mono text-xs">Secret: {twoFactorSetup.secret}</p><input aria-label="Authenticator code" inputMode="numeric" value={twoFactorCode} onChange={(event) => setTwoFactorCode(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit code" className="w-full max-w-xs rounded-xl border border-stone-200 px-3 py-2.5 text-sm" /><div className="flex gap-2"><button type="button" onClick={updateTwoFactor} disabled={twoFactorBusy || twoFactorCode.length !== 6} className="btn-primary rounded-xl px-4 py-2.5 text-sm">Enable</button><button type="button" onClick={() => setTwoFactorSetup(null)} className="btn-secondary rounded-xl px-4 py-2.5 text-sm">Cancel</button></div></div>}
+        {user.twoFactorEnabled && <div className="space-y-3"><p className="text-sm font-medium text-emerald-700">Authenticator verification is enabled.</p><div className="flex flex-wrap gap-2"><input aria-label="Authenticator code" inputMode="numeric" value={twoFactorCode} onChange={(event) => setTwoFactorCode(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit code" className="w-full max-w-xs rounded-xl border border-stone-200 px-3 py-2.5 text-sm" /><button type="button" onClick={updateTwoFactor} disabled={twoFactorBusy || twoFactorCode.length !== 6} className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-700">{twoFactorBusy ? 'Saving…' : 'Disable 2FA'}</button></div></div>}
+      </motion.section>}
+
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
+import { setupTestTenant } from './tenantTestSetup.js';
 
 process.env.NODE_ENV = 'test';
 process.env.MONGO_URI = process.env.MONGO_TEST_URI || `mongodb://127.0.0.1:27017/cafe_notify_v1_test_${process.pid}`;
@@ -57,6 +58,7 @@ const waitForTerminal = async (campaignId, timeoutMs = 8000) => {
 test('Customer website notification system v1 (Web Push only)', async (t) => {
   try {
     await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 2000 });
+    await setupTestTenant();
   } catch (err) {
     console.warn('MongoDB not available, skipping:', err.message);
     return;

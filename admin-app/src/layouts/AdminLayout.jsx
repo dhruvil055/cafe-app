@@ -1,23 +1,30 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { LayoutDashboard, LogOut, Menu, RefreshCw, ShoppingBag, Tag, UtensilsCrossed, BarChart2, Package, Users, Bell } from 'lucide-react';
+import { LayoutDashboard, LogOut, Menu, RefreshCw, ShoppingBag, Tag, UtensilsCrossed, BarChart2, Package, Users, Bell, BadgePercent, Settings, CreditCard } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { canManageMenu, canManageTeam, canViewOrders } from '../utils/roles';
+import { useTenant } from '../context/TenantContext';
 
 const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/orders', icon: ShoppingBag, label: 'Orders' },
   { to: '/customers', icon: Users, label: 'Customers' },
+  { to: '/coupons', icon: BadgePercent, label: 'Coupons' },
   { to: '/notifications', icon: Bell, label: 'Notifications' },
   { to: '/products', icon: UtensilsCrossed, label: 'Products' },
   { to: '/inventory', icon: Package, label: 'Inventory' },
   { to: '/categories', icon: Tag, label: 'Categories' },
   { to: '/tables', icon: 'T', label: 'Tables' },
   { to: '/analytics', icon: BarChart2, label: 'Analytics' },
+  { to: '/team', icon: Users, label: 'Team & Security', ownerOnly: true },
+  { to: '/billing', icon: CreditCard, label: 'Plan & Billing', ownerOnly: true },
+  { to: '/settings', icon: Settings, label: 'Café Settings', ownerOnly: true },
 ];
 
 function Sidebar({ mobile = false, onClose }) {
   const { user, logout } = useAuth();
+  const tenant = useTenant();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -31,17 +38,22 @@ function Sidebar({ mobile = false, onClose }) {
       <div className="border-b border-espresso-700 p-5">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brew-500 font-display text-lg font-bold text-white">
-            B
+            {tenant.logoUrl ? <img src={tenant.logoUrl} alt="" className="h-full w-full rounded-xl object-cover" /> : tenant.name?.charAt(0)?.toUpperCase() || 'C'}
           </div>
           <div>
-            <div className="font-display text-lg font-bold">Brewhaus</div>
+            <div className="font-display text-lg font-bold">{tenant.name}</div>
             <div className="text-xs text-espresso-300">Admin Control</div>
           </div>
         </div>
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
-        {NAV.map(({ to, icon: Icon, label }) => (
+        {NAV.filter(({ to, ownerOnly }) => {
+          if (ownerOnly) return canManageTeam(user?.role);
+          if (to === '/orders') return canViewOrders(user?.role);
+          if (['/products', '/categories', '/tables', '/customers', '/coupons', '/notifications', '/inventory', '/analytics', '/dashboard'].includes(to)) return canManageMenu(user?.role);
+          return true;
+        }).map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
@@ -85,6 +97,7 @@ function Sidebar({ mobile = false, onClose }) {
 }
 
 export default function AdminLayout({ children, title }) {
+  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -111,6 +124,20 @@ export default function AdminLayout({ children, title }) {
       </AnimatePresence>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {user?.impersonatedBy && (
+          <div className="bg-gradient-to-r from-amber-600 to-orange-600 px-4 py-2 text-white text-xs font-semibold flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🕵️</span>
+              <span>Platform Impersonation Mode: viewing café as Super Admin ({user.impersonatedBy})</span>
+            </div>
+            <button
+              onClick={() => { window.location.href = '/super-admin'; }}
+              className="bg-black/30 hover:bg-black/50 text-white rounded-lg px-2.5 py-1 text-[11px] font-bold transition"
+            >
+              Exit to Super Admin
+            </button>
+          </div>
+        )}
         <header className="flex h-16 items-center justify-between border-b border-stone-200 bg-white px-4 shadow-sm md:px-6">
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(true)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-stone-200 text-stone-600 md:hidden">

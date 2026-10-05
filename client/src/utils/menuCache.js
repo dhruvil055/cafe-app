@@ -57,7 +57,7 @@ export function clearClientCache() {
         sessionStorage.removeItem(k);
       }
     });
-  } catch (e) {}
+  } catch { /* Session storage is optional when browser storage is disabled. */ }
 }
 
 export { CATEGORIES_TTL_MS, DEFAULT_TTL_MS };

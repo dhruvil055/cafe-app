@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantIsolationPlugin } from '../utils/tenantContext.js';
 
 const customerSchema = new mongoose.Schema({
   name: {
@@ -9,7 +10,6 @@ const customerSchema = new mongoose.Schema({
   phone: {
     type: String,
     required: true,
-    unique: true,
     trim: true,
     index: true,
   },
@@ -67,6 +67,7 @@ const customerSchema = new mongoose.Schema({
     min: 0,
     index: true,
   },
+  loyaltyPoints: { type: Number, default: 0, min: 0 },
   status: {
     type: String,
     enum: ['active', 'blocked', 'unsubscribed'],
@@ -87,4 +88,6 @@ customerSchema.index({ createdAt: -1 });
 customerSchema.index({ marketingConsent: 1, status: 1 });
 customerSchema.index({ totalOrders: -1, totalSpent: -1 });
 
+customerSchema.plugin(tenantIsolationPlugin);
+customerSchema.index({ tenantId: 1, phone: 1 }, { unique: true });
 export default mongoose.model('Customer', customerSchema);

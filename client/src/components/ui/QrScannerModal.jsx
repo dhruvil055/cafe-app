@@ -5,17 +5,13 @@ import toast from 'react-hot-toast';
 import api from '../../services/api';
 import useCartStore from '../../context/cartStore';
 
-const extractTableNumber = (value) => {
+const extractTableToken = (value) => {
   try {
     const url = new URL(value);
-    const table = url.searchParams.get('table');
-    if (table) return table;
+    return url.searchParams.get('tableToken');
   } catch {
-    // Allow a plain table number as a fallback.
+    return null;
   }
-
-  const match = String(value || '').trim().match(/^\d+$/);
-  return match ? match[0] : null;
 };
 
 export default function QrScannerModal({ onClose, onTableFound }) {
@@ -54,32 +50,38 @@ export default function QrScannerModal({ onClose, onTableFound }) {
   }, []);
 
   const handleTableValue = async (value) => {
-    const tableNum = extractTableNumber(value);
-    if (!tableNum) {
-      setError('That QR code is not a Brewhaus table code.');
+    const token = extractTableToken(value);
+    if (!token) {
+      setError('That QR code is not a valid table code.');
       setTimeout(() => {
         isProcessingRef.current = false;
       }, 1500);
       return;
     }
-    const num = Number(tableNum);
-
-    // If customer already has items for a different table, ask for confirmation
-    if (tableNumber && tableNumber !== num && items.length > 0) {
-      setPendingTable(num);
+    let num;
+    try {
+      const { data } = await api.get('/tables/qr/validate', { params: { token } });
+      num = Number(data.table?.tableNumber);
+    } catch {
+      setError('This table QR code is invalid or expired. Please ask staff for a new code.');
+      setTimeout(() => { isProcessingRef.current = false; }, 2000);
       return;
     }
 
-    await connectToTable(num);
+    // If customer already has items for a different table, ask for confirmation
+    if (tableNumber && tableNumber !== num && items.length > 0) {
+      setPendingTable({ number: num, token });
+      return;
+    }
+
+    await connectToTable(num, token);
   };
 
-  const connectToTable = async (num) => {
+  const connectToTable = async (num, token) => {
     setChecking(true);
     setError('');
     try {
-      await api.get(`/tables/${num}/validate`);
-
-      setTable(num);
+      setTable(num, token);
       toast.success(`Table ${String(num).padStart(2, '0')} connected!`, {
         id: 'table-connected',
         icon: '✅',
@@ -87,7 +89,7 @@ export default function QrScannerModal({ onClose, onTableFound }) {
       });
 
       if (onTableFound) {
-        onTableFound(num);
+        onTableFound(num, token);
       }
       handleClose();
     } catch (err) {
@@ -105,7 +107,7 @@ export default function QrScannerModal({ onClose, onTableFound }) {
     clearCart();
     const tableToConnect = pendingTable;
     setPendingTable(null);
-    await connectToTable(tableToConnect);
+    await connectToTable(tableToConnect.number, tableToConnect.token);
   };
 
   const handleCancelNewTable = () => {
@@ -164,7 +166,7 @@ export default function QrScannerModal({ onClose, onTableFound }) {
               <div className="flex items-start gap-3">
                 <AlertTriangle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold text-amber-900 text-sm">Switch to Table {String(pendingTable).padStart(2, '0')}?</p>
+                  <p className="font-semibold text-amber-900 text-sm">Switch to Table {String(pendingTable.number).padStart(2, '0')}?</p>
                   <p className="text-xs text-amber-700 mt-1">
                     You have {items.length} item{items.length !== 1 ? 's' : ''} in your cart for Table {String(tableNumber).padStart(2, '0')}.
                     Switching tables will <strong>clear your current cart</strong>.
@@ -183,7 +185,7 @@ export default function QrScannerModal({ onClose, onTableFound }) {
                       disabled={checking}
                       className="flex-1 rounded-xl bg-amber-600 py-2 text-xs font-bold text-white hover:bg-amber-700 transition disabled:opacity-50"
                     >
-                      Switch to Table {String(pendingTable).padStart(2, '0')}
+                      Switch to Table {String(pendingTable.number).padStart(2, '0')}
                     </button>
                   </div>
                 </div>

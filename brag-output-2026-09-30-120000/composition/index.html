@@ -1,0 +1,1498 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Brewhaus Café — Brag Video</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #FAF6F0;
+        color: #1a0f08;
+        font-family: 'Manrope', system-ui, sans-serif;
+        overflow: hidden;
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      .clip {
+        position: absolute;
+        inset: 0;
+      }
+      @font-face {
+        font-family: 'Cormorant Garamond';
+        src: url('https://fonts.gstatic.com/s/cormorantgaramond/v15/co3DmWZfLnM7sRZw260N3I6xwPORE3T2PJrC.ttf') format('truetype');
+        font-weight: 600 700;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Manrope';
+        src: url('https://fonts.gstatic.com/s/manrope/v13/xn7_YHE41ni1AdIRqAuZuw.ttf') format('truetype');
+        font-weight: 400 500 600 700;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'JetBrains Mono';
+        src: url('https://fonts.gstatic.com/s/jetbrainsmono/v22/tDbD2oWUg0MKqD3WPxILlvWf.ttf') format('truetype');
+        font-weight: 600;
+        font-display: swap;
+      }
+      /* Hero Scene */
+      .hero-bg {
+        position: absolute;
+        inset: 0;
+        object-fit: cover;
+        z-index: 0;
+      }
+      .hero-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, transparent 0%, rgba(26,15,8,0.2) 50%, rgba(26,15,8,0.7) 100%);
+        z-index: 1;
+      }
+      .hero-content {
+        position: absolute;
+        bottom: 60px;
+        left: 80px;
+        right: 80px;
+        z-index: 2;
+        text-align: left;
+      }
+      .hero-tagline {
+        font-family: 'Manrope', sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: #dfa040;
+        margin-bottom: 8px;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .hero-title {
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-size: 72px;
+        font-weight: 700;
+        color: #FAF6F0;
+        line-height: 1.1;
+        margin: 0;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .hero-table-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 24px;
+        padding: 8px 20px;
+        border-radius: 9999px;
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(212,134,42,0.3);
+        background: rgba(212,134,42,0.15);
+        opacity: 0;
+        transform: translateY(20px) scale(0.9);
+      }
+      .hero-table-pill .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #22c55e;
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+      .hero-table-pill .text {
+        font-family: 'Manrope', sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        color: #FAF6F0;
+      }
+      .hero-cta {
+        margin-top: 32px;
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-size: 24px;
+        font-weight: 600;
+        color: #dfa040;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+      }
+      /* Phone mockup for QR scan */
+      .phone-mockup {
+        position: absolute;
+        right: 80px;
+        bottom: 40px;
+        width: 180px;
+        aspect-ratio: 9/19.5;
+        background: #1a0f08;
+        border-radius: 24px;
+        padding: 6px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        z-index: 3;
+        opacity: 0;
+        transform: translateX(100px) rotate(-5deg);
+      }
+      .phone-screen {
+        width: 100%;
+        height: 100%;
+        background: #1a0f08;
+        border-radius: 18px;
+        overflow: hidden;
+        position: relative;
+      }
+      .phone-camera {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 140px;
+        height: 140px;
+        border: 2px solid rgba(212,134,42,0.6);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .phone-camera::before {
+        content: '';
+        position: absolute;
+        inset: -4px;
+        border: 2px solid #d4862a;
+        border-radius: 16px;
+        animation: scanLine 2s ease-in-out infinite;
+      }
+      @keyframes scanLine {
+        0% { transform: translateY(-60px); opacity: 0; }
+        20% { opacity: 1; }
+        80% { opacity: 1; }
+        100% { transform: translateY(60px); opacity: 0; }
+      }
+      .qr-code {
+        width: 80px;
+        height: 80px;
+        background: repeating-conic-gradient(#1a0f08 0% 25%, #FAF6F0 25% 50%);
+        border: 4px solid #FAF6F0;
+        border-radius: 8px;
+      }
+      /* Menu Scene */
+      .menu-bg {
+        position: absolute;
+        inset: 0;
+        background: #FAF6F0;
+        z-index: 0;
+      }
+      .menu-header {
+        position: absolute;
+        top: 40px;
+        left: 80px;
+        right: 80px;
+        z-index: 2;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .menu-title {
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-size: 48px;
+        font-weight: 700;
+        color: #1a0f08;
+        margin: 0 0 8px;
+      }
+      .menu-subtitle {
+        font-family: 'Manrope', sans-serif;
+        font-size: 16px;
+        color: #a37445;
+        margin: 0;
+      }
+      .menu-grid {
+        position: absolute;
+        top: 160px;
+        left: 80px;
+        right: 80px;
+        bottom: 80px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 24px;
+        z-index: 1;
+      }
+      .menu-card {
+        background: white;
+        border-radius: 20px;
+        overflow: hidden;
+        border: 1px solid #F0E8D8;
+        box-shadow: 0 4px 20px rgba(26,15,8,0.06);
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+        transition: transform 0.2s ease;
+      }
+      .menu-card:hover {
+        transform: translateY(-4px) scale(1.02);
+      }
+      .menu-card-img {
+        width: 100%;
+        aspect-ratio: 1;
+        object-fit: cover;
+        background: #F0E8D8;
+      }
+      .menu-card-info {
+        padding: 16px;
+      }
+      .menu-card-name {
+        font-family: 'Manrope', sans-serif;
+        font-size: 16px;
+        font-weight: 600;
+        color: #1a0f08;
+        margin: 0 0 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .menu-card-price {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 18px;
+        font-weight: 600;
+        color: #1a0f08;
+      }
+      .menu-card-popular {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: #d4862a;
+        color: white;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 4px 8px;
+        border-radius: 9999px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .menu-card-popular::before {
+        content: '★';
+        font-size: 8px;
+      }
+      .menu-card-add {
+        position: absolute;
+        bottom: 12px;
+        right: 12px;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #1a0f08;
+        color: #FAF6F0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(26,15,8,0.2);
+      }
+      .menu-card-add svg {
+        width: 18px;
+        height: 18px;
+      }
+      /* Product Modal Scene */
+      .modal-bg {
+        position: absolute;
+        inset: 0;
+        background: rgba(26,15,8,0.6);
+        backdrop-filter: blur(4px);
+        z-index: 10;
+        opacity: 0;
+      }
+      .modal-panel {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0.9);
+        width: 520px;
+        max-height: 80vh;
+        background: white;
+        border-radius: 24px;
+        overflow: hidden;
+        z-index: 11;
+        opacity: 0;
+        box-shadow: 0 24px 48px rgba(26,15,8,0.3);
+      }
+      .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid #F0E8D8;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .modal-title {
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-size: 24px;
+        font-weight: 700;
+        color: #1a0f08;
+        margin: 0;
+      }
+      .modal-close {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 1px solid #F0E8D8;
+        background: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+      .modal-body {
+        padding: 24px;
+        max-height: 50vh;
+        overflow-y: auto;
+      }
+      .modal-section {
+        margin-bottom: 24px;
+      }
+      .modal-section-title {
+        font-family: 'Manrope', sans-serif;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1a0f08;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin: 0 0 12px;
+      }
+      .variant-options, .addon-options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .option-btn {
+        padding: 10px 16px;
+        border: 2px solid #F0E8D8;
+        border-radius: 9999px;
+        background: white;
+        font-family: 'Manrope', sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        color: #1a0f08;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .option-btn.selected {
+        border-color: #d4862a;
+        background: #d4862a;
+        color: white;
+      }
+      .addon-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px;
+        background: #FAF6F0;
+        border-radius: 12px;
+        cursor: pointer;
+      }
+      .addon-option input {
+        width: 20px;
+        height: 20px;
+        accent-color: #d4862a;
+      }
+      .addon-name {
+        font-family: 'Manrope', sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        color: #1a0f08;
+      }
+      .addon-price {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 14px;
+        font-weight: 600;
+        color: #a37445;
+        margin-left: auto;
+      }
+      .qty-stepper {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .qty-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 1px solid #d4862a;
+        background: white;
+        color: #d4862a;
+        font-size: 20px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+      .qty-value {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 24px;
+        font-weight: 600;
+        color: #1a0f08;
+        min-width: 40px;
+        text-align: center;
+      }
+      .modal-add-btn {
+        width: 100%;
+        padding: 16px;
+        border-radius: 16px;
+        border: none;
+        background: #d4862a;
+        color: white;
+        font-family: 'Manrope', sans-serif;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        margin-top: 8px;
+      }
+      /* Cart Badge */
+      .cart-badge {
+        position: fixed;
+        top: 40px;
+        right: 40px;
+        z-index: 100;
+        pointer-events: none;
+      }
+      .cart-btn {
+        position: relative;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #1a0f08;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 24px rgba(26,15,8,0.3);
+        cursor: pointer;
+      }
+      .cart-btn svg {
+        width: 24px;
+        height: 24px;
+        color: #FAF6F0;
+      }
+      .badge-count {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        min-width: 24px;
+        height: 24px;
+        border-radius: 12px;
+        background: #d4862a;
+        color: white;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 6px;
+        transform: scale(0);
+        transform-origin: center;
+      }
+      /* Quick Cart Drawer */
+      .drawer-bg {
+        position: fixed;
+        inset: 0;
+        background: rgba(26,15,8,0.4);
+        backdrop-filter: blur(4px);
+        z-index: 50;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .drawer-panel {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 60%;
+        background: white;
+        border-radius: 24px 24px 0 0;
+        z-index: 51;
+        transform: translateY(100%);
+        display: flex;
+        flex-direction: column;
+        pointer-events: none;
+      }
+      .drawer-handle {
+        width: 48px;
+        height: 4px;
+        background: #F0E8D8;
+        border-radius: 2px;
+        margin: 12px auto 0;
+      }
+      .drawer-title {
+        padding: 20px 24px;
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-size: 24px;
+        font-weight: 700;
+        color: #1a0f08;
+        border-bottom: 1px solid #F0E8D8;
+      }
+      .drawer-items {
+        flex: 1;
+        padding: 16px 24px;
+        overflow-y: auto;
+      }
+      .drawer-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid #F0E8D8;
+      }
+      .drawer-item-info {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .drawer-item-name {
+        font-family: 'Manrope', sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        color: #1a0f08;
+      }
+      .drawer-item-qty {
+        font-family: 'Manrope', sans-serif;
+        font-size: 12px;
+        color: #a37445;
+      }
+      .drawer-item-price {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 16px;
+        font-weight: 600;
+        color: #1a0f08;
+      }
+      .drawer-total {
+        padding: 20px 24px;
+        border-top: 1px solid #F0E8D8;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .drawer-total-label {
+        font-family: 'Manrope', sans-serif;
+        font-size: 16px;
+        font-weight: 600;
+        color: #1a0f08;
+      }
+      .drawer-total-amount {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 24px;
+        font-weight: 700;
+        color: #1a0f08;
+      }
+      .drawer-checkout {
+        margin: 0 24px 24px;
+        padding: 16px;
+        border-radius: 16px;
+        border: none;
+        background: #1a0f08;
+        color: #FAF6F0;
+        font-family: 'Manrope', sans-serif;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      /* Checkout Scene */
+      .checkout-bg {
+        position: absolute;
+        inset: 0;
+        background: #FAF6F0;
+        z-index: 0;
+      }
+      .checkout-header {
+        position: absolute;
+        top: 40px;
+        left: 80px;
+        right: 80px;
+        z-index: 2;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .checkout-title {
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-size: 48px;
+        font-weight: 700;
+        color: #1a0f08;
+        margin: 0 0 8px;
+      }
+      .checkout-subtitle {
+        font-family: 'Manrope', sans-serif;
+        font-size: 16px;
+        color: #a37445;
+        margin: 0;
+      }
+      .checkout-table {
+        position: absolute;
+        top: 140px;
+        left: 80px;
+        width: 120px;
+        height: 120px;
+        background: #1a0f08;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .checkout-table-num {
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-size: 48px;
+        font-weight: 700;
+        color: #FAF6F0;
+      }
+      .checkout-payment {
+        position: absolute;
+        top: 140px;
+        left: 240px;
+        right: 80px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        z-index: 1;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .payment-card {
+        padding: 24px;
+        border-radius: 20px;
+        border: 2px solid #F0E8D8;
+        background: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .payment-card.selected {
+        border-color: #1a0f08;
+        background: #1a0f08;
+        color: #FAF6F0;
+      }
+      .payment-card svg {
+        width: 32px;
+        height: 32px;
+        stroke: currentColor;
+      }
+      .payment-label {
+        font-family: 'Manrope', sans-serif;
+        font-size: 16px;
+        font-weight: 600;
+        text-align: center;
+      }
+      .payment-sublabel {
+        font-family: 'Manrope', sans-serif;
+        font-size: 12px;
+        text-align: center;
+        opacity: 0.7;
+      }
+      .checkout-summary {
+        position: absolute;
+        top: 340px;
+        left: 80px;
+        right: 80px;
+        z-index: 1;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .summary-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        font-family: 'Manrope', sans-serif;
+        font-size: 14px;
+        color: #1a0f08;
+      }
+      .summary-row.total {
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-size: 28px;
+        font-weight: 700;
+        border-top: 1px solid #F0E8D8;
+        margin-top: 8px;
+        padding-top: 16px;
+      }
+      .summary-amount {
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 600;
+      }
+      .checkout-pay-btn {
+        position: absolute;
+        bottom: 60px;
+        left: 80px;
+        right: 80px;
+        padding: 18px;
+        border-radius: 16px;
+        border: none;
+        background: #d4862a;
+        color: white;
+        font-family: 'Manrope', sans-serif;
+        font-size: 18px;
+        font-weight: 600;
+        cursor: pointer;
+        z-index: 2;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      /* Order Confirm Scene */
+      .confirm-bg {
+        position: absolute;
+        inset: 0;
+        background: #1a0f08;
+        z-index: 0;
+        overflow: hidden;
+      }
+      .confetti-item {
+        position: absolute;
+        font-size: 32px;
+        opacity: 0.15;
+        pointer-events: none;
+      }
+      .confirm-header {
+        position: absolute;
+        top: 60px;
+        left: 80px;
+        right: 80px;
+        text-align: center;
+        z-index: 2;
+      }
+      .confirm-check {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: rgba(212,134,42,0.2);
+        border: 2px solid rgba(212,134,42,0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 24px;
+        transform: scale(0);
+      }
+      .confirm-check svg {
+        width: 50px;
+        height: 50px;
+        color: #d4862a;
+      }
+      .confirm-title {
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-size: 40px;
+        font-weight: 700;
+        color: #FAF6F0;
+        margin: 0 0 8px;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .confirm-subtitle {
+        font-family: 'Manrope', sans-serif;
+        font-size: 16px;
+        color: #dfa040;
+        margin: 0;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .confirm-meta {
+        position: absolute;
+        top: 260px;
+        left: 80px;
+        right: 80px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        z-index: 1;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .meta-card {
+        background: rgba(250,246,240,0.08);
+        border: 1px solid rgba(240,232,216,0.2);
+        border-radius: 16px;
+        padding: 16px;
+        text-align: center;
+      }
+      .meta-label {
+        font-family: 'Manrope', sans-serif;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #a37445;
+        margin: 0 0 4px;
+      }
+      .meta-value {
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-size: 20px;
+        font-weight: 700;
+        color: #FAF6F0;
+        margin: 0;
+      }
+      .confirm-status {
+        position: absolute;
+        top: 400px;
+        left: 80px;
+        right: 80px;
+        z-index: 1;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .status-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+      .status-icon {
+        font-size: 40px;
+      }
+      .status-label {
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-size: 28px;
+        font-weight: 700;
+        color: #22c55e;
+      }
+      .status-sub {
+        font-family: 'Manrope', sans-serif;
+        font-size: 12px;
+        color: #a37445;
+        margin-left: 56px;
+      }
+      .status-progress {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      .status-step {
+        flex: 1;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(240,232,216,0.2);
+        position: relative;
+        overflow: hidden;
+      }
+      .status-step.fill::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: #d4862a;
+        transform: translateX(-100%);
+      }
+      .status-step.done::after {
+        transform: translateX(0);
+      }
+      .status-labels {
+        display: flex;
+        justify-content: space-between;
+        font-family: 'Manrope', sans-serif;
+        font-size: 10px;
+        color: #a37445;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .confirm-actions {
+        position: absolute;
+        bottom: 60px;
+        left: 80px;
+        right: 80px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        z-index: 2;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .action-btn {
+        padding: 14px;
+        border-radius: 14px;
+        font-family: 'Manrope', sans-serif;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+      .action-btn.secondary {
+        background: rgba(250,246,240,0.1);
+        border: 1px solid rgba(240,232,216,0.3);
+        color: #FAF6F0;
+      }
+      .action-btn.accent {
+        background: #d4862a;
+        border: none;
+        color: white;
+      }
+      .action-btn svg {
+        width: 16px;
+        height: 16px;
+      }
+      /* Outro Scene */
+      .outro-bg {
+        position: absolute;
+        inset: 0;
+        background: #FAF6F0;
+        z-index: 0;
+      }
+      .outro-content {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        z-index: 1;
+      }
+      .outro-logo {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: #1a0f08;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 32px;
+        transform: scale(0);
+        box-shadow: 0 16px 40px rgba(26,15,8,0.3);
+      }
+      .outro-logo svg {
+        width: 56px;
+        height: 56px;
+        color: #d4862a;
+      }
+      .outro-title {
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-size: 56px;
+        font-weight: 700;
+        color: #1a0f08;
+        margin: 0 0 12px;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .outro-tagline {
+        font-family: 'Manrope', sans-serif;
+        font-size: 20px;
+        font-weight: 500;
+        color: #d4862a;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .outro-url {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 16px;
+        color: #a37445;
+        margin-top: 16px;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-width="1920"
+      data-height="1080"
+      data-duration="20"
+      data-fps="30"
+    >
+      <!-- Audio -->
+      <audio
+        id="bg-music"
+        src="assets/music/happy-beats-business-moves-vol-12-by-ende-dot-app.mp3"
+        data-start="0"
+        data-duration="20"
+        data-track-index="10"
+        data-volume="0.18"
+      ></audio>
+      <audio
+        id="sfx-qr-beep"
+        src="assets/sfx/interface/drop_001.ogg"
+        data-start="0.8"
+        data-duration="1"
+        data-track-index="11"
+        data-volume="0.65"
+      ></audio>
+      <audio
+        id="sfx-card-pop"
+        src="assets/sfx/casino/card-place-1.ogg"
+        data-start="2.1"
+        data-duration="1"
+        data-track-index="12"
+        data-volume="0.65"
+      ></audio>
+      <audio
+        id="sfx-modal-whoosh"
+        src="assets/sfx/interface/drop_001.ogg"
+        data-start="5.0"
+        data-duration="1"
+        data-track-index="13"
+        data-volume="0.65"
+      ></audio>
+      <audio
+        id="sfx-badge-spring"
+        src="assets/sfx/impact/impactGlass_light_001.ogg"
+        data-start="6.5"
+        data-duration="1"
+        data-track-index="14"
+        data-volume="0.65"
+      ></audio>
+      <audio
+        id="sfx-drawer-slide"
+        src="assets/sfx/interface/drop_001.ogg"
+        data-start="7.0"
+        data-duration="1"
+        data-track-index="15"
+        data-volume="0.65"
+      ></audio>
+      <audio
+        id="sfx-payment-select"
+        src="assets/sfx/interface/drop_001.ogg"
+        data-start="9.2"
+        data-duration="1"
+        data-track-index="16"
+        data-volume="0.65"
+      ></audio>
+      <audio
+        id="sfx-confetti"
+        src="assets/sfx/casino/chips-collide-1.ogg"
+        data-start="13.0"
+        data-duration="1"
+        data-track-index="17"
+        data-volume="0.65"
+      ></audio>
+      <audio
+        id="sfx-progress-ticks"
+        src="assets/sfx/impact/impactGlass_light_001.ogg"
+        data-start="13.5"
+        data-duration="2"
+        data-track-index="18"
+        data-volume="0.55"
+      ></audio>
+      <audio
+        id="sfx-logo-thud"
+        src="assets/sfx/impact/impactSoft_medium_000.ogg"
+        data-start="17.2"
+        data-duration="1"
+        data-track-index="19"
+        data-volume="0.65"
+      ></audio>
+
+      <!-- Scene 1: Hero (0.0s - 2.0s) -->
+      <section id="scene-hero" class="clip" data-start="0" data-duration="2.0" data-track-index="0">
+        <video
+          class="hero-bg"
+          src="/BrewHaus.mp4"
+          autoplay
+          muted
+          loop
+          playsinline
+          poster="/images/hero-poster.webp"
+        ></video>
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+          <p class="hero-tagline" id="hero-tagline">Fine Coffee & Dining</p>
+          <h1 class="hero-title" id="hero-title">Brewhaus Cafe</h1>
+          <div class="hero-table-pill" id="hero-table-pill">
+            <span class="dot"></span>
+            <span class="text">Table 03 connected!</span>
+          </div>
+          <p class="hero-cta" id="hero-cta">Scan. Sip. Sorted.</p>
+        </div>
+        <div class="phone-mockup" id="phone-mockup">
+          <div class="phone-screen">
+            <div class="phone-camera">
+              <div class="qr-code"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scene 2: Menu Reveal (2.0s - 5.0s) -->
+      <section id="scene-menu" class="clip" data-start="2.0" data-duration="3.0" data-track-index="1">
+        <div class="menu-bg"></div>
+        <div class="menu-header">
+          <h1 class="menu-title" id="menu-title">Your menu, your way</h1>
+          <p class="menu-subtitle" id="menu-subtitle">Browse, filter, and discover</p>
+        </div>
+        <div class="menu-grid" id="menu-grid">
+          <!-- Card 1 -->
+          <article class="menu-card" id="card-1" style="--delay: 0.0s;">
+            <img class="menu-card-img" src="https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=75" alt="Café Latte" />
+            <div class="menu-card-popular">HOT</div>
+            <div class="menu-card-info">
+              <p class="menu-card-name">Café Latte</p>
+              <p class="menu-card-price">₹180</p>
+            </div>
+            <button class="menu-card-add" aria-label="Add Café Latte">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </article>
+          <!-- Card 2 -->
+          <article class="menu-card" id="card-2" style="--delay: 0.1s;">
+            <img class="menu-card-img" src="https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=400&q=75" alt="Cappuccino" />
+            <div class="menu-card-info">
+              <p class="menu-card-name">Cappuccino</p>
+              <p class="menu-card-price">₹160</p>
+            </div>
+            <button class="menu-card-add" aria-label="Add Cappuccino">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </article>
+          <!-- Card 3 -->
+          <article class="menu-card" id="card-3" style="--delay: 0.2s;">
+            <img class="menu-card-img" src="https://images.unsplash.com/photo-1511920170033-f8396924c348?auto=format&fit=crop&w=400&q=75" alt="Cold Brew" />
+            <div class="menu-card-info">
+              <p class="menu-card-name">Cold Brew</p>
+              <p class="menu-card-price">₹200</p>
+            </div>
+            <button class="menu-card-add" aria-label="Add Cold Brew">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </article>
+          <!-- Card 4 -->
+          <article class="menu-card" id="card-4" style="--delay: 0.3s;">
+            <img class="menu-card-img" src="https://images.unsplash.com/photo-1542110319-4f7f8e2c8c8d?auto=format&fit=crop&w=400&q=75" alt="Matcha Latte" />
+            <div class="menu-card-info">
+              <p class="menu-card-name">Matcha Latte</p>
+              <p class="menu-card-price">₹220</p>
+            </div>
+            <button class="menu-card-add" aria-label="Add Matcha Latte">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </article>
+          <!-- Card 5 -->
+          <article class="menu-card" id="card-5" style="--delay: 0.4s;">
+            <img class="menu-card-img" src="https://images.unsplash.com/photo-1551024506-0bccd828d307?auto=format&fit=crop&w=400&q=75" alt="Croissant" />
+            <div class="menu-card-info">
+              <p class="menu-card-name">Butter Croissant</p>
+              <p class="menu-card-price">₹120</p>
+            </div>
+            <button class="menu-card-add" aria-label="Add Butter Croissant">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </article>
+          <!-- Card 6 -->
+          <article class="menu-card" id="card-6" style="--delay: 0.5s;">
+            <img class="menu-card-img" src="https://images.unsplash.com/photo-1565299585323-38d6b0865b47?auto=format&fit=crop&w=400&q=75" alt="Chocolate Shake" />
+            <div class="menu-card-popular">HOT</div>
+            <div class="menu-card-info">
+              <p class="menu-card-name">Chocolate Shake</p>
+              <p class="menu-card-price">₹240</p>
+            </div>
+            <button class="menu-card-add" aria-label="Add Chocolate Shake">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </article>
+          <!-- Card 7 -->
+          <article class="menu-card" id="card-7" style="--delay: 0.6s;">
+            <img class="menu-card-img" src="https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=400&q=75" alt="Veggie Burger" />
+            <div class="menu-card-info">
+              <p class="menu-card-name">Veggie Burger</p>
+              <p class="menu-card-price">₹320</p>
+            </div>
+            <button class="menu-card-add" aria-label="Add Veggie Burger">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </article>
+          <!-- Card 8 -->
+          <article class="menu-card" id="card-8" style="--delay: 0.7s;">
+            <img class="menu-card-img" src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=400&q=75" alt="Margherita Pizza" />
+            <div class="menu-card-info">
+              <p class="menu-card-name">Margherita Pizza</p>
+              <p class="menu-card-price">₹420</p>
+            </div>
+            <button class="menu-card-add" aria-label="Add Margherita Pizza">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </article>
+        </div>
+      </section>
+
+      <!-- Scene 3: Product Modal + Cart (5.0s - 9.0s) -->
+      <section id="scene-modal" class="clip" data-start="5.0" data-duration="4.0" data-track-index="2">
+        <div class="modal-bg" id="modal-bg"></div>
+        <div class="modal-panel" id="modal-panel">
+          <div class="modal-header">
+            <h2 class="modal-title" id="modal-title">Chocolate Shake</h2>
+            <button class="modal-close" aria-label="Close">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-section">
+              <h3 class="modal-section-title">Size</h3>
+              <div class="variant-options" id="variant-options">
+                <button class="option-btn" data-variant="small">Small — ₹220</button>
+                <button class="option-btn selected" data-variant="regular">Regular — ₹240</button>
+                <button class="option-btn" data-variant="large">Large — ₹270</button>
+              </div>
+            </div>
+            <div class="modal-section">
+              <h3 class="modal-section-title">Add-ons</h3>
+              <div class="addon-options" id="addon-options">
+                <label class="addon-option">
+                  <input type="checkbox" />
+                  <span class="addon-name">Whipped Cream</span>
+                  <span class="addon-price">+₹30</span>
+                </label>
+                <label class="addon-option">
+                  <input type="checkbox" />
+                  <span class="addon-name">Chocolate Syrup</span>
+                  <span class="addon-price">+₹20</span>
+                </label>
+                <label class="addon-option">
+                  <input type="checkbox" />
+                  <span class="addon-name">Extra Espresso Shot</span>
+                  <span class="addon-price">+₹40</span>
+                </label>
+              </div>
+            </div>
+            <div class="modal-section">
+              <h3 class="modal-section-title">Quantity</h3>
+              <div class="qty-stepper">
+                <button class="qty-btn" aria-label="Decrease">−</button>
+                <span class="qty-value" id="qty-value">1</span>
+                <button class="qty-btn" aria-label="Increase">+</button>
+              </div>
+            </div>
+            <button class="modal-add-btn" id="modal-add-btn">Add to Cart — ₹240</button>
+          </div>
+        </div>
+        <!-- Cart Badge -->
+        <div class="cart-badge" id="cart-badge">
+          <button class="cart-btn" aria-label="View Cart">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1 0 8"/></svg>
+          </button>
+          <span class="badge-count" id="badge-count">1</span>
+        </div>
+        <!-- Quick Cart Drawer -->
+        <div class="drawer-bg" id="drawer-bg"></div>
+        <div class="drawer-panel" id="drawer-panel">
+          <div class="drawer-handle"></div>
+          <h3 class="drawer-title">Your Cart</h3>
+          <div class="drawer-items">
+            <div class="drawer-item">
+              <div class="drawer-item-info">
+                <span class="drawer-item-name">Chocolate Shake (Regular)</span>
+                <span class="drawer-item-qty">Qty: 1</span>
+              </div>
+              <span class="drawer-item-price">₹240</span>
+            </div>
+          </div>
+          <div class="drawer-total">
+            <span class="drawer-total-label">Total</span>
+            <span class="drawer-total-amount">₹252</span>
+          </div>
+          <button class="drawer-checkout" id="drawer-checkout">Proceed to Checkout</button>
+        </div>
+      </section>
+
+      <!-- Scene 4: Checkout (9.0s - 13.0s) -->
+      <section id="scene-checkout" class="clip" data-start="9.0" data-duration="4.0" data-track-index="3">
+        <div class="checkout-bg"></div>
+        <div class="checkout-header">
+          <h1 class="checkout-title" id="checkout-title">Pay your way</h1>
+          <p class="checkout-subtitle" id="checkout-subtitle">Choose your payment method</p>
+        </div>
+        <div class="checkout-table" id="checkout-table">
+          <span class="checkout-table-num">03</span>
+        </div>
+        <div class="checkout-payment" id="checkout-payment">
+          <button class="payment-card selected" id="payment-razorpay" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/><path d="M11 4v6"/></svg>
+            <span class="payment-label">Online Payment</span>
+            <span class="payment-sublabel">UPI, Card, Net Banking</span>
+          </button>
+          <button class="payment-card" id="payment-cash" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
+            <span class="payment-label">Cash at Counter</span>
+            <span class="payment-sublabel">Pay when you leave</span>
+          </button>
+        </div>
+        <div class="checkout-summary" id="checkout-summary">
+          <div class="summary-row"><span>Chocolate Shake × 1</span><span class="summary-amount">₹240</span></div>
+          <div class="summary-row"><span>Subtotal</span><span class="summary-amount">₹240</span></div>
+          <div class="summary-row"><span>GST (5%)</span><span class="summary-amount">₹12</span></div>
+          <div class="summary-row total"><span>Total</span><span class="summary-amount">₹252</span></div>
+        </div>
+        <button class="checkout-pay-btn" id="checkout-pay-btn">Pay ₹252</button>
+      </section>
+
+      <!-- Scene 5: Order Confirm (13.0s - 17.0s) -->
+      <section id="scene-confirm" class="clip" data-start="13.0" data-duration="4.0" data-track-index="4">
+        <div class="confirm-bg" id="confirm-bg">
+          <!-- Confetti items -->
+          <span class="confetti-item" style="left: 10%; top: 10%; animation: float 3s ease-in-out infinite;">☕</span>
+          <span class="confetti-item" style="left: 25%; top: 15%; animation: float 3.5s ease-in-out infinite 0.5s;">🍕</span>
+          <span class="confetti-item" style="left: 40%; top: 8%; animation: float 4s ease-in-out infinite 1s;">🍔</span>
+          <span class="confetti-item" style="left: 60%; top: 12%; animation: float 3.2s ease-in-out infinite 1.5s;">🎉</span>
+          <span class="confetti-item" style="left: 75%; top: 10%; animation: float 3.8s ease-in-out infinite 2s;">⭐</span>
+          <span class="confetti-item" style="left: 90%; top: 15%; animation: float 4.2s ease-in-out infinite 0.8s;">☕</span>
+          <span class="confetti-item" style="left: 5%; top: 20%; animation: float 3.6s ease-in-out infinite 1.2s;">🍕</span>
+          <span class="confetti-item" style="left: 85%; top: 22%; animation: float 3.4s ease-in-out infinite 0.3s;">🍔</span>
+        </div>
+        <style>
+          @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-30px) rotate(10deg); }
+          }
+        </style>
+        <div class="confirm-header">
+          <div class="confirm-check" id="confirm-check">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+          </div>
+          <h1 class="confirm-title" id="confirm-title">Order Confirmed!</h1>
+          <p class="confirm-subtitle" id="confirm-subtitle">Payment received. Your order is being processed!</p>
+        </div>
+        <div class="confirm-meta" id="confirm-meta">
+          <div class="meta-card">
+            <p class="meta-label">Order #</p>
+            <p class="meta-value" id="meta-order">BH-2024-0042</p>
+          </div>
+          <div class="meta-card">
+            <p class="meta-label">Table</p>
+            <p class="meta-value" id="meta-table">Table 03</p>
+          </div>
+          <div class="meta-card">
+            <p class="meta-label">Payment</p>
+            <p class="meta-value" id="meta-payment">Online</p>
+          </div>
+          <div class="meta-card">
+            <p class="meta-label">Total</p>
+            <p class="meta-value" id="meta-total">₹252</p>
+          </div>
+        </div>
+        <div class="confirm-status" id="confirm-status">
+          <div class="status-header">
+            <span class="status-icon">🔔</span>
+            <span class="status-label" id="status-label">Ready to Serve!</span>
+          </div>
+          <p class="status-sub">Est. 15–20 minutes · Updates automatically</p>
+          <div class="status-progress" id="status-progress">
+            <div class="status-step done" id="step-1"></div>
+            <div class="status-step done" id="step-2"></div>
+            <div class="status-step done" id="step-3"></div>
+            <div class="status-step fill" id="step-4"></div>
+            <div class="status-step" id="step-5"></div>
+          </div>
+          <div class="status-labels">
+            <span>Received</span>
+            <span>Confirmed</span>
+            <span>Preparing</span>
+            <span>Ready</span>
+            <span>Done</span>
+          </div>
+        </div>
+        <div class="confirm-actions" id="confirm-actions">
+          <button class="action-btn secondary" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+            View Receipt
+          </button>
+          <button class="action-btn accent" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            Track Live
+          </button>
+          <button class="action-btn secondary" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            Download
+          </button>
+        </div>
+      </section>
+
+      <!-- Scene 6: Outro (17.0s - 20.0s) -->
+      <section id="scene-outro" class="clip" data-start="17.0" data-duration="3.0" data-track-index="5">
+        <div class="outro-bg"></div>
+        <div class="outro-content">
+          <div class="outro-logo" id="outro-logo">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+          </div>
+          <h1 class="outro-title" id="outro-title">Brewhaus Café</h1>
+          <p class="outro-tagline" id="outro-tagline">Scan. Sip. Sorted.</p>
+          <p class="outro-url" id="outro-url">brewhaus.cafe</p>
+        </div>
+      </section>
+    </div>
+    <script>
+      const tl = gsap.timeline({ paused: true });
+
+      // ========== SCENE 1: HERO (0.0 - 2.0s) ==========
+      // Hero video plays automatically (autoplay muted loop)
+      tl.from("#hero-tagline", { y: 20, opacity: 0, duration: 0.6, ease: "power3.out" }, 0.2);
+      tl.from("#hero-title", { y: 20, opacity: 0, duration: 0.8, ease: "power3.out" }, 0.3);
+      tl.from("#phone-mockup", { x: 100, rotation: -5, opacity: 0, duration: 1.0, ease: "power3.out" }, 0.4);
+      tl.from("#hero-table-pill", { y: 20, scale: 0.9, opacity: 0, duration: 0.6, ease: "back.out(1.7)" }, 1.0);
+      tl.from("#hero-cta", { y: 20, opacity: 0, duration: 0.6, ease: "power3.out" }, 1.4);
+
+      // ========== SCENE 2: MENU REVEAL (2.0 - 5.0s) ==========
+      tl.from("#menu-title", { y: 20, opacity: 0, duration: 0.5, ease: "power3.out" }, 2.1);
+      tl.from("#menu-subtitle", { y: 10, opacity: 0, duration: 0.4, ease: "power3.out" }, 2.3);
+      // Stagger menu cards
+      for (let i = 1; i <= 8; i++) {
+        const delay = 2.3 + (i - 1) * 0.12;
+        tl.from(`#card-${i}`, { y: 30, scale: 0.95, opacity: 0, duration: 0.5, ease: "back.out(1.5)" }, delay);
+      }
+
+      // ========== SCENE 3: MODAL + CART (5.0 - 9.0s) ==========
+      tl.from("#modal-bg", { opacity: 0, duration: 0.3, ease: "power2.out" }, 5.0);
+      tl.from("#modal-panel", { scale: 0.9, opacity: 0, duration: 0.5, ease: "back.out(1.7)" }, 5.1);
+      tl.from("#modal-title", { y: 10, opacity: 0, duration: 0.3, ease: "power2.out" }, 5.3);
+      tl.from("#variant-options .option-btn", { y: 10, opacity: 0, duration: 0.3, stagger: 0.08, ease: "power2.out" }, 5.5);
+      tl.from("#addon-options .addon-option", { y: 10, opacity: 0, duration: 0.3, stagger: 0.08, ease: "power2.out" }, 5.8);
+      tl.from(".qty-stepper > *", { y: 10, opacity: 0, duration: 0.3, stagger: 0.08, ease: "power2.out" }, 6.1);
+      tl.from("#modal-add-btn", { y: 10, opacity: 0, duration: 0.3, ease: "power2.out" }, 6.3);
+      // Cart badge spring
+      tl.from("#badge-count", { scale: 0, duration: 0.4, ease: "elastic.out(1, 0.5)" }, 6.5);
+      // Drawer slide up
+      tl.to("#drawer-bg", { opacity: 1, duration: 0.3, ease: "power2.out" }, 6.9);
+      tl.to("#drawer-panel", { y: 0, duration: 0.5, ease: "power3.out" }, 7.0);
+      tl.from(".drawer-title, .drawer-item, .drawer-total, .drawer-checkout", { y: 20, opacity: 0, duration: 0.3, stagger: 0.08, ease: "power2.out" }, 7.2);
+
+      // ========== SCENE 4: CHECKOUT (9.0 - 13.0s) ==========
+      tl.from("#checkout-title", { y: 20, opacity: 0, duration: 0.5, ease: "power3.out" }, 9.1);
+      tl.from("#checkout-subtitle", { y: 10, opacity: 0, duration: 0.4, ease: "power3.out" }, 9.2);
+      tl.from("#checkout-table", { y: 20, opacity: 0, duration: 0.5, ease: "back.out(1.7)" }, 9.3);
+      tl.from("#payment-razorpay", { y: 20, opacity: 0, duration: 0.4, ease: "back.out(1.7)" }, 9.4);
+      tl.from("#payment-cash", { y: 20, opacity: 0, duration: 0.4, ease: "back.out(1.7)" }, 9.5);
+      // Payment selection highlight animation
+      tl.to("#payment-razorpay", { scale: 1.02, duration: 0.15, ease: "power2.out" }, 9.8);
+      tl.to("#payment-razorpay", { scale: 1, duration: 0.15, ease: "power2.in" }, 9.95);
+      tl.from("#checkout-summary > *", { y: 10, opacity: 0, duration: 0.3, stagger: 0.08, ease: "power2.out" }, 10.1);
+      tl.from("#checkout-pay-btn", { y: 20, opacity: 0, duration: 0.5, ease: "back.out(1.7)" }, 10.5);
+      // Press pay button
+      tl.to("#checkout-pay-btn", { scale: 0.98, duration: 0.1, ease: "power2.in" }, 12.0);
+      tl.to("#checkout-pay-btn", { scale: 1, duration: 0.2, ease: "power2.out" }, 12.1);
+
+      // ========== SCENE 5: ORDER CONFIRM (13.0 - 17.0s) ==========
+      // Confetti items animate via CSS
+      tl.from("#confirm-check", { scale: 0, duration: 0.6, ease: "elastic.out(1, 0.5)" }, 13.1);
+      tl.from("#confirm-title", { y: 20, opacity: 0, duration: 0.5, ease: "power3.out" }, 13.3);
+      tl.from("#confirm-subtitle", { y: 10, opacity: 0, duration: 0.4, ease: "power3.out" }, 13.5);
+      tl.from("#confirm-meta .meta-card", { y: 20, opacity: 0, duration: 0.4, stagger: 0.08, ease: "back.out(1.7)" }, 13.7);
+      tl.from("#status-label", { y: 10, opacity: 0, duration: 0.3, ease: "power2.out" }, 14.1);
+      tl.from("#status-sub", { y: 10, opacity: 0, duration: 0.3, ease: "power2.out" }, 14.2);
+      // Progress bar steps
+      tl.from("#status-progress .status-step", { scaleX: 0, transformOrigin: "left center", duration: 0.3, stagger: 0.15, ease: "power2.out" }, 14.3);
+      tl.from("#status-labels span", { y: 10, opacity: 0, duration: 0.2, stagger: 0.05, ease: "power2.out" }, 14.8);
+      tl.from("#confirm-actions .action-btn", { y: 20, opacity: 0, duration: 0.4, stagger: 0.08, ease: "back.out(1.7)" }, 15.0);
+
+      // ========== SCENE 6: OUTRO (17.0 - 20.0s) ==========
+      tl.from("#outro-logo", { scale: 0, duration: 0.6, ease: "elastic.out(1, 0.5)" }, 17.1);
+      tl.from("#outro-title", { y: 20, opacity: 0, duration: 0.5, ease: "power3.out" }, 17.5);
+      tl.from("#outro-tagline", { y: 20, opacity: 0, duration: 0.5, ease: "power3.out" }, 17.8);
+      tl.from("#outro-url", { y: 20, opacity: 0, duration: 0.5, ease: "power3.out" }, 18.1);
+      // Fade out music handled by data-volume tween
+      tl.to("#bg-music", { volume: 0, duration: 2.0, ease: "power2.in" }, 17.0);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

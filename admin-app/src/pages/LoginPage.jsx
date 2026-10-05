@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTenant } from '../context/TenantContext';
 
 export default function LoginPage() {
+  const tenant = useTenant();
   const { login } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -24,9 +28,10 @@ export default function LoginPage() {
     setError('');
 
     try {
-      await login(email, password);
+      await login(email, password, twoFactorCode);
       navigate('/dashboard', { replace: true });
     } catch (err) {
+      if (err.code === 'TWO_FACTOR_REQUIRED') setRequiresTwoFactor(true);
       setError(err.message || 'Unable to sign in. Please try again.');
     } finally {
       setLoading(false);
@@ -47,9 +52,9 @@ export default function LoginPage() {
       >
         <div className="mb-8 text-center">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-2xl font-bold text-white shadow-lg shadow-orange-500/30">
-            B
+            {tenant.name?.charAt(0)?.toUpperCase() || 'C'}
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-stone-900">Brewhaus Admin</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-stone-900">{tenant.name} Admin</h1>
           <p className="mt-2 text-sm text-stone-500">Secure café operations dashboard</p>
         </div>
 
@@ -62,7 +67,7 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
               className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3.5 text-sm text-stone-800 placeholder:text-stone-400 focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-orange-100"
-              placeholder="admin@brewhaus.com"
+              placeholder="name@example.com"
             />
           </div>
 
@@ -87,6 +92,8 @@ export default function LoginPage() {
             </div>
           </div>
 
+          {requiresTwoFactor && <div><label htmlFor="two-factor-code" className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">Authenticator code</label><input id="two-factor-code" inputMode="numeric" autoComplete="one-time-code" value={twoFactorCode} onChange={(event) => setTwoFactorCode(event.target.value.replace(/\D/g, '').slice(0, 6))} className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3.5 text-sm focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-orange-100" placeholder="6-digit code" /></div>}
+
           {error && (
             <div className="flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
               <AlertCircle size={16} className="mt-0.5 shrink-0" />
@@ -102,8 +109,11 @@ export default function LoginPage() {
             {loading ? <><Loader2 size={16} className="animate-spin" /> Signing in...</> : 'Sign in'}
           </button>
 
-          <div className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-center text-xs text-stone-500">
-            Demo account: <span className="font-medium text-stone-700">admin@brewhaus.com</span> / <span className="font-medium text-stone-700">admin123</span>
+          <div className="text-center pt-2 text-xs text-stone-500">
+            Opening a new café?{' '}
+            <Link to="/signup" className="font-semibold text-amber-700 hover:underline">
+              Start 14-day free trial
+            </Link>
           </div>
         </form>
       </motion.div>

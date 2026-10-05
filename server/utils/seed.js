@@ -5,6 +5,7 @@ import Category from '../models/Category.js';
 import Product from '../models/Product.js';
 import Table from '../models/Table.js';
 import QRCode from 'qrcode';
+import { createTableQrToken } from './tableQr.js';
 
 dotenv.config();
 
@@ -43,14 +44,9 @@ const seed = async () => {
     ]);
     console.log('Cleared existing data');
 
-    // Create admin
-    const admin = await User.create({
-      name: 'Admin',
-      email: 'admin@brewhaus.com',
-      password: 'admin123',
-      role: 'admin',
-    });
-    console.log('✅ Admin created — admin@brewhaus.com / admin123');
+    // Admin creation is now handled via the secure setup endpoint (POST /api/auth/setup)
+    // which requires ADMIN_SETUP_SECRET. This prevents default credentials in production.
+    console.log('⚠️  Skipping admin creation — use POST /api/auth/setup with ADMIN_SETUP_SECRET to create the first owner account.');
 
     // Create categories
     const cats = await Category.insertMany(categories);
@@ -144,16 +140,19 @@ const seed = async () => {
     // Create tables with QR codes
     const tableDocs = [];
     for (let i = 1; i <= 10; i++) {
-      const url = `${BASE_URL}/menu?table=${i}`;
+      const table = new Table({ tableNumber: i, seats: i <= 2 ? 2 : i <= 6 ? 4 : 6 });
+      const url = `${BASE_URL}/menu?tableToken=${encodeURIComponent(createTableQrToken(table._id))}`;
       const qrCode = await QRCode.toDataURL(url, {
         width: 400, margin: 2,
         color: { dark: '#1a0f08', light: '#FFFFFF' },
         errorCorrectionLevel: 'H',
       });
-      tableDocs.push({ tableNumber: i, qrCode, qrUrl: url, seats: i <= 2 ? 2 : i <= 6 ? 4 : 6 });
+      table.qrCode = qrCode;
+      table.qrUrl = url;
+      tableDocs.push(table);
     }
 
-    await Table.insertMany(tableDocs);
+    await Table.insertMany(tableDocs.map((table) => table.toObject()));
     console.log('✅ 10 tables with QR codes created');
 
     console.log('\n🎉 Database seeded successfully!');

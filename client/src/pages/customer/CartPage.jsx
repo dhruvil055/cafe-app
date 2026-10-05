@@ -3,17 +3,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Trash2, Plus, Minus, ShoppingBag, QrCode, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useCartStore, { cartItemCount } from '../../context/cartStore';
+import { useTenant } from '../../context/TenantContext';
+import { formatMoney } from '../../utils/money';
 import QrScannerModal from '../../components/ui/QrScannerModal';
 
 const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=200&q=70';
 
 export default function CartPage() {
+  const tenant = useTenant();
   const navigate = useNavigate();
   const { items, tableNumber, removeItem, updateQuantity, clearCart, isScannerOpen, openScanner, closeScanner } = useCartStore();
   const itemCount = useCartStore(cartItemCount);
 
   const subtotal = items.reduce((s, i) => s + i.itemTotal, 0);
-  const tax = Math.round(subtotal * 0.05);
+  const tax = Number((subtotal * Number(tenant.taxRate || 0) / 100).toFixed(2));
   const total = subtotal + tax;
 
   const handleProceedCheckout = () => {
@@ -162,7 +165,7 @@ export default function CartPage() {
 
                     <div className="flex items-center gap-2">
                       <span className="price-tag text-sm font-semibold">
-                        {String.fromCharCode(8377)}{item.itemTotal}
+                        {formatMoney(item.itemTotal, tenant.currency)}
                       </span>
                       <button
                         onClick={() => removeItem(item.key)}
@@ -184,15 +187,15 @@ export default function CartPage() {
         <div className="space-y-1">
           <div className="flex justify-between text-sm text-espresso-600">
             <span>Subtotal</span>
-            <span className="price-tag text-sm">{String.fromCharCode(8377)}{subtotal}</span>
+            <span className="price-tag text-sm">{formatMoney(subtotal, tenant.currency)}</span>
           </div>
           <div className="flex justify-between text-sm text-espresso-600">
-            <span>GST (5%)</span>
-            <span className="price-tag text-sm">{String.fromCharCode(8377)}{tax}</span>
+            <span>GST ({tenant.taxRate}%)</span>
+            <span className="price-tag text-sm">{formatMoney(tax, tenant.currency)}</span>
           </div>
           <div className="flex justify-between font-bold text-espresso-900 text-base pt-1 border-t border-foam">
             <span>Total</span>
-            <span className="price-tag text-base">{String.fromCharCode(8377)}{total}</span>
+            <span className="price-tag text-base">{formatMoney(total, tenant.currency)}</span>
           </div>
         </div>
 

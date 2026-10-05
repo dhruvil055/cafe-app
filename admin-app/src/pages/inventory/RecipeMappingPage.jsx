@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import { useTenant } from '../../context/TenantContext';
+import { formatMoney } from '../../utils/money';
 
 const UNIT_LABELS = {
   piece: 'pcs', cup: 'cups', glass: 'glasses', bottle: 'bottles',
@@ -13,6 +15,7 @@ const UNIT_LABELS = {
 };
 
 export default function RecipeMappingPage() {
+  const tenant = useTenant();
   const [products, setProducts] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
   const [mappings, setMappings] = useState([]);
@@ -299,7 +302,7 @@ export default function RecipeMappingPage() {
                       )}
                       <div className="truncate">
                         <div className="truncate text-xs font-semibold text-stone-900">{p.name}</div>
-                        <div className="text-[11px] text-stone-500">₹{p.price}</div>
+                        <div className="text-[11px] text-stone-500">{formatMoney(p.price, tenant.currency)}</div>
                       </div>
                     </div>
 
@@ -348,7 +351,7 @@ export default function RecipeMappingPage() {
                     <div>
                       <h3 className="font-display text-lg font-bold text-espresso-900">{currentProduct.name}</h3>
                       <div className="flex items-center gap-3 text-xs text-stone-500 mt-0.5">
-                        <span>Price: <strong className="text-stone-700">₹{currentProduct.price}</strong></span>
+                        <span>Price: <strong className="text-stone-700">{formatMoney(currentProduct.price, tenant.currency)}</strong></span>
                         <span>• Status: {currentProduct.available ? (
                           <span className="font-medium text-emerald-600">Active</span>
                         ) : (

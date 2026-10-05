@@ -14,10 +14,13 @@ import {
   Trash2,
 } from 'lucide-react';
 import useCartStore from '../../context/cartStore';
+import { useTenant } from '../../context/TenantContext';
+import { formatMoney } from '../../utils/money';
 
 const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=200&q=80';
 
 export default function QuickCartPopup() {
+  const tenant = useTenant();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -37,7 +40,7 @@ export default function QuickCartPopup() {
 
   const itemCount = items.reduce((s, i) => s + i.quantity, 0);
   const subtotal = items.reduce((s, i) => s + i.itemTotal, 0);
-  const tax = Math.round(subtotal * 0.05);
+  const tax = Number((subtotal * Number(tenant.taxRate || 0) / 100).toFixed(2));
   const total = subtotal + tax;
 
   // Find the last added item or the first item
@@ -160,7 +163,7 @@ export default function QuickCartPopup() {
                           {recentItem.name}
                         </h4>
                         <span className="price-tag text-sm font-bold text-espresso-950 flex-shrink-0">
-                          ₹{recentItem.itemTotal}
+                          {formatMoney(recentItem.itemTotal, tenant.currency)}
                         </span>
                       </div>
 
@@ -252,7 +255,7 @@ export default function QuickCartPopup() {
                                   </p>
                                 </div>
                                 <span className="font-semibold text-espresso-900">
-                                  ₹{item.itemTotal}
+                                  {formatMoney(item.itemTotal, tenant.currency)}
                                 </span>
                               </div>
                             ))}
@@ -268,7 +271,7 @@ export default function QuickCartPopup() {
             <div className="border-t border-foam bg-cream/60 p-4">
               <div className="flex items-center justify-between pb-3 text-xs">
                 <span className="text-espresso-600 font-medium">Cart Total (incl. tax)</span>
-                <span className="font-mono text-lg font-bold text-espresso-950">₹{total}</span>
+                <span className="font-mono text-lg font-bold text-espresso-950">{formatMoney(total, tenant.currency)}</span>
               </div>
 
               <div className="grid grid-cols-2 gap-2">

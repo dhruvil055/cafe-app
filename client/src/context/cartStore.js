@@ -6,12 +6,13 @@ const useCartStore = create(
     (set, get) => ({
       items: [],
       tableNumber: null,
+      tableToken: null,
       diningSessionToken: null,
       recentOrders: [],
       isQuickCartOpen: false,
       lastAddedItemKey: null,
 
-      setTable: (num) => set({ tableNumber: Number(num) }),
+      setTable: (num, token = null) => set({ tableNumber: Number(num), tableToken: token }),
       setDiningSessionToken: (token) => set({ diningSessionToken: token }),
 
       addRecentOrder: (orderInfo) =>
@@ -39,7 +40,7 @@ const useCartStore = create(
           return false;
         }
 
-        const key = `${product._id}-${JSON.stringify(addons)}-${variant?.name || ''}`;
+        const key = `${product._id}-${JSON.stringify(addons)}-${variant?.name || ''}-${specialInstructions.trim()}`;
 
         const basePrice = variant ? variant.price : product.price;
         const addonTotal = addons.reduce((s, a) => s + a.price, 0);
@@ -93,12 +94,14 @@ const useCartStore = create(
       },
 
       clearCart: () => set({ items: [] }),
-      resetTable: () => set({ tableNumber: null, diningSessionToken: null }),
+      resetTable: () => set({ tableNumber: null, tableToken: null, diningSessionToken: null }),
     }),
     {
       name: 'brewhaus-cart',
       partialize: (state) => ({
         items: state.items,
+        tableNumber: state.tableNumber,
+        tableToken: state.tableToken,
         recentOrders: state.recentOrders,
         diningSessionToken: state.diningSessionToken,
       }),
@@ -107,7 +110,8 @@ const useCartStore = create(
         items: Array.isArray(persistedState?.items) ? persistedState.items : [],
         recentOrders: Array.isArray(persistedState?.recentOrders) ? persistedState.recentOrders : [],
         diningSessionToken: typeof persistedState?.diningSessionToken === 'string' ? persistedState.diningSessionToken : null,
-        tableNumber: null, // Always require scanning/table confirmation
+        tableNumber: Number.isInteger(persistedState?.tableNumber) ? persistedState.tableNumber : null,
+        tableToken: typeof persistedState?.tableToken === 'string' ? persistedState.tableToken : null,
       }),
     }
   )

@@ -1,6 +1,6 @@
 import express from 'express';
 import mongoose from 'mongoose';
-import { protect, staffOrAdmin, adminOnly } from '../middleware/auth.js';
+import { protect, ownerOrManager } from '../middleware/auth.js';
 import InventoryCategory from '../models/InventoryCategory.js';
 import InventoryItem, { INVENTORY_UNITS } from '../models/InventoryItem.js';
 import MenuInventoryMapping from '../models/MenuInventoryMapping.js';
@@ -42,7 +42,7 @@ router.get('/availability', async (req, res) => {
 
 // ─── ADMIN MIDDLEWARE ───────────────────────────────────────────────────────────
 // All routes below require authentication
-router.use(protect, staffOrAdmin);
+router.use(protect, ownerOrManager);
 
 // ─── DASHBOARD ──────────────────────────────────────────────────────────────────
 
@@ -110,7 +110,7 @@ router.get('/categories', async (req, res) => {
       ];
       try {
         await InventoryCategory.insertMany(defaults, { ordered: false });
-      } catch (_) {}
+      } catch (_) { /* Another request may have inserted the same default categories. */ }
       categories = await InventoryCategory.find().sort({ sortOrder: 1, name: 1 }).lean();
     }
     return res.json({ categories });
@@ -119,7 +119,7 @@ router.get('/categories', async (req, res) => {
   }
 });
 
-router.post('/categories', adminOnly, async (req, res) => {
+router.post('/categories', ownerOrManager, async (req, res) => {
   try {
     const { name, description, icon, sortOrder } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'Category name is required.' });
@@ -131,7 +131,7 @@ router.post('/categories', adminOnly, async (req, res) => {
   }
 });
 
-router.put('/categories/:id', adminOnly, async (req, res) => {
+router.put('/categories/:id', ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid ID.' });
     const { name, description, icon, sortOrder, active } = req.body;
@@ -199,7 +199,7 @@ router.get('/items', async (req, res) => {
 /**
  * POST /api/inventory/items — Create inventory item
  */
-router.post('/items', adminOnly, async (req, res) => {
+router.post('/items', ownerOrManager, async (req, res) => {
   try {
     const {
       name, sku, category, unit, currentQuantity,
@@ -314,7 +314,7 @@ router.get('/items/:id', async (req, res) => {
 /**
  * PUT /api/inventory/items/:id — Update item metadata (not stock quantity)
  */
-router.put('/items/:id', adminOnly, async (req, res) => {
+router.put('/items/:id', ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid ID.' });
     const allowed = ['name', 'sku', 'category', 'unit', 'minimumStock', 'maximumStock', 'reorderLevel', 'costPerUnit', 'supplier', 'description', 'active'];
@@ -335,7 +335,7 @@ router.put('/items/:id', adminOnly, async (req, res) => {
 /**
  * DELETE /api/inventory/items/:id — Soft-delete (deactivate)
  */
-router.delete('/items/:id', adminOnly, async (req, res) => {
+router.delete('/items/:id', ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid ID.' });
     const item = await InventoryItem.findByIdAndUpdate(req.params.id, { active: false }, { new: true });
@@ -570,7 +570,7 @@ router.get('/mappings/:productId', async (req, res) => {
 /**
  * POST /api/inventory/mappings — Create a mapping
  */
-router.post('/mappings', adminOnly, async (req, res) => {
+router.post('/mappings', ownerOrManager, async (req, res) => {
   try {
     const { productId, inventoryItemId, quantityRequired, notes } = req.body;
     if (!mongoose.isValidObjectId(productId)) return res.status(400).json({ error: 'Valid product ID required.' });
@@ -605,7 +605,7 @@ router.post('/mappings', adminOnly, async (req, res) => {
 /**
  * PUT /api/inventory/mappings/:id — Update mapping
  */
-router.put('/mappings/:id', adminOnly, async (req, res) => {
+router.put('/mappings/:id', ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid ID.' });
     const { quantityRequired, active, notes } = req.body;
@@ -633,7 +633,7 @@ router.put('/mappings/:id', adminOnly, async (req, res) => {
 /**
  * DELETE /api/inventory/mappings/:id — Delete mapping
  */
-router.delete('/mappings/:id', adminOnly, async (req, res) => {
+router.delete('/mappings/:id', ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid ID.' });
     const mapping = await MenuInventoryMapping.findByIdAndDelete(req.params.id);

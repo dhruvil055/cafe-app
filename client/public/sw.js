@@ -1,4 +1,34 @@
-// Production Service Worker for Brewhaus Café Web Push Notifications (Phase 5)
+// Production service worker for the Brewhaus customer PWA and push notifications.
+const SHELL_CACHE = 'brewhaus-customer-shell-v1';
+const SHELL_FILES = ['/', '/offline.html', '/manifest.webmanifest', '/app-icon.svg'];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_FILES)).catch(() => {}));
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith('brewhaus-customer-shell-') && key !== SHELL_CACHE).map((key) => caches.delete(key)))));
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin || new URL(request.url).pathname.startsWith('/api/')) return;
+  if (request.mode === 'navigate') {
+    event.respondWith(fetch(request).then((response) => {
+      if (response.ok) caches.open(SHELL_CACHE).then((cache) => cache.put('/', response.clone()));
+      return response;
+    }).catch(async () => (await caches.match(request)) || (await caches.match('/')) || caches.match('/offline.html')));
+    return;
+  }
+  if (/\.(?:js|css|svg|webmanifest|webp|png|woff2?)$/i.test(new URL(request.url).pathname)) {
+    event.respondWith(caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+      if (response.ok) caches.open(SHELL_CACHE).then((cache) => cache.put(request, response.clone()));
+      return response;
+    })));
+  }
+});
 
 self.addEventListener('push', (event) => {
   if (!event.data) return;

@@ -6,6 +6,7 @@ import api from '../../services/api';
 import useCartStore from '../../context/cartStore';
 import { downloadPdf } from '../../utils/download';
 import CustomerNotificationStatus from '../../components/ui/CustomerNotificationStatus';
+import { useTenant } from '../../context/TenantContext';
 
 const STATUS = {
   pending: { label: 'Order received', detail: 'Waiting for the cafe to confirm your order.', tone: 'border-amber-200 bg-amber-50 text-amber-800' },
@@ -27,12 +28,17 @@ const PAYMENT = {
 };
 
 export default function OrdersPage() {
+  const tenant = useTenant();
   const { diningSessionToken, tableNumber, recentOrders = [] } = useCartStore();
   const [orders, setOrders] = useState([]);
   const [bill, setBill] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [ratingOrder, setRatingOrder] = useState(null);
+  const [ratingScore, setRatingScore] = useState(5);
+  const [ratingComment, setRatingComment] = useState('');
+  const [ratingSaving, setRatingSaving] = useState(false);
 
   const loadOrders = async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
@@ -77,12 +83,25 @@ export default function OrdersPage() {
         ? `/session/bill/receipt?diningSessionToken=${encodeURIComponent(diningSessionToken)}`
         : `/orders/${orderId}/receipt?accessToken=${encodeURIComponent(accessToken)}`;
       const response = await api.get(endpoint, { responseType: 'blob' });
-      downloadPdf(response.data, `brewhaus-receipt-${orderId || 'session'}.pdf`);
+      const slug = (tenant.slug || tenant.name || 'cafe').toLowerCase().replace(/[^a-z0-9]/g, '-');
+      downloadPdf(response.data, `${slug}-receipt-${orderId || 'session'}.pdf`);
     } catch (error) {
       toast.error(error.message || 'Unable to download receipt');
     } finally {
       setDownloadingId(null);
     }
+  };
+
+  const submitRating = async (order, accessToken) => {
+    setRatingSaving(true);
+    try {
+      const { data } = await api.post(`/orders/${order._id}/rating`, { accessToken, score: ratingScore, comment: ratingComment });
+      setOrders((current) => current.map((entry) => entry._id === order._id ? { ...entry, rating: data.rating } : entry));
+      setRatingOrder(null);
+      setRatingComment('');
+      toast.success('Thanks for rating your order.');
+    } catch (error) { toast.error(error.message || 'Unable to submit rating.'); }
+    finally { setRatingSaving(false); }
   };
 
   if (loading) {
@@ -206,6 +225,24 @@ export default function OrdersPage() {
                         <Download size={13} className="mr-1" />
                         {downloadingId === order._id ? 'Downloading...' : 'Receipt'}
                       </button>
+                    </div>
+                  )}
+                  {order.orderStatus === 'completed' && order.paymentStatus === 'paid' && (
+                    <div className="mt-3 border-t border-foam pt-3">
+                      {order.rating?.submittedAt ? (
+                        <p className="text-xs font-medium text-brew-700">You rated this order {order.rating.score}/5{order.rating.comment ? ` — ${order.rating.comment}` : ''}</p>
+                      ) : orderToken ? (
+                        ratingOrder === order._id ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1" aria-label="Choose a rating from one to five stars">
+                              {[1, 2, 3, 4, 5].map((score) => <button key={score} type="button" onClick={() => setRatingScore(score)} className={`min-h-10 min-w-10 text-2xl ${score <= ratingScore ? 'text-amber-500' : 'text-stone-300'}`} aria-label={`${score} stars`}>★</button>)}
+                            </div>
+                            <label className="sr-only" htmlFor={`rating-comment-${order._id}`}>Optional feedback</label>
+                            <textarea id={`rating-comment-${order._id}`} value={ratingComment} onChange={(event) => setRatingComment(event.target.value.slice(0, 500))} className="input-field min-h-20 w-full" placeholder="Share feedback (optional)" maxLength={500} />
+                            <div className="flex gap-2"><button onClick={() => submitRating(order, orderToken)} disabled={ratingSaving} className="btn-primary px-3 py-2 text-xs disabled:opacity-60">{ratingSaving ? 'Submitting…' : 'Submit rating'}</button><button onClick={() => setRatingOrder(null)} className="btn-secondary px-3 py-2 text-xs">Cancel</button></div>
+                          </div>
+                        ) : <button onClick={() => { setRatingOrder(order._id); setRatingScore(5); }} className="text-xs font-semibold text-brew-700 hover:underline">Rate your order</button>
+                      ) : <p className="text-xs text-stone-500">Reopen this order from this device to submit a rating.</p>}
                     </div>
                   )}
                 </article>

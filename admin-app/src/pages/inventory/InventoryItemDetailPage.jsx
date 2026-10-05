@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import { useTenant } from '../../context/TenantContext';
+import { formatMoney } from '../../utils/money';
 
 const UNIT_LABELS = {
   piece: 'pcs', cup: 'cups', glass: 'glasses', bottle: 'bottles',
@@ -54,6 +56,7 @@ const EMPTY_WASTE_FORM = { quantity: '', type: 'waste', reason: 'Damaged', notes
 const WASTE_REASONS = ['Damaged', 'Expired', 'Spilled', 'Broken', 'Incorrect preparation', 'Other'];
 
 export default function InventoryItemDetailPage() {
+  const tenant = useTenant();
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
@@ -261,11 +264,11 @@ export default function InventoryItemDetailPage() {
           <div className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Cost & Value</div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="font-display text-3xl font-extrabold text-stone-900">
-              ₹{stockValue}
+              {formatMoney(stockValue, tenant.currency)}
             </span>
           </div>
           <div className="mt-2 text-xs text-stone-400">
-            Unit Cost: ₹{item.costPerUnit || 0} / {unitLabel}
+            Unit Cost: {formatMoney(item.costPerUnit, tenant.currency)} / {unitLabel}
           </div>
         </div>
 
@@ -403,7 +406,7 @@ export default function InventoryItemDetailPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-stone-600">Cost Per Unit (₹)</label>
+                  <label className="block text-xs font-semibold text-stone-600">Cost Per Unit ({tenant.currency})</label>
                   <input
                     type="number"
                     step="any"

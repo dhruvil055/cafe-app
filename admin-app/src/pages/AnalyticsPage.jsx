@@ -6,9 +6,11 @@ import {
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, ShoppingBag, DollarSign,
-  Package, Tag, Clock, BarChart2, RefreshCw,
+  Package, Tag, Clock, BarChart2, RefreshCw, Download,
 } from 'lucide-react';
 import api from '../services/api';
+import { useTenant } from '../context/TenantContext';
+import { formatMoney } from '../utils/money';
 
 /* ─── colour tokens ──────────────────────────────────────────── */
 const C = {
@@ -87,6 +89,7 @@ const CustomTooltip = ({ active, payload, label, prefix = '', suffix = '' }) => 
 
 /* ─── main page ──────────────────────────────────────────────── */
 export default function AnalyticsPage() {
+  const tenant = useTenant();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -108,6 +111,18 @@ export default function AnalyticsPage() {
   useEffect(() => { load(); }, []);
 
   const refresh = () => { setRefreshing(true); load(); };
+
+  const downloadReport = async (path, filename) => {
+    try {
+      const { data } = await api.get(path, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([data], { type: 'text/csv;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) { setError(err.message || 'Unable to download report.'); }
+  };
 
   if (loading) {
     return (
@@ -166,18 +181,20 @@ export default function AnalyticsPage() {
           <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
           Refresh
         </button>
+        <button onClick={() => downloadReport('/analytics/exports/sales.csv', `brewhaus-sales-${new Date().toISOString().slice(0, 10)}.csv`)} className="btn-secondary ml-2 inline-flex items-center gap-2 px-3 py-2 text-xs"><Download size={14} /> Sales CSV</button>
+        <button onClick={() => downloadReport('/analytics/reports/gst.csv', `brewhaus-gst-${new Date().toISOString().slice(0, 10)}.csv`)} className="btn-secondary ml-2 inline-flex items-center gap-2 px-3 py-2 text-xs"><Download size={14} /> GST report</button>
       </div>
 
       {/* ── KPI cards ── */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard icon={ShoppingBag}  label="Today's Orders"      value={kpi.todayOrders}           tone="text-sky-600"     />
-        <KpiCard icon={DollarSign}   label="Today's Revenue"     value={`₹${kpi.todayRevenue.toLocaleString('en-IN')}`}  tone="text-emerald-600" />
-        <KpiCard icon={TrendingUp}   label="This Month Revenue"  value={`₹${kpi.thisMonthRevenue.toLocaleString('en-IN')}`} tone="text-brew-600"  growth={kpi.revenueGrowth} />
-        <KpiCard icon={Clock}        label="Avg Order Value"     value={`₹${kpi.avgOrderValue}`}   tone="text-violet-600" sub={`${kpi.thisMonthOrders} orders this month`} />
+        <KpiCard icon={DollarSign}   label="Today's Revenue"     value={formatMoney(kpi.todayRevenue, tenant.currency)}  tone="text-emerald-600" />
+        <KpiCard icon={TrendingUp}   label="This Month Revenue"  value={formatMoney(kpi.thisMonthRevenue, tenant.currency)} tone="text-brew-600"  growth={kpi.revenueGrowth} />
+        <KpiCard icon={Clock}        label="Avg Order Value"     value={formatMoney(kpi.avgOrderValue, tenant.currency)}   tone="text-violet-600" sub={`${kpi.thisMonthOrders} orders this month`} />
         <KpiCard icon={ShoppingBag}  label="Total Orders (All)"  value={kpi.totalOrders.toLocaleString('en-IN')}          tone="text-amber-600"  />
         <KpiCard icon={Package}      label="Menu Items"          value={kpi.totalProducts}          tone="text-rose-500"   />
         <KpiCard icon={Tag}          label="Categories"          value={kpi.totalCategories}        tone="text-indigo-500" />
-        <KpiCard icon={DollarSign}   label="Last Month Revenue"  value={`₹${kpi.lastMonthRevenue.toLocaleString('en-IN')}`} tone="text-stone-500" />
+        <KpiCard icon={DollarSign}   label="Last Month Revenue"  value={formatMoney(kpi.lastMonthRevenue, tenant.currency)} tone="text-stone-500" />
       </div>
 
       {/* ── Monthly Revenue (12 months) ── */}
@@ -197,11 +214,11 @@ export default function AnalyticsPage() {
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1ece7" />
             <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#78716c' }} tickLine={false} axisLine={false} />
-            <YAxis yAxisId="rev" orientation="left"  tick={{ fontSize: 11, fill: '#78716c' }} tickLine={false} axisLine={false} tickFormatter={v => `₹${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} />
+            <YAxis yAxisId="rev" orientation="left"  tick={{ fontSize: 11, fill: '#78716c' }} tickLine={false} axisLine={false} tickFormatter={v => `${tenant.currency} ${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} />
             <YAxis yAxisId="ord" orientation="right" tick={{ fontSize: 11, fill: '#78716c' }} tickLine={false} axisLine={false} />
             <Tooltip content={<CustomTooltip prefix="" />} />
             <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-            <Area yAxisId="rev" type="monotone" dataKey="revenue" name="Revenue (₹)" stroke={C.brew}    strokeWidth={2.5} fill="url(#revGrad)" dot={false} />
+            <Area yAxisId="rev" type="monotone" dataKey="revenue" name={`Revenue (${tenant.currency})`} stroke={C.brew}    strokeWidth={2.5} fill="url(#revGrad)" dot={false} />
             <Area yAxisId="ord" type="monotone" dataKey="orders"  name="Orders"      stroke={C.sky}     strokeWidth={2}   fill="url(#ordGrad)" dot={false} />
           </AreaChart>
         </ResponsiveContainer>
@@ -320,7 +337,7 @@ export default function AnalyticsPage() {
                       </div>
                       {row && (
                         <div className="pl-4.5 text-xs text-stone-500">
-                          ₹{row.revenue.toLocaleString('en-IN')} revenue
+                          {formatMoney(row.revenue, tenant.currency)} revenue
                         </div>
                       )}
                     </li>
@@ -352,8 +369,8 @@ export default function AnalyticsPage() {
                   <tr key={m.label} className="hover:bg-stone-50 transition">
                     <td className="py-3 font-medium text-espresso-900">{m.label}</td>
                     <td className="py-3 text-right text-stone-700">{m.orders}</td>
-                    <td className="py-3 text-right font-semibold text-espresso-900">₹{m.revenue.toLocaleString('en-IN')}</td>
-                    <td className="py-3 text-right text-stone-500">₹{avg}</td>
+                    <td className="py-3 text-right font-semibold text-espresso-900">{formatMoney(m.revenue, tenant.currency)}</td>
+                    <td className="py-3 text-right text-stone-500">{formatMoney(avg, tenant.currency)}</td>
                   </tr>
                 );
               })}

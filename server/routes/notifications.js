@@ -6,7 +6,7 @@ import NotificationCampaign from '../models/NotificationCampaign.js';
 import NotificationDelivery from '../models/NotificationDelivery.js';
 import PushSubscription from '../models/PushSubscription.js';
 import Customer from '../models/Customer.js';
-import { protect, staffOrAdmin } from '../middleware/auth.js';
+import { ownerOrManager, protect } from '../middleware/auth.js';
 import { notificationService, CHANNELS } from '../services/notificationService.js';
 import { normalizePhoneNumber } from '../utils/phoneNormalizer.js';
 import { parseUserAgent } from '../utils/deviceParser.js';
@@ -91,7 +91,7 @@ router.get('/vapid-public-key', (req, res) => {
  * Audience Categories Metadata
  * GET /api/notifications/audience
  */
-router.get('/audience', protect, staffOrAdmin, (req, res) => {
+router.get('/audience', protect, ownerOrManager, (req, res) => {
   const audiences = [
     {
       id: 'all_enabled',
@@ -142,7 +142,7 @@ router.get('/audience', protect, staffOrAdmin, (req, res) => {
  * Real-Time Eligible Audience Count (Phase 13)
  * GET /api/notifications/audience/count
  */
-router.get('/audience/count', protect, staffOrAdmin, async (req, res) => {
+router.get('/audience/count', protect, ownerOrManager, async (req, res) => {
   try {
     const { audienceType = 'all_enabled', ...filterParams } = req.query;
     const count = await getEstimatedAudienceCount(audienceType, filterParams);
@@ -177,7 +177,7 @@ router.get('/audience/count', protect, staffOrAdmin, async (req, res) => {
  * Notification Analytics (Phase 21)
  * GET /api/notifications/analytics
  */
-router.get('/analytics', protect, staffOrAdmin, async (req, res) => {
+router.get('/analytics', protect, ownerOrManager, async (req, res) => {
   try {
     const [
       totalCustomers,
@@ -366,7 +366,7 @@ router.delete('/unsubscribe', subscribeLimiter, async (req, res) => {
  * Dashboard statistics (spec field names).
  * GET /api/notifications/stats
  */
-router.get('/stats', protect, staffOrAdmin, async (req, res) => {
+router.get('/stats', protect, ownerOrManager, async (req, res) => {
   try {
     const [
       totalNotifications,
@@ -428,7 +428,7 @@ router.get('/stats', protect, staffOrAdmin, async (req, res) => {
 router.post(
   '/send',
   protect,
-  staffOrAdmin,
+  ownerOrManager,
   adminSendLimiter,
   [
     body('title').trim().isLength({ min: 1, max: 120 }).withMessage('Title is required (1–120 characters).'),
@@ -531,7 +531,7 @@ router.post(
 router.post(
   '/test',
   protect,
-  staffOrAdmin,
+  ownerOrManager,
   adminSendLimiter,
   [
     body('title').optional().trim().isLength({ max: 120 }).withMessage('Title must be 120 characters or fewer.'),
@@ -542,7 +542,7 @@ router.post(
     try {
       const { subscriptionId, endpoint, customerId, phone } = req.body;
       const title = String(req.body.title || 'Test notification').slice(0, 120);
-      const message = String(req.body.message || 'This is a test notification from Brewhaus Café.').slice(0, 500);
+      const message = String(req.body.message || 'This is a test notification from your café.').slice(0, 500);
       const finalUrl = sanitizeUrl(req.body.url || req.body.actionUrl);
 
       let sub = null;
@@ -609,7 +609,7 @@ router.post(
  * List Campaigns / History (Phase 19)
  * GET /api/notifications
  */
-router.get('/', protect, staffOrAdmin, async (req, res) => {
+router.get('/', protect, ownerOrManager, async (req, res) => {
   try {
     const { status, page = 1, limit = 15 } = req.query;
     const query = {};
@@ -646,7 +646,7 @@ router.get('/', protect, staffOrAdmin, async (req, res) => {
  * Create Notification Campaign (Phase 11, 15, 20)
  * POST /api/notifications
  */
-router.post('/', protect, staffOrAdmin, async (req, res) => {
+router.post('/', protect, ownerOrManager, async (req, res) => {
   try {
     const {
       name,
@@ -731,7 +731,7 @@ router.post('/', protect, staffOrAdmin, async (req, res) => {
  * Get Campaign Details & Delivery Log
  * GET /api/notifications/:id
  */
-router.get('/:id', protect, staffOrAdmin, async (req, res) => {
+router.get('/:id', protect, ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid campaign ID.' });
@@ -760,7 +760,7 @@ router.get('/:id', protect, staffOrAdmin, async (req, res) => {
  * Dispatch Campaign Immediately
  * POST /api/notifications/:id/send
  */
-router.post('/:id/send', protect, staffOrAdmin, async (req, res) => {
+router.post('/:id/send', protect, ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid campaign ID.' });
@@ -791,7 +791,7 @@ router.post('/:id/send', protect, staffOrAdmin, async (req, res) => {
  * Cancel Scheduled Campaign
  * POST /api/notifications/:id/cancel
  */
-router.post('/:id/cancel', protect, staffOrAdmin, async (req, res) => {
+router.post('/:id/cancel', protect, ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid campaign ID.' });

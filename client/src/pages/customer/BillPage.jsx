@@ -4,6 +4,8 @@ import { ArrowLeft, Banknote, CreditCard, Loader2, RefreshCw } from 'lucide-reac
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import useCartStore from '../../context/cartStore';
+import TableServiceActions from '../../components/table/TableServiceActions';
+import { useTenant } from '../../context/TenantContext';
 
 const loadRazorpay = () => new Promise((resolve) => {
   if (window.Razorpay) return resolve(true);
@@ -15,6 +17,7 @@ const loadRazorpay = () => new Promise((resolve) => {
 });
 
 export default function BillPage() {
+  const tenant = useTenant();
   const { diningSessionToken } = useCartStore();
   const [bill, setBill] = useState(null);
   const [orders, setOrders] = useState([]);
@@ -41,14 +44,13 @@ export default function BillPage() {
       const created = await api.post('/session/bill/payment/create', { diningSessionToken });
       if (!(await loadRazorpay())) throw new Error('Payment gateway failed to load.');
       const checkout = new window.Razorpay({
-        key: created.data.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID,
+        key: created.data.keyId,
         amount: created.data.amount,
-        currency: 'INR',
-        name: 'Brewhaus Café',
+        currency: created.data.currency || tenant.currency || 'INR',
+        name: tenant.name,
         order_id: created.data.razorpayOrderId,
-        handler: async (response) => {
-          await api.post('/session/bill/payment/verify', { ...response, diningSessionToken });
-          toast.success('Final bill paid. Thank you!');
+        handler: async () => {
+          toast.success('Payment submitted. Waiting for provider confirmation.');
           await loadBill();
         },
       });
@@ -61,6 +63,11 @@ export default function BillPage() {
   };
 
   useEffect(() => { loadBill(); }, [diningSessionToken]);
+  useEffect(() => {
+    if (bill?.status !== 'PAYMENT_PENDING') return undefined;
+    const interval = setInterval(loadBill, 5000);
+    return () => clearInterval(interval);
+  }, [bill?.status, diningSessionToken]);
 
   const requestCash = async () => {
     setRequestingCash(true);
@@ -82,12 +89,13 @@ export default function BillPage() {
     <div className="min-h-screen bg-cream">
       <header className="flex items-center gap-3 border-b border-foam bg-white p-4"><Link to="/menu" className="flex h-9 w-9 items-center justify-center rounded-full border border-foam"><ArrowLeft size={18} /></Link><h1 className="font-display text-xl font-bold text-espresso-900">My Bill</h1><button onClick={loadBill} className="ml-auto flex h-9 w-9 items-center justify-center rounded-full border border-foam" title="Refresh bill"><RefreshCw size={16} /></button></header>
       <main className="space-y-4 p-4 pb-10">
+        <TableServiceActions />
         <section className="card space-y-3 p-4">
           <div className="flex items-center justify-between"><span className="text-sm text-espresso-500">Table {bill.tableNumber || ''}</span><span className="text-xs font-semibold uppercase text-brew-600">{bill.status}</span></div>
           {orders.map((order) => <div key={order._id} className="flex items-center justify-between border-t border-foam pt-3 text-sm"><span className="text-espresso-700">{order.orderNumber}</span><span className="text-espresso-500">{order.paymentStatus === 'paid' ? 'Paid' : order.paymentMethod === 'cash' && order.cashVerificationStatus === 'pending' ? 'Cash verification pending' : 'Due'}</span><span className="font-medium text-espresso-900">₹{order.total}</span></div>)}
           <div className="space-y-1 border-t border-foam pt-3 text-sm"><div className="flex justify-between text-espresso-500"><span>Subtotal</span><span>₹{bill.subtotal}</span></div><div className="flex justify-between text-espresso-500"><span>GST</span><span>₹{bill.taxTotal}</span></div><div className="flex justify-between font-display text-base font-bold text-espresso-900"><span>Total</span><span>₹{bill.grandTotal}</span></div><div className="flex justify-between font-semibold text-brew-700"><span>Due</span><span>₹{bill.dueAmount}</span></div></div>
         </section>
-        {bill.status === 'CASH_PENDING' ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">Cash payment requested. Please see the cashier. Your bill will close after staff confirms payment.</div> : bill.dueAmount > 0 ? <div className="grid gap-3 sm:grid-cols-2"><button onClick={payOnline} disabled={payingOnline} className="btn-primary flex items-center justify-center gap-2 py-4">{payingOnline ? <Loader2 size={18} className="animate-spin" /> : <CreditCard size={18} />} Pay ₹{bill.dueAmount} Online</button><button onClick={requestCash} disabled={requestingCash} className="btn-secondary flex items-center justify-center gap-2 py-4">{requestingCash ? <Loader2 size={18} className="animate-spin" /> : <Banknote size={18} />} Pay Cash</button></div> : <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center text-sm text-green-700">Bill paid.</div>}
+        {bill.status === 'CASH_PENDING' ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">Cash payment requested. Please see the cashier. Your bill will close after staff confirms payment.</div> : bill.status === 'PAYMENT_PENDING' ? <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">Online payment submitted. Waiting for secure provider confirmation…</div> : bill.dueAmount > 0 ? <div className="grid gap-3 sm:grid-cols-2"><button onClick={payOnline} disabled={payingOnline} className="btn-primary flex items-center justify-center gap-2 py-4">{payingOnline ? <Loader2 size={18} className="animate-spin" /> : <CreditCard size={18} />} Pay ₹{bill.dueAmount} Online</button><button onClick={requestCash} disabled={requestingCash} className="btn-secondary flex items-center justify-center gap-2 py-4">{requestingCash ? <Loader2 size={18} className="animate-spin" /> : <Banknote size={18} />} Pay Cash</button></div> : <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center text-sm text-green-700">Bill paid.</div>}
       </main>
     </div>
   );

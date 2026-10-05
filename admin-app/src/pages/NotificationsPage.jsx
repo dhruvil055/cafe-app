@@ -321,7 +321,7 @@ export default function NotificationsPage() {
                 maxLength={500}
                 rows={3}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Check out our latest offers at Brewhaus Café."
+                placeholder="Check out our latest offers at your café."
                 className="w-full rounded-xl border border-stone-200 p-2.5 text-sm focus:border-espresso-500 focus:outline-none"
               />
             </div>

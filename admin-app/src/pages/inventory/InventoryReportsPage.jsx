@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import { useTenant } from '../../context/TenantContext';
+import { formatMoney } from '../../utils/money';
 
 const UNIT_LABELS = {
   piece: 'pcs', cup: 'cups', glass: 'glasses', bottle: 'bottles',
@@ -13,6 +15,7 @@ const UNIT_LABELS = {
 };
 
 export default function InventoryReportsPage() {
+  const tenant = useTenant();
   const [period, setPeriod] = useState('today');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -159,7 +162,7 @@ export default function InventoryReportsPage() {
 
         <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-soft">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Estimated Raw Material Cost</div>
-          <div className="mt-2 text-3xl font-bold text-emerald-600">₹{totalCost.toFixed(2)}</div>
+          <div className="mt-2 text-3xl font-bold text-emerald-600">{formatMoney(totalCost, tenant.currency)}</div>
           <div className="mt-1 text-xs text-stone-400">Calculated from purchase cost per unit</div>
         </div>
 
@@ -214,10 +217,10 @@ export default function InventoryReportsPage() {
                         -{row.totalConsumed.toFixed(2)} <span className="text-xs font-normal text-stone-400">{unitLabel}</span>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3.5 text-right font-mono text-xs text-stone-600">
-                        ₹{row.costPerUnit || 0}
+                        {formatMoney(row.costPerUnit, tenant.currency)}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3.5 text-right font-mono font-semibold text-stone-900">
-                        ₹{(row.estimatedCost || 0).toFixed(2)}
+                        {formatMoney(row.estimatedCost, tenant.currency)}
                       </td>
                       <td className="whitespace-nowrap px-6 py-3.5 text-right font-mono text-xs text-stone-500">
                         {row.txnCount}

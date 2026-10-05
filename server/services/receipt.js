@@ -35,10 +35,17 @@ export const formatReceiptTime = (value, timezone = 'Asia/Kolkata') => new Intl.
 
 export const ensureReceiptNumber = async (bill) => {
   if (bill.receiptNumber) return bill.receiptNumber;
+  // Note: tenantIsolationPlugin automatically adds tenantId to the query
+  // First ensure counter exists
+  await Counter.findOneAndUpdate(
+    { _id: 'receiptNumber' },
+    { $setOnInsert: { seq: 0 } },
+    { upsert: true, setDefaultsOnInsert: true }
+  );
   const counter = await Counter.findOneAndUpdate(
     { _id: 'receiptNumber' },
     { $inc: { seq: 1 } },
-    { new: true, upsert: true, setDefaultsOnInsert: true },
+    { new: true }
   );
   bill.receiptNumber = `BW-${new Date().getFullYear()}-${String(counter.seq).padStart(6, '0')}`;
   await bill.save();

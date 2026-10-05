@@ -7,6 +7,8 @@ import CampaignDelivery from '../models/CampaignDelivery.js';
 import { getMarketingSettings } from '../models/MarketingSetting.js';
 import { notificationService } from './notificationService.js';
 import { normalizePhoneNumber } from '../utils/phoneNormalizer.js';
+import Tenant from '../models/Tenant.js';
+import { runWithTenant } from '../utils/tenantContext.js';
 
 /**
  * Builds the MongoDB query filter for marketing audiences.
@@ -671,29 +673,13 @@ export const startCampaignScheduler = (intervalMs = 30000) => {
     try {
       const now = new Date();
 
-      // Check scheduled website notification campaigns
-      const dueNotifs = await NotificationCampaign.find({
-        status: 'scheduled',
-        scheduledAt: { $lte: now },
+      const tenants = await Tenant.find({ status: 'active' }).select('_id').lean();
+      for (const tenant of tenants) await runWithTenant(tenant._id, async () => {
+        const dueNotifs = await NotificationCampaign.find({ status: 'scheduled', scheduledAt: { $lte: now } });
+        for (const camp of dueNotifs) executeCampaign(camp._id).catch((err) => console.error(`Error executing scheduled notification ${camp._id}:`, err));
+        const dueMarketing = await Campaign.find({ status: 'scheduled', scheduledAt: { $lte: now } });
+        for (const camp of dueMarketing) executeCampaign(camp._id).catch((err) => console.error(`Error executing scheduled marketing campaign ${camp._id}:`, err));
       });
-      for (const camp of dueNotifs) {
-        console.log(`[NOTIFICATION-SCHEDULER] Triggering scheduled notification "${camp.name}" (${camp._id})`);
-        executeCampaign(camp._id).catch((err) => {
-          console.error(`Error executing scheduled notification ${camp._id}:`, err);
-        });
-      }
-
-      // Check scheduled marketing campaigns
-      const dueMarketing = await Campaign.find({
-        status: 'scheduled',
-        scheduledAt: { $lte: now },
-      });
-      for (const camp of dueMarketing) {
-        console.log(`[CAMPAIGN-SCHEDULER] Triggering scheduled campaign "${camp.name}" (${camp._id})`);
-        executeCampaign(camp._id).catch((err) => {
-          console.error(`Error executing scheduled marketing campaign ${camp._id}:`, err);
-        });
-      }
     } catch (err) {
       console.error('[SCHEDULER] Periodic poll error:', err.message);
     }

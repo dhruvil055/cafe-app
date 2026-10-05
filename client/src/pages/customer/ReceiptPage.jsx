@@ -5,15 +5,17 @@ import toast from 'react-hot-toast';
 import api from '../../services/api';
 import useCartStore from '../../context/cartStore';
 import { downloadPdf } from '../../utils/download';
+import { useTenant } from '../../context/TenantContext';
 
-const money = (value) => new Intl.NumberFormat('en-IN', {
+const money = (value, currency = 'INR') => new Intl.NumberFormat(undefined, {
   style: 'currency',
-  currency: 'INR',
+  currency,
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 }).format(Number(value || 0));
 
 export default function ReceiptPage() {
+  const tenant = useTenant();
   const { orderId } = useParams();
   const [searchParams] = useSearchParams();
   const accessToken = searchParams.get('accessToken') || '';
@@ -52,7 +54,8 @@ export default function ReceiptPage() {
         ? `/session/bill/receipt?diningSessionToken=${encodeURIComponent(diningSessionToken)}`
         : `/orders/${orderId}/receipt?accessToken=${encodeURIComponent(accessToken)}`;
       const response = await api.get(endpoint, { responseType: 'blob' });
-      downloadPdf(response.data, `brewhaus-${receipt.receiptNumber}.pdf`);
+      const slug = (tenant.slug || tenant.name || 'cafe').toLowerCase().replace(/[^a-z0-9]/g, '-');
+      downloadPdf(response.data, `${slug}-${receipt.receiptNumber}.pdf`);
     } catch (error) {
       toast.error(error.message || 'Unable to generate receipt. Please try again.');
     } finally {
@@ -63,7 +66,7 @@ export default function ReceiptPage() {
   const shareReceipt = async () => {
     const url = window.location.href;
     if (navigator.share) {
-      await navigator.share({ title: `Brewhaus receipt ${receipt.receiptNumber}`, url });
+      await navigator.share({ title: `${receipt.tenant?.name || 'Café'} receipt ${receipt.receiptNumber}`, url });
     } else {
       await navigator.clipboard.writeText(url);
       toast.success('Receipt link copied.');
@@ -86,9 +89,9 @@ export default function ReceiptPage() {
 
       <article className="receipt-sheet mx-auto max-w-md bg-white px-5 py-7 shadow-xl sm:px-7 sm:py-8">
         <header className="border-b border-espresso-200 pb-6 text-center">
-          <p className="font-display text-3xl font-bold tracking-[0.12em] text-espresso-950">BREWHAUS</p>
+          <p className="font-display text-3xl font-bold tracking-[0.12em] text-espresso-950">{receipt.tenant?.name || 'Café'}</p>
           <p className="mt-1 text-xs font-semibold tracking-[0.24em] text-brew-600">FINE COFFEE &amp; DINING</p>
-          <p className="mt-3 text-xs text-espresso-500">Surat, Gujarat 395001 | +91 98765 43210</p>
+          <p className="mt-3 text-xs text-espresso-500">{[receipt.tenant?.address, receipt.tenant?.contactPhone, receipt.tenant?.gstNumber ? `GSTIN ${receipt.tenant.gstNumber}` : ''].filter(Boolean).join(' | ')}</p>
           <p className="mt-5 font-mono text-sm font-semibold text-espresso-900">{receipt.receiptNumber}</p>
         </header>
 
@@ -109,18 +112,18 @@ export default function ReceiptPage() {
                   {item.specialInstructions && <p className="text-xs italic text-espresso-500">Note: {item.specialInstructions}</p>}
                 </div>
                 <span className="text-center text-espresso-700">{item.quantity}</span>
-                <span className="text-right font-medium text-espresso-900">{money(item.itemTotal)}</span>
+                <span className="text-right font-medium text-espresso-900">{money(item.itemTotal, receipt.tenant?.currency)}</span>
               </div>
             ))}
           </div>
         </section>
 
         <section className="ml-auto max-w-sm border-t border-espresso-200 pt-4 text-sm">
-          <SummaryRow label="Subtotal" value={receipt.subtotal} />
-          {receipt.discount > 0 && <SummaryRow label="Discount" value={-receipt.discount} />}
-          <SummaryRow label="Taxable amount" value={receipt.taxableAmount} />
-          {receipt.taxRows.map((tax) => <SummaryRow key={tax.label} label={tax.label} value={tax.amount} />)}
-          <div className="mt-3 flex items-center justify-between border-t-2 border-espresso-900 pt-3 text-lg font-bold text-espresso-950"><span>Total amount</span><span>{money(receipt.grandTotal)}</span></div>
+          <SummaryRow label="Subtotal" value={receipt.subtotal} currency={receipt.tenant?.currency} />
+          {receipt.discount > 0 && <SummaryRow label="Discount" value={-receipt.discount} currency={receipt.tenant?.currency} />}
+          <SummaryRow label="Taxable amount" value={receipt.taxableAmount} currency={receipt.tenant?.currency} />
+          {receipt.taxRows.map((tax) => <SummaryRow key={tax.label} label={tax.label} value={tax.amount} currency={receipt.tenant?.currency} />)}
+          <div className="mt-3 flex items-center justify-between border-t-2 border-espresso-900 pt-3 text-lg font-bold text-espresso-950"><span>Total amount</span><span>{money(receipt.grandTotal, receipt.tenant?.currency)}</span></div>
         </section>
 
         <section className="mt-7 grid gap-4 border-y border-espresso-200 py-5 sm:grid-cols-2">
@@ -132,9 +135,9 @@ export default function ReceiptPage() {
         {receipt.paymentStatus !== 'PAID' && <div className="mt-5 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><CheckCircle2 size={17} className="mt-0.5 shrink-0" />Payment pending - receipt will be finalized after payment confirmation.</div>}
 
         <footer className="mt-8 border-t border-espresso-200 pt-6 text-center">
-          <p className="font-display text-lg font-semibold text-brew-700">Thank you for visiting Brewhaus!</p>
+          <p className="font-display text-lg font-semibold text-brew-700">Thank you for visiting {receipt.tenant?.name || 'our café'}!</p>
           <p className="mt-1 text-sm text-espresso-500">Please visit again. Have a great day!</p>
-          <p className="mt-3 text-xs text-espresso-400">www.brewhauscafe.com</p>
+          <p className="mt-3 text-xs text-espresso-400">{receipt.tenant?.contactEmail}</p>
         </footer>
       </article>
     </div>
@@ -142,4 +145,4 @@ export default function ReceiptPage() {
 }
 
 function Info({ label, value }) { return <div className="flex justify-between gap-4"><span className="text-espresso-500">{label}</span><span className="text-right font-medium text-espresso-900">{value}</span></div>; }
-function SummaryRow({ label, value }) { return <div className="flex justify-between gap-6 py-1 text-espresso-600"><span>{label}</span><span className="font-medium text-espresso-900">{money(value)}</span></div>; }
+function SummaryRow({ label, value, currency }) { return <div className="flex justify-between gap-6 py-1 text-espresso-600"><span>{label}</span><span className="font-medium text-espresso-900">{money(value, currency)}</span></div>; }

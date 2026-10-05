@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
+import { setupTestTenant } from './tenantTestSetup.js';
+import crypto from 'node:crypto';
 import { normalizePhoneNumber, isValidPhoneNumber } from '../utils/phoneNormalizer.js';
 
 process.env.NODE_ENV = 'test';
 process.env.MONGO_URI = process.env.MONGO_TEST_URI || `mongodb://127.0.0.1:27017/cafe_crm_test_${process.pid}`;
 process.env.JWT_SECRET = 'test-jwt-secret-minimum-thirty-two-characters-long';
+process.env.TABLE_QR_SECRET = 'test-table-qr-signing-secret-minimum-32';
 process.env.CLIENT_URL = 'http://localhost:5173';
 
 const { createApp } = await import('../index.js');
@@ -17,6 +20,7 @@ const { default: Customer } = await import('../models/Customer.js');
 const { default: Campaign } = await import('../models/Campaign.js');
 const { default: CampaignDelivery } = await import('../models/CampaignDelivery.js');
 const { default: Order } = await import('../models/Order.js');
+const { createTableQrToken } = await import('../utils/tableQr.js');
 
 let baseUrl;
 let httpServer;
@@ -27,6 +31,11 @@ const request = async (route, { method = 'GET', body, token, headers = {} } = {}
 
   let reqBody = body;
   if (body !== undefined) {
+    if (['/api/orders', '/api/session'].includes(route) && body && typeof body === 'object' && !Object.prototype.hasOwnProperty.call(body, 'tableToken')) {
+      const table = await Table.findOne({ tableNumber: Number(body.tableNumber) });
+      if (table) body = { ...body, tableToken: createTableQrToken(table._id) };
+    }
+    if (route === '/api/orders' && body && typeof body === 'object' && !body.idempotencyKey) body = { ...body, idempotencyKey: crypto.randomUUID() };
     reqHeaders['Content-Type'] = 'application/json';
     reqBody = JSON.stringify(body);
   }
@@ -75,6 +84,7 @@ test('CRM & Marketing System Suite', async (t) => {
   let mongoConnected = false;
   try {
     await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 2000 });
+    await setupTestTenant();
     mongoConnected = true;
   } catch (err) {
     console.warn('MongoDB connection not available in current test environment, skipping database-bound tests:', err.message);

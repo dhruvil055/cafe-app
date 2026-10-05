@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import { useTenant } from '../../context/TenantContext';
+import { formatMoney } from '../../utils/money';
 
 const COMMON_UNITS = [
   'Can', 'Bottle', 'Piece', 'Cup', 'Glass', 
@@ -72,6 +74,7 @@ const EMPTY_ITEM_FORM = {
 };
 
 export default function InventoryDashboardPage() {
+  const tenant = useTenant();
   const [activeTab, setActiveTab] = useState('items'); // 'items' | 'mappings' | 'history'
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -794,7 +797,7 @@ export default function InventoryDashboardPage() {
                               )}
                               <div>
                                 <div>{prod?.name || 'Menu Item'}</div>
-                                <div className="text-[11px] text-stone-400 font-normal">₹{prod?.price || 0}</div>
+                                <div className="text-[11px] text-stone-400 font-normal">{formatMoney(prod?.price, tenant.currency)}</div>
                               </div>
                             </div>
                           </td>
@@ -1271,7 +1274,7 @@ export default function InventoryDashboardPage() {
                 >
                   <option value="">-- Choose Menu Item --</option>
                   {products.map(p => (
-                    <option key={p._id} value={p._id}>{p.name} (₹{p.price})</option>
+                    <option key={p._id} value={p._id}>{p.name} ({formatMoney(p.price, tenant.currency)})</option>
                   ))}
                 </select>
               </div>

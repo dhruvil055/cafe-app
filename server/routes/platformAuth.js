@@ -1,0 +1,291 @@
+import express from 'express';
+import mongoose from 'mongoose';
+import QRCode from 'qrcode';
+import Tenant from '../models/Tenant.js';
+import User from '../models/User.js';
+import Category from '../models/Category.js';
+import Product from '../models/Product.js';
+import Table from '../models/Table.js';
+import PendingSignup from '../models/PendingSignup.js';
+import { RESERVED_SLUGS } from '../config/plans.js';
+import { runWithSystemTenantAccess } from '../utils/tenantContext.js';
+import { createTableQrToken } from '../utils/tableQr.js';
+import {
+  createAccessToken,
+  createRefreshToken,
+  hashRefreshToken,
+  REFRESH_TOKEN_TTL_MS,
+} from '../utils/authTokens.js';
+import { setSessionCookies } from './auth.js';
+
+const router = express.Router();
+
+const SLUG_REGEX = /^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])?$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// POST /api/platform/auth/signup
+router.post('/signup', async (req, res, next) => {
+  try {
+    const { cafeName, email, password, slug } = req.body || {};
+
+    const cleanName = String(cafeName || '').trim();
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const cleanSlug = String(slug || '').trim().toLowerCase();
+    const rawPassword = String(password || '');
+
+    if (!cleanName || cleanName.length < 2 || cleanName.length > 100) {
+      return res.status(400).json({ error: 'Café name must be between 2 and 100 characters.' });
+    }
+
+    if (!cleanEmail || !EMAIL_REGEX.test(cleanEmail)) {
+      return res.status(400).json({ error: 'A valid email address is required.' });
+    }
+
+    if (!rawPassword || rawPassword.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+    }
+
+    if (!cleanSlug || !SLUG_REGEX.test(cleanSlug)) {
+      return res.status(400).json({
+        error: 'Café URL identifier (slug) must be 3-30 lowercase characters with letters, numbers, and hyphens.',
+      });
+    }
+
+    if (RESERVED_SLUGS.has(cleanSlug)) {
+      return res.status(400).json({ error: 'This café URL is reserved for platform use. Please pick another one.' });
+    }
+
+    // Check system-wide for existing tenant slug and owner email
+    const [existingTenant, existingUser] = await runWithSystemTenantAccess(async () => {
+      const t = await Tenant.findOne({ slug: cleanSlug }).lean();
+      const u = await User.findOne({ email: cleanEmail }).lean();
+      return [t, u];
+    });
+
+    if (existingTenant) {
+      return res.status(400).json({ error: 'This café URL is already taken. Please choose another one.' });
+    }
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'An account with this email address already exists. Please sign in.' });
+    }
+
+    const verificationCode = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    // Remove any stale pending signups for this email or slug
+    await PendingSignup.deleteMany({
+      $or: [{ email: cleanEmail }, { slug: cleanSlug }],
+    });
+
+    await PendingSignup.create({
+      email: cleanEmail,
+      passwordHash: rawPassword,
+      cafeName: cleanName,
+      slug: cleanSlug,
+      verificationCode,
+      expiresAt,
+    });
+
+    res.status(200).json({
+      message: 'Verification code sent to your email.',
+      email: cleanEmail,
+      slug: cleanSlug,
+      demoCode: (process.env.NODE_ENV !== 'production' || req.hostname === 'localhost' || req.hostname === '127.0.0.1' || req.hostname.endsWith('.localhost')) ? verificationCode : undefined,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/platform/auth/verify-email
+router.post('/verify-email', async (req, res, next) => {
+  try {
+    const { email, code } = req.body || {};
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const cleanCode = String(code || '').trim();
+
+    if (!cleanEmail || !cleanCode) {
+      return res.status(400).json({ error: 'Email and verification code are required.' });
+    }
+
+    const pending = await PendingSignup.findOne({
+      email: cleanEmail,
+      verificationCode: cleanCode,
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!pending) {
+      return res.status(400).json({ error: 'Invalid or expired verification code. Please request a new one.' });
+    }
+
+    const clientUrl = String(process.env.CUSTOMER_APP_URL || process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
+
+    const result = await runWithSystemTenantAccess(async () => {
+      // Re-verify slug uniqueness
+      const slugCheck = await Tenant.findOne({ slug: pending.slug });
+      if (slugCheck) {
+        throw new Error('SLUG_TAKEN');
+      }
+
+      // 1. Create Tenant
+      const tenant = await Tenant.create({
+        name: pending.cafeName,
+        slug: pending.slug,
+        status: 'active',
+        plan: 'starter',
+        subscription: {
+          plan: 'starter',
+          status: 'trial',
+          trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+          currentPeriodEnd: null,
+          gracePeriodUntil: null,
+          razorpaySubscriptionId: '',
+          razorpayCustomerId: '',
+        },
+        settings: {
+          cafeName: pending.cafeName,
+          primaryColor: '#c96b18',
+          accentColor: '#1a0f08',
+          currency: 'INR',
+          timezone: 'Asia/Kolkata',
+          taxRate: 5,
+        },
+      });
+
+      // 2. Create Owner User
+      const user = await User.create({
+        tenantId: tenant._id,
+        name: `${pending.cafeName} Owner`,
+        email: pending.email,
+        password: pending.passwordHash,
+        role: 'owner',
+      });
+
+      // 3. Create Starter Categories
+      const hotBrews = await Category.create({
+        tenantId: tenant._id,
+        name: 'Hot Brews',
+        icon: '☕',
+        active: true,
+        sortOrder: 1,
+      });
+
+      const coldBrews = await Category.create({
+        tenantId: tenant._id,
+        name: 'Cold Beverages',
+        icon: '🧋',
+        active: true,
+        sortOrder: 2,
+      });
+
+      const pastries = await Category.create({
+        tenantId: tenant._id,
+        name: 'Pastries',
+        icon: '🥐',
+        active: true,
+        sortOrder: 3,
+      });
+
+      // 4. Create Starter Products
+      await Product.create([
+        {
+          tenantId: tenant._id,
+          name: 'Espresso',
+          description: 'Rich, bold single shot made with freshly roasted beans',
+          price: 120,
+          category: hotBrews._id,
+          available: true,
+          popular: true,
+          rating: 4.8,
+          prepTime: 5,
+        },
+        {
+          tenantId: tenant._id,
+          name: 'Iced Latte',
+          description: 'Smooth espresso poured over chilled milk and artisanal ice',
+          price: 180,
+          category: coldBrews._id,
+          available: true,
+          popular: true,
+          rating: 4.9,
+          prepTime: 7,
+        },
+        {
+          tenantId: tenant._id,
+          name: 'Butter Croissant',
+          description: 'Flaky, golden-baked layered pastry served warm with butter',
+          price: 150,
+          category: pastries._id,
+          available: true,
+          popular: false,
+          rating: 4.7,
+          prepTime: 5,
+        },
+      ]);
+
+      // 5. Create Starter Tables with Signed QR Tokens
+      for (let i = 1; i <= 3; i++) {
+        const tableId = new mongoose.Types.ObjectId();
+        const qrToken = createTableQrToken(tableId, tenant._id);
+        const qrUrl = `${clientUrl}/menu?tableToken=${encodeURIComponent(qrToken)}`;
+        const qrCode = await QRCode.toDataURL(qrUrl, {
+          width: 400,
+          margin: 2,
+          color: { dark: '#1a0f08', light: '#FFFFFF' },
+          errorCorrectionLevel: 'H',
+        });
+
+        await Table.create({
+          _id: tableId,
+          tenantId: tenant._id,
+          tableNumber: i,
+          label: `Table ${i}`,
+          seats: 4,
+          active: true,
+          qrCode,
+          qrUrl,
+        });
+      }
+
+      // Cleanup pending record
+      await PendingSignup.deleteOne({ _id: pending._id });
+
+      // Generate access & refresh tokens
+      const accessToken = createAccessToken(user._id, tenant._id);
+      const refreshToken = createRefreshToken();
+      user.refreshTokenHash = hashRefreshToken(refreshToken);
+      user.refreshTokenExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
+      await user.save();
+
+      return { user, tenant, accessToken, refreshToken };
+    });
+
+    setSessionCookies(res, result.accessToken, result.refreshToken);
+
+    res.status(201).json({
+      token: result.accessToken,
+      user: {
+        id: result.user._id,
+        name: result.user.name,
+        email: result.user.email,
+        role: result.user.role,
+        tenantId: result.tenant._id,
+      },
+      tenant: {
+        id: result.tenant._id,
+        name: result.tenant.name,
+        slug: result.tenant.slug,
+        plan: result.tenant.plan,
+        subscription: result.tenant.subscription,
+      },
+    });
+  } catch (error) {
+    if (error.message === 'SLUG_TAKEN') {
+      return res.status(400).json({ error: 'This café URL is already taken. Please choose another one.' });
+    }
+    next(error);
+  }
+});
+
+export default router;

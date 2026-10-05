@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import { adminOnly, protect } from '../middleware/auth.js';
+import { ownerOrManager, protect } from '../middleware/auth.js';
 
 const router = express.Router();
 const uploadDir = path.resolve(process.cwd(), 'uploads');
@@ -112,7 +112,7 @@ const runUpload = (req, res, next) => {
 };
 
 // POST /api/upload/image — admin
-router.post('/image', protect, adminOnly, runUpload, async (req, res) => {
+router.post('/image', protect, ownerOrManager, runUpload, async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 

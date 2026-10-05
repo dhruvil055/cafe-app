@@ -14,10 +14,13 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 import useCartStore from '../../context/cartStore';
+import { useTenant } from '../../context/TenantContext';
+import { formatMoney } from '../../utils/money';
 
 const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=300&q=80';
 
 export default function QuickCartDrawer() {
+  const tenant = useTenant();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -34,7 +37,7 @@ export default function QuickCartDrawer() {
 
   const itemCount = items.reduce((s, i) => s + i.quantity, 0);
   const subtotal = items.reduce((s, i) => s + i.itemTotal, 0);
-  const tax = Math.round(subtotal * 0.05);
+  const tax = Math.round(subtotal * Number(tenant.taxRate || 0) / 100);
   const grandTotal = subtotal + tax;
 
   // Close drawer if user navigates to /cart or /checkout
@@ -265,7 +268,7 @@ export default function QuickCartDrawer() {
                                 {/* Total Price for Item */}
                                 <div className="text-right">
                                   <span className="price-tag text-base font-bold text-espresso-950">
-                                    ₹{item.itemTotal}
+                                    {formatMoney(item.itemTotal, tenant.currency)}
                                   </span>
                                 </div>
                               </div>
@@ -285,15 +288,15 @@ export default function QuickCartDrawer() {
                   <div className="space-y-1.5 text-xs">
                     <div className="flex justify-between text-espresso-600">
                       <span>Subtotal</span>
-                      <span className="price-tag text-xs">₹{subtotal}</span>
+                      <span className="price-tag text-xs">{formatMoney(subtotal, tenant.currency)}</span>
                     </div>
                     <div className="flex justify-between text-espresso-600">
-                      <span>Taxes & GST (5%)</span>
-                      <span className="price-tag text-xs">₹{tax}</span>
+                      <span>Taxes & GST ({tenant.taxRate}%)</span>
+                      <span className="price-tag text-xs">{formatMoney(tax, tenant.currency)}</span>
                     </div>
                     <div className="flex justify-between border-t border-dashed border-espresso-200 pt-2 text-sm font-bold text-espresso-950">
                       <span>Total Amount</span>
-                      <span className="price-tag text-xl text-espresso-950">₹{grandTotal}</span>
+                      <span className="price-tag text-xl text-espresso-950">{formatMoney(grandTotal, tenant.currency)}</span>
                     </div>
                   </div>
 
@@ -311,7 +314,7 @@ export default function QuickCartDrawer() {
                         <ShoppingBag size={15} className="text-brew-300" />
                         <span>Proceed to Checkout</span>
                       </div>
-                      <span className="price-tag text-base text-brew-200">₹{grandTotal}</span>
+                      <span className="price-tag text-base text-brew-200">{formatMoney(grandTotal, tenant.currency)}</span>
                     </button>
 
                     <div className="flex gap-2">

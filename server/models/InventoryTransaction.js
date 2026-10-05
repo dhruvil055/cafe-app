@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantIsolationPlugin } from '../utils/tenantContext.js';
 
 export const TRANSACTION_TYPES = [
   'purchase',           // stock bought/received
@@ -42,7 +43,7 @@ const inventoryTransactionSchema = new mongoose.Schema({
 // Prevent duplicate order consumption for the same order
 // sparse:true allows multiple docs with orderId=null
 inventoryTransactionSchema.index(
-  { orderId: 1, inventoryItem: 1, type: 1 },
+  { tenantId: 1, orderId: 1, inventoryItem: 1, type: 1 },
   { unique: true, sparse: true, partialFilterExpression: { orderId: { $ne: null }, type: 'order_consumption' } }
 );
 
@@ -50,4 +51,5 @@ inventoryTransactionSchema.index({ inventoryItem: 1, createdAt: -1 });
 inventoryTransactionSchema.index({ orderId: 1 });
 inventoryTransactionSchema.index({ type: 1, createdAt: -1 });
 
+inventoryTransactionSchema.plugin(tenantIsolationPlugin);
 export default mongoose.model('InventoryTransaction', inventoryTransactionSchema);

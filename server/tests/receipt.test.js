@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import zlib from 'node:zlib';
-import { generateReceiptPdf, money } from '../services/receipt.js';
+import { createReceiptData, generateReceiptPdf, money } from '../services/receipt.js';
 
 const sampleReceipt = {
   receiptNumber: 'BW-2026-000001',
@@ -48,8 +48,24 @@ test('receipt PDFs use reader-safe fonts and readable money labels', async () =>
 
   assert.match(rawPdf, /\/BaseFont \/Helvetica/);
   assert.doesNotMatch(rawPdf, /NotoSans/);
-  assert.match(content, /<425245574841>/); // BREWHAUS
+  assert.match(content, /<436166>/); // Tenant café name fallback
   assert.match(content, /<5273>/); // "Rs"
   assert.equal(money(1234.5), 'Rs. 1,234.50');
   assert.equal(money(-25), '-Rs. 25.00');
+});
+
+test('receipt data retains order discounts and reports the discounted taxable value', async () => {
+  const receipt = await createReceiptData({
+    orders: [{
+      orderNumber: 'CAF1001', tableNumber: 4, createdAt: new Date('2026-10-04T08:00:00Z'), updatedAt: new Date('2026-10-04T08:00:00Z'),
+      customer: { name: 'Aarav', phone: '+919876543210' }, items: [{ name: 'Cappuccino', quantity: 1, itemTotal: 299 }],
+      subtotal: 299, discount: 29.9, tax: 13.46, total: 282.56, taxRate: 5, paymentMethod: 'cash', paymentStatus: 'paid', orderStatus: 'completed',
+    }],
+    bill: null,
+  });
+  assert.equal(receipt.subtotal, 299);
+  assert.equal(receipt.discount, 29.9);
+  assert.equal(receipt.taxableAmount, 269.1);
+  assert.equal(receipt.taxTotal, 13.46);
+  assert.equal(receipt.grandTotal, 282.56);
 });

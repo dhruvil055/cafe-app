@@ -93,10 +93,18 @@ orderSchema.pre('validate', async function (next) {
   if (this.orderNumber) return next();
 
   try {
+    // First, ensure the counter exists with the initial sequence
+    // Note: tenantIsolationPlugin automatically adds tenantId to the query
+    await Counter.findOneAndUpdate(
+      { _id: 'orderNumber' },
+      { $setOnInsert: { seq: 1000 } },
+      { upsert: true, setDefaultsOnInsert: true }
+    );
+    // Then increment and get the new value
     const counter = await Counter.findOneAndUpdate(
-      { _id: 'orderNumber', tenantId: this.tenantId },
-      { $inc: { seq: 1 }, $setOnInsert: { seq: 1000 } },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
+      { _id: 'orderNumber' },
+      { $inc: { seq: 1 } },
+      { new: true }
     );
     this.orderNumber = `CAF${String(counter.seq).padStart(4, '0')}`;
     return next();

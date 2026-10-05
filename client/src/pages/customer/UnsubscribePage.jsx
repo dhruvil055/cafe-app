@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, ShieldOff, Loader2 } from 'lucide-react';
 import api from '../../services/api';
+import { useTenant } from '../../context/TenantContext';
 
 export default function UnsubscribePage() {
+  const tenant = useTenant();
   const [searchParams] = useSearchParams();
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
@@ -44,7 +46,7 @@ export default function UnsubscribePage() {
           <Link to="/menu" className="btn-secondary text-sm py-2 px-3 inline-flex items-center gap-1.5">
             <ArrowLeft size={16} /> Back to Menu
           </Link>
-          <span className="font-display font-bold text-lg text-espresso-900">Brewhaus Café</span>
+          <span className="font-display font-bold text-lg text-espresso-900">{tenant.name}</span>
         </div>
 
         <div className="rounded-3xl border border-foam bg-white p-6 shadow-sm sm:p-8">
@@ -55,10 +57,10 @@ export default function UnsubscribePage() {
               </div>
               <h1 className="font-display text-2xl font-bold text-espresso-900">Unsubscribe Confirmed</h1>
               <p className="text-sm leading-relaxed text-espresso-600 max-w-md mx-auto">
-                You will no longer receive promotional offers, discounts, or marketing updates from Brewhaus Café.
+                You will no longer receive promotional offers, discounts, or marketing updates from {tenant.name}.
               </p>
               <div className="rounded-2xl bg-stone-50 border border-foam p-3.5 text-xs text-espresso-500">
-                ℹ️ Note: If you place future orders at Brewhaus Café, you will still receive transactional receipts and order status updates.
+                ℹ️ Note: If you place future orders at {tenant.name}, you will still receive transactional receipts and order status updates.
               </div>
               <div className="pt-4">
                 <Link to="/menu" className="btn-primary inline-flex justify-center text-sm py-2.5 px-6">
@@ -79,7 +81,7 @@ export default function UnsubscribePage() {
               </div>
 
               <p className="text-xs text-espresso-600 leading-relaxed">
-                We respect your privacy. If you would like to stop receiving SMS, WhatsApp, and promotional messages from Brewhaus Café, enter your mobile number below.
+                We respect your privacy. If you would like to stop receiving SMS, WhatsApp, and promotional messages from {tenant.name}, enter your mobile number below.
               </p>
 
               {error && (

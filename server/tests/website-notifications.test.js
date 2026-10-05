@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
+import { setupTestTenant } from './tenantTestSetup.js';
+import crypto from 'node:crypto';
 import { normalizePhoneNumber } from '../utils/phoneNormalizer.js';
 
 process.env.NODE_ENV = 'test';
 process.env.MONGO_URI = process.env.MONGO_TEST_URI || `mongodb://127.0.0.1:27017/cafe_notification_test_${process.pid}`;
 process.env.JWT_SECRET = 'test-jwt-secret-minimum-thirty-two-characters-long';
+process.env.TABLE_QR_SECRET = 'test-table-qr-signing-secret-minimum-32';
 process.env.CLIENT_URL = 'http://localhost:5173';
 process.env.VAPID_PUBLIC_KEY = 'BGKiwZymbLcrGJQHOkjdzbOad5J12phBxlkrX1S5QCpmaYjPaBkEj_puOXdGrgxClmziowo37hrHIzRACoc5aPw';
 process.env.VAPID_PRIVATE_KEY = 'I6YwyKrECxvP1Vt_vpC1ULSsIP-bpF9FIcgpnAv1oDA';
@@ -18,6 +21,7 @@ const { default: Category } = await import('../models/Category.js');
 const { default: Customer } = await import('../models/Customer.js');
 const { default: Table } = await import('../models/Table.js');
 const { default: Order } = await import('../models/Order.js');
+const { createTableQrToken } = await import('../utils/tableQr.js');
 const { default: PushSubscription } = await import('../models/PushSubscription.js');
 const { default: NotificationCampaign } = await import('../models/NotificationCampaign.js');
 const { default: NotificationDelivery } = await import('../models/NotificationDelivery.js');
@@ -38,6 +42,11 @@ const request = async (route, { method = 'GET', body, token, headers = {} } = {}
 
   let reqBody = body;
   if (body !== undefined) {
+    if (['/api/orders', '/api/session'].includes(route) && body && typeof body === 'object' && !Object.prototype.hasOwnProperty.call(body, 'tableToken')) {
+      const table = await Table.findOne({ tableNumber: Number(body.tableNumber) });
+      if (table) body = { ...body, tableToken: createTableQrToken(table._id) };
+    }
+    if (route === '/api/orders' && body && typeof body === 'object' && !body.idempotencyKey) body = { ...body, idempotencyKey: crypto.randomUUID() };
     reqHeaders['Content-Type'] = 'application/json';
     reqBody = JSON.stringify(body);
   }
@@ -66,6 +75,7 @@ test('Brewhaus Café Website Notification System Suite (Phase 1 to 28)', async (
   let mongoConnected = false;
   try {
     await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 2000 });
+    await setupTestTenant();
     mongoConnected = true;
   } catch (err) {
     console.warn('MongoDB connection not available in current test environment, skipping database integration tests:', err.message);

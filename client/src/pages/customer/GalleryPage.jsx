@@ -3,6 +3,7 @@ import { ArrowLeft, Camera, ImagePlus, Loader2, Send, Star, X } from 'lucide-rea
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import { useTenant } from '../../context/TenantContext';
 
 const emptyForm = { customerName: '', review: '', rating: 5 };
 
@@ -25,6 +26,7 @@ function Stars({ rating, interactive = false, onChange }) {
 }
 
 export default function GalleryPage() {
+  const tenant = useTenant();
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [photo, setPhoto] = useState(null);
@@ -80,7 +82,7 @@ export default function GalleryPage() {
       setForm(emptyForm);
       setPhoto(null);
       setPreview('');
-      toast.success('Your Brewhaus moment is now in the gallery.');
+      toast.success(`Your ${tenant.name} moment is now in the gallery.`);
     } catch (error) {
       toast.error(error.message || 'Unable to publish your review');
     } finally {
@@ -106,7 +108,7 @@ export default function GalleryPage() {
       <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
         <section className="grid items-end gap-8 lg:grid-cols-[1fr_0.8fr]">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brew-600">Brewhaus community</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brew-600">{tenant.name} community</p>
             <h1 className="mt-3 max-w-2xl font-display text-5xl font-bold leading-[0.98] text-espresso-950 sm:text-6xl">Good coffee looks better together.</h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-espresso-600">See the cups, plates, and little moments our guests have shared. Add yours to the wall.</p>
           </div>
@@ -128,12 +130,12 @@ export default function GalleryPage() {
             <div className="col-span-full rounded-[2rem] border border-dashed border-espresso-200 bg-white/60 px-6 py-16 text-center">
               <ImagePlus className="mx-auto text-brew-500" size={30} />
               <h2 className="mt-4 font-display text-2xl font-bold">Be the first on the wall</h2>
-              <p className="mt-2 text-sm text-espresso-500">Share your Brewhaus moment below.</p>
+              <p className="mt-2 text-sm text-espresso-500">Share your {tenant.name} moment below.</p>
             </div>
           ) : items.map((item) => (
             <article key={item._id} className="group overflow-hidden rounded-[1.7rem] border border-foam bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
               <div className="aspect-[4/3] overflow-hidden bg-espresso-100">
-                <img src={item.imageUrl} alt={`Brewhaus moment shared by ${item.customerName}`} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
+                <img src={item.imageUrl} alt={`${tenant.name} moment shared by ${item.customerName}`} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
               </div>
               <div className="p-5">
                 <div className="flex items-center justify-between gap-3">

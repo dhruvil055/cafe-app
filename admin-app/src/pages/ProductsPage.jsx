@@ -2,10 +2,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Pencil, Plus, Search, Star, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import { useTenant } from '../context/TenantContext';
+import { formatMoney } from '../utils/money';
 
-const EMPTY_FORM = { name: '', description: '', price: '', category: '', image: '', available: true, popular: false, prepTime: 10, addons: [], variants: [] };
+const EMPTY_FORM = { name: '', description: '', price: '', category: '', image: '', available: true, availableFrom: '', availableUntil: '', popular: false, prepTime: 10, addons: [], variants: [] };
+
+const toLocalDateTime = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
 
 export default function ProductsPage() {
+  const tenant = useTenant();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [query, setQuery] = useState('');
@@ -57,6 +66,8 @@ export default function ProductsPage() {
       category: product.category?._id || product.category || '',
       image: product.image || '',
       available: product.available,
+      availableFrom: toLocalDateTime(product.availableFrom),
+      availableUntil: toLocalDateTime(product.availableUntil),
       popular: product.popular || false,
       prepTime: product.prepTime || 10,
       addons: product.addons || [],
@@ -77,6 +88,8 @@ export default function ProductsPage() {
         ...form,
         price: Number(form.price),
         prepTime: Number(form.prepTime),
+        availableFrom: form.availableFrom ? new Date(form.availableFrom).toISOString() : null,
+        availableUntil: form.availableUntil ? new Date(form.availableUntil).toISOString() : null,
       };
 
       if (editingId) {
@@ -159,7 +172,7 @@ export default function ProductsPage() {
                     <div className="text-base font-semibold text-stone-900">{product.name}</div>
                     <div className="text-xs text-stone-500">{product.category?.name || 'Category'}</div>
                   </div>
-                  <div className="text-lg font-bold text-stone-900">₹{product.price}</div>
+                  <div className="text-lg font-bold text-stone-900">{formatMoney(product.price, tenant.currency)}</div>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -215,6 +228,24 @@ export default function ProductsPage() {
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Image URL</label>
                 <input value={form.image} onChange={(event) => setForm((current) => ({ ...current, image: event.target.value }))} className="w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm focus:border-espresso-400 focus:outline-none" />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Available from (optional)</label>
+                <input type="datetime-local" value={form.availableFrom} onChange={(event) => setForm((current) => ({ ...current, availableFrom: event.target.value }))} className="w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm focus:border-espresso-400 focus:outline-none" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Available until (optional)</label>
+                <input type="datetime-local" value={form.availableUntil} onChange={(event) => setForm((current) => ({ ...current, availableUntil: event.target.value }))} className="w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm focus:border-espresso-400 focus:outline-none" />
+              </div>
+
+              <div className="md:col-span-2 rounded-2xl border border-stone-200 p-4">
+                <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-semibold text-stone-800">Variants / sizes</h3><button type="button" onClick={() => setForm((current) => ({ ...current, variants: [...current.variants, { name: '', price: '' }] }))} className="rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-medium">Add variant</button></div>
+                <div className="space-y-2">{form.variants.map((variant, index) => <div key={variant._id || index} className="flex gap-2"><input aria-label={`Variant ${index + 1} name`} placeholder="e.g. Large" value={variant.name} onChange={(event) => setForm((current) => ({ ...current, variants: current.variants.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item) }))} className="min-w-0 flex-1 rounded-lg border border-stone-200 px-3 py-2 text-sm" /><input aria-label={`Variant ${index + 1} price`} type="number" min="0" placeholder="Price" value={variant.price} onChange={(event) => setForm((current) => ({ ...current, variants: current.variants.map((item, itemIndex) => itemIndex === index ? { ...item, price: event.target.value } : item) }))} className="w-28 rounded-lg border border-stone-200 px-3 py-2 text-sm" /><button type="button" aria-label="Remove variant" onClick={() => setForm((current) => ({ ...current, variants: current.variants.filter((_, itemIndex) => itemIndex !== index) }))} className="rounded-lg border border-red-100 px-3 text-red-600">×</button></div>)}</div>
+              </div>
+              <div className="md:col-span-2 rounded-2xl border border-stone-200 p-4">
+                <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-semibold text-stone-800">Add-ons</h3><button type="button" onClick={() => setForm((current) => ({ ...current, addons: [...current.addons, { name: '', price: '' }] }))} className="rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-medium">Add add-on</button></div>
+                <div className="space-y-2">{form.addons.map((addon, index) => <div key={addon._id || index} className="flex gap-2"><input aria-label={`Add-on ${index + 1} name`} placeholder="e.g. Oat milk" value={addon.name} onChange={(event) => setForm((current) => ({ ...current, addons: current.addons.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item) }))} className="min-w-0 flex-1 rounded-lg border border-stone-200 px-3 py-2 text-sm" /><input aria-label={`Add-on ${index + 1} price`} type="number" min="0" placeholder="Price" value={addon.price} onChange={(event) => setForm((current) => ({ ...current, addons: current.addons.map((item, itemIndex) => itemIndex === index ? { ...item, price: event.target.value } : item) }))} className="w-28 rounded-lg border border-stone-200 px-3 py-2 text-sm" /><button type="button" aria-label="Remove add-on" onClick={() => setForm((current) => ({ ...current, addons: current.addons.filter((_, itemIndex) => itemIndex !== index) }))} className="rounded-lg border border-red-100 px-3 text-red-600">×</button></div>)}</div>
               </div>
 
               <div className="md:col-span-2 flex items-center gap-4">

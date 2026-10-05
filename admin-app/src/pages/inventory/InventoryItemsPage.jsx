@@ -1,8 +1,10 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Pencil, Eye, PackagePlus, Loader2, Trash2, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Pencil, Eye, Package, PackagePlus, Loader2, Trash2, ChevronDown, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import { useTenant } from '../../context/TenantContext';
+import { formatMoney } from '../../utils/money';
 
 const UNIT_LABELS = {
   piece: 'pcs', cup: 'cups', glass: 'glasses', bottle: 'bottles',
@@ -37,6 +39,7 @@ const EMPTY_WASTE_FORM = { quantity: '', type: 'waste', reason: '', notes: '' };
 const WASTE_REASONS = ['Damaged', 'Expired', 'Spilled', 'Broken', 'Incorrect preparation', 'Other'];
 
 export default function InventoryItemsPage() {
+  const tenant = useTenant();
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -180,7 +183,7 @@ export default function InventoryItemsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-2xl font-bold text-espresso-900">Inventory Items</h2>
-          <p className="text-sm text-stone-500">{total} items · Total Value: ₹{totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p className="text-sm text-stone-500">{total} items · Total Value: {formatMoney(totalValue, tenant.currency)}</p>
         </div>
         <button onClick={openCreate} className="btn-primary gap-2 px-4 py-2.5 text-sm">
           <Plus size={16} /> New Item
@@ -244,9 +247,9 @@ export default function InventoryItemsPage() {
                   </td>
                   <td className="px-4 py-3 text-stone-500">{item.minimumStock || '—'}</td>
                   <td className="px-4 py-3"><StatusBadge item={item} /></td>
-                  <td className="px-4 py-3 text-stone-600">₹{item.costPerUnit || 0}</td>
+                  <td className="px-4 py-3 text-stone-600">{formatMoney(item.costPerUnit, tenant.currency)}</td>
                   <td className="px-4 py-3 font-medium text-stone-900">
-                    ₹{(item.currentQuantity * item.costPerUnit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatMoney(item.currentQuantity * item.costPerUnit, tenant.currency)}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
@@ -333,7 +336,7 @@ export default function InventoryItemsPage() {
                     className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-espresso-300" />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-stone-600 mb-1 block">Cost per Unit (₹)</label>
+                  <label className="text-xs font-medium text-stone-600 mb-1 block">Cost per Unit ({tenant.currency})</label>
                   <input type="number" min="0" step="0.01" value={itemForm.costPerUnit} onChange={e => setItemForm(f => ({ ...f, costPerUnit: e.target.value }))}
                     className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-espresso-300" />
                 </div>
@@ -373,7 +376,7 @@ export default function InventoryItemsPage() {
                   className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-espresso-300" />
               </div>
               <div>
-                <label className="text-xs font-medium text-stone-600 mb-1 block">Cost per Unit (₹)</label>
+                <label className="text-xs font-medium text-stone-600 mb-1 block">Cost per Unit ({tenant.currency})</label>
                 <input type="number" min="0" step="0.01" value={stockForm.costPerUnit} onChange={e => setStockForm(f => ({ ...f, costPerUnit: e.target.value }))}
                   className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-espresso-300" />
               </div>

@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import mongoose from 'mongoose';
+import { isProductScheduledAvailable } from './productAvailability.js';
 
 /**
  * Generate a cryptographically secure access token for order retrieval.
@@ -13,7 +14,8 @@ export const generateOrderAccessToken = () => {
  * Generate a deterministic access token from an idempotency key and secret.
  * Guarantees idempotent retries receive the exact same valid access token.
  */
-export const generateIdempotentAccessToken = (idempotencyKey, secret = process.env.JWT_SECRET || 'brewhaus-token-salt') => {
+export const generateIdempotentAccessToken = (idempotencyKey, secret = process.env.JWT_SECRET) => {
+  if (!secret || secret.length < 32) throw new Error('JWT secret is not configured or is too short.');
   if (!idempotencyKey || typeof idempotencyKey !== 'string') return generateOrderAccessToken();
   return crypto.createHmac('sha256', secret).update(`order_access_${idempotencyKey.trim()}`).digest('hex');
 };
@@ -67,6 +69,9 @@ export const validateAndFetchProductPrices = async (items, Product) => {
     }
 
     const { productId, quantity, variantId, addonIds } = item;
+    const specialInstructions = typeof item.specialInstructions === 'string'
+      ? item.specialInstructions.trim().slice(0, 120)
+      : '';
 
     // Validate quantity
     const qty = Number(quantity);
@@ -88,6 +93,7 @@ export const validateAndFetchProductPrices = async (items, Product) => {
     if (!product.available) {
       throw new Error(`Product is not available: ${product.name}`);
     }
+    if (!isProductScheduledAvailable(product)) throw new Error(`Product is outside its scheduled availability: ${product.name}`);
 
     let basePrice = product.price;
     let variant = null;
@@ -129,6 +135,7 @@ export const validateAndFetchProductPrices = async (items, Product) => {
       basePrice,
       variant: variant ? { _id: variant._id, name: variant.name, price: variant.price } : null,
       addons,
+      specialInstructions,
       itemTotal,
     });
   }
@@ -140,7 +147,7 @@ export const validateAndFetchProductPrices = async (items, Product) => {
  * Calculate order totals server-side.
  * Input: validated items with server-calculated prices.
  */
-export const calculateServerTotals = (items) => {
+export const calculateServerTotals = (items, taxRate = 5) => {
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error('Items are required.');
   }
@@ -150,10 +157,11 @@ export const calculateServerTotals = (items) => {
   );
 
   // 5% GST
-  const tax = Number((subtotal * 0.05).toFixed(2));
+  const normalizedTaxRate = Number(taxRate);
+  const tax = Number((subtotal * normalizedTaxRate / 100).toFixed(2));
   const total = Number((subtotal + tax).toFixed(2));
 
-  return { subtotal, tax, total, taxRate: 5 };
+  return { subtotal, tax, total, taxRate: normalizedTaxRate };
 };
 
 /**

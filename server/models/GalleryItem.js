@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantIsolationPlugin } from '../utils/tenantContext.js';
 
 const galleryItemSchema = new mongoose.Schema({
   customerName: { type: String, required: true, trim: true, maxlength: 60 },
@@ -16,4 +17,5 @@ galleryItemSchema.set('toJSON', {
   },
 });
 
+galleryItemSchema.plugin(tenantIsolationPlugin);
 export default mongoose.model('GalleryItem', galleryItemSchema);

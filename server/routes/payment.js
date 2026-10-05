@@ -1,33 +1,47 @@
 import express from 'express';
+import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import mongoose from 'mongoose';
 import Order from '../models/Order.js';
+import Payment from '../models/Payment.js';
+import Tenant from '../models/Tenant.js';
+import { decryptTenantCredentials } from '../utils/tenantSecrets.js';
+import DiningBill from '../models/DiningBill.js';
+import DiningSession from '../models/DiningSession.js';
 import {
   verifyAccessToken,
-  verifyRazorpaySignature,
 } from '../utils/orderSecurity.js';
 import { confirmOrderAndDeduct } from '../services/inventoryService.js';
+import { withMongoTransaction } from '../utils/mongoTransaction.js';
+import { publishLiveUpdate, publishOrderUpdate } from '../services/liveUpdates.js';
+import { writeAuditLog } from '../services/auditLog.js';
+import { awardLoyaltyPoints, reverseLoyaltyPoints } from '../services/loyaltyService.js';
 
 const router = express.Router();
 
-const getRazorpay = (req) => {
-  // Test-only dependency seam. Production constructs the official Razorpay
-  // client from server-side credentials.
-  if (typeof req.app.locals.razorpayFactory === 'function') {
-    return req.app.locals.razorpayFactory();
-  }
-
-  const keyId = process.env.RAZORPAY_KEY_ID;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
-  if (!keyId || !keySecret || keySecret === 'placeholder_secret' || (process.env.NODE_ENV === 'production' && keyId.startsWith('rzp_test_'))) {
-    const error = new Error('Online payments are not configured. Add valid live Razorpay credentials to the server.');
+const getTenantPaymentConfig = async (req) => {
+  const tenant = await Tenant.findById(req.tenantId).select('+paymentCredentialsEncrypted').lean();
+  const credentials = decryptTenantCredentials(tenant?.paymentCredentialsEncrypted);
+  if (!credentials.keyId || !credentials.keySecret || !credentials.webhookSecret || credentials.keySecret === 'placeholder_secret' || (process.env.NODE_ENV === 'production' && credentials.keyId.startsWith('rzp_test_'))) {
+    const error = new Error('Online payments are not configured for this café.');
     error.code = 'PAYMENT_CONFIG_INVALID';
     error.status = 503;
     throw error;
   }
-
-  return new Razorpay({ key_id: keyId, key_secret: keySecret });
+  return credentials;
 };
+
+const getRazorpay = async (req) => {
+  // Test-only dependency seam. Production constructs the official Razorpay
+  // client from server-side credentials.
+  if (typeof req.app.locals.razorpayFactory === 'function') {
+    return { client: req.app.locals.razorpayFactory(), ...(await getTenantPaymentConfig(req)) };
+  }
+  const config = await getTenantPaymentConfig(req);
+  return { ...config, client: new Razorpay({ key_id: config.keyId, key_secret: config.keySecret }) };
+};
+
+const minorUnits = (amount, currency) => Math.round(Number(amount) * (10 ** new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits));
 
 const getOrderId = (value) => {
   if (!value || !mongoose.isValidObjectId(value)) return null;
@@ -61,51 +75,18 @@ const publicPaymentState = (order) => ({
   orderStatus: order.orderStatus,
 });
 
-const alreadyVerifiedResponse = (res, order) => res.json({
-  success: true,
-  message: 'Payment already verified.',
-  order: publicPaymentState(order),
-});
+const verifyWebhookSignature = (rawBody, signature, secret) => {
+  if (!Buffer.isBuffer(rawBody) || !signature || !secret) return false;
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+  const suppliedBytes = Buffer.from(String(signature));
+  const expectedBytes = Buffer.from(expected);
+  return suppliedBytes.length === expectedBytes.length && crypto.timingSafeEqual(suppliedBytes, expectedBytes);
+};
 
-// Demo-only payment completion. It is opt-in and must never be enabled on a
-// real payment deployment. The order token and active dining session are still
-// required, and the update is atomic so a retry cannot create a second payment.
+// Kept as a 404 compatibility route: payment state can only be completed by
+// the verified provider webhook.
 router.post('/demo-complete', async (req, res) => {
-  try {
-    if (process.env.DEMO_PAYMENTS_ENABLED !== 'true') {
-      return res.status(404).json({ error: 'Demo payments are disabled.' });
-    }
-
-    const { orderId, accessToken } = req.body;
-    const validOrderId = getOrderId(orderId);
-    if (!validOrderId) return res.status(400).json({ error: 'A valid order ID is required.' });
-
-    const order = await requireOrderAccess(req, res, validOrderId, accessToken);
-    if (!order) return;
-    if (order.paymentMethod !== 'razorpay') return res.status(400).json({ error: 'This order is not configured for online payment.' });
-    if (order.paymentStatus === 'paid') return alreadyVerifiedResponse(res, order);
-
-    const demoPaymentId = `demo_pay_${order._id}`;
-
-    const result = await confirmOrderAndDeduct(order._id, {
-      additionalUpdates: {
-        paymentStatus: 'paid',
-        paymentVerifiedAt: new Date(),
-        razorpayPaymentId: demoPaymentId,
-        razorpaySignature: 'demo-server-verified',
-      },
-    });
-
-    return res.json({ success: true, demo: true, order: publicPaymentState(result.order) });
-  } catch (error) {
-    console.error('Demo payment error:', error.message);
-    const status = error.statusCode || error.status || 500;
-    return res.status(status).json({
-      error: error.message || 'Demo payment completion failed.',
-      code: error.code,
-      details: error.details,
-    });
-  }
+  return res.status(404).json({ error: 'Demo payments are disabled. Payment completion requires the provider webhook.' });
 });
 
 // POST /api/payment/create-order
@@ -128,26 +109,28 @@ router.post('/create-order', async (req, res) => {
       return res.status(400).json({ error: 'Order is already paid.' });
     }
 
-    if (order.paymentStatus !== 'pending' || ['cancelled', 'completed'].includes(order.orderStatus)) {
+    if (!['pending', 'payment_created'].includes(order.paymentStatus) || ['cancelled', 'completed'].includes(order.orderStatus)) {
       return res.status(400).json({ error: 'Order is not eligible for payment.' });
     }
 
     // Reuse a locally initialized Razorpay order. The amount always comes
     // from the server-persisted order total.
+    const currency = String(order.currency || req.tenant.settings?.currency || 'INR');
+    const config = await getTenantPaymentConfig(req);
     if (order.razorpayOrderId) {
       return res.json({
         razorpayOrderId: order.razorpayOrderId,
-        amount: Math.round(order.total * 100),
-        currency: 'INR',
-        keyId: process.env.RAZORPAY_KEY_ID,
+        amount: minorUnits(order.total, currency),
+        currency,
+        keyId: config.keyId,
       });
     }
 
-    const razorpay = getRazorpay(req);
-    const amountInPaise = Math.round(order.total * 100);
+    const { client: razorpay } = await getRazorpay(req);
+    const amountInMinorUnits = minorUnits(order.total, currency);
     const razorpayOrder = await razorpay.orders.create({
-      amount: amountInPaise,
-      currency: 'INR',
+      amount: amountInMinorUnits,
+      currency,
       receipt: order.orderNumber,
       notes: {
         orderId: order._id.toString(),
@@ -156,25 +139,45 @@ router.post('/create-order', async (req, res) => {
       },
     });
 
-    if (!razorpayOrder?.id || razorpayOrder.currency !== 'INR' || razorpayOrder.amount !== amountInPaise) {
+    if (!razorpayOrder?.id || razorpayOrder.currency !== currency || razorpayOrder.amount !== amountInMinorUnits) {
       return res.status(502).json({ error: 'Payment gateway returned an invalid order.' });
     }
 
-    // Only persist a gateway order created for this still-pending order.
-    const updated = await Order.findOneAndUpdate(
-      { _id: order._id, paymentStatus: { $in: ['pending', 'payment_created'] }, razorpayOrderId: '' },
-      { $set: { razorpayOrderId: razorpayOrder.id, paymentStatus: 'payment_created' } },
-      { new: true, runValidators: true }
-    );
+    // Persist the provider order against both records atomically. If a retry
+    // races with this request, it reuses whichever provider order won.
+    let updated;
+    const persistGatewayOrder = async (session) => {
+        updated = await Order.findOneAndUpdate(
+          { _id: order._id, paymentStatus: { $in: ['pending', 'payment_created'] }, razorpayOrderId: '' },
+          { $set: { razorpayOrderId: razorpayOrder.id, paymentStatus: 'payment_created' } },
+          { new: true, runValidators: true, session }
+        );
+        if (updated) {
+          const updatedPayment = await Payment.findOneAndUpdate(
+            { orderId: order._id, status: 'pending' },
+            { $set: { razorpayOrderId: razorpayOrder.id, status: 'created' } },
+            { new: true, runValidators: true, session }
+          );
+          if (!updatedPayment) throw new Error('Payment intent record is missing. Apply the Phase 1 database migration.');
+        }
+    };
+    await withMongoTransaction(persistGatewayOrder, async () => {
+      try {
+        await persistGatewayOrder(undefined);
+      } catch (error) {
+        await Order.updateOne({ _id: order._id, razorpayOrderId: razorpayOrder.id }, { $set: { razorpayOrderId: '', paymentStatus: 'pending' } });
+        throw error;
+      }
+    });
 
     if (!updated) {
       const current = await Order.findById(order._id);
       if (current?.razorpayOrderId) {
         return res.json({
           razorpayOrderId: current.razorpayOrderId,
-          amount: Math.round(current.total * 100),
-          currency: 'INR',
-          keyId: process.env.RAZORPAY_KEY_ID,
+          amount: minorUnits(current.total, currency),
+          currency,
+          keyId: config.keyId,
         });
       }
       return res.status(409).json({ error: 'Order changed while initializing payment.' });
@@ -184,7 +187,7 @@ router.post('/create-order', async (req, res) => {
       razorpayOrderId: razorpayOrder.id,
       amount: razorpayOrder.amount,
       currency: razorpayOrder.currency,
-      keyId: process.env.RAZORPAY_KEY_ID,
+      keyId: config.keyId,
     });
   } catch (error) {
     console.error('Razorpay create order error:', error.message);
@@ -211,119 +214,151 @@ router.post('/cancel', async (req, res) => {
       return res.status(400).json({ error: 'Order has already been paid.' });
     }
 
-    if (['pending', 'payment_created', 'payment_processing'].includes(order.paymentStatus)) {
-      order.paymentStatus = 'cancelled';
-      await order.save();
-    }
-
-    return res.json({ success: true, order: publicPaymentState(order) });
+    // A browser dismiss event is not authoritative: a payment may still be
+    // captured by the gateway. Leave server payment state for the webhook.
+    return res.status(202).json({ success: true, verified: false, message: 'Payment state awaits the provider webhook.', order: publicPaymentState(order) });
   } catch (error) {
     console.error('Payment cancel error:', error.message);
     return res.status(500).json({ error: 'Failed to record payment cancellation.' });
   }
 });
 
-// POST /api/payment/verify
-// Requires order access authorization, binds the payment to the locally
-// initialized Razorpay order, and performs an atomic pending -> paid update.
-router.post('/verify', async (req, res) => {
+// POST /api/payment/webhook — only this signed server-to-server event can
+// mark a Razorpay order paid.
+router.post('/webhook', async (req, res) => {
   try {
-    const {
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature,
-      orderId,
-      accessToken,
-    } = req.body;
-
-    const validOrderId = getOrderId(orderId);
-    if (!validOrderId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return res.status(400).json({ error: 'Missing payment verification data.' });
+    const config = await getTenantPaymentConfig(req);
+    const secret = config.webhookSecret;
+    const signature = req.get('x-razorpay-signature');
+    if (!secret || !verifyWebhookSignature(req.rawBody, signature, secret)) {
+      return res.status(400).json({ error: 'Invalid Razorpay webhook signature.' });
     }
 
-    const order = await requireOrderAccess(req, res, validOrderId, accessToken);
-    if (!order) return;
-
-    if (!order.razorpayOrderId) {
-      return res.status(400).json({ error: 'Payment order has not been initialized.' });
+    const event = req.body?.event;
+    const refund = req.body?.payload?.refund?.entity;
+    if (['refund.processed', 'refund.failed'].includes(event) && refund?.payment_id && refund?.id) {
+      const paymentRecord = await Payment.findOne({ razorpayPaymentId: refund.payment_id });
+      if (!paymentRecord) return res.status(404).json({ error: 'Payment record for this refund was not found.' });
+      if (refund.amount !== minorUnits(paymentRecord.amount, paymentRecord.currency || 'INR')) return res.status(400).json({ error: 'Refund amount does not match the payment record.' });
+      if (paymentRecord.status === 'refunded') return res.json({ received: true, duplicate: true });
+      if (paymentRecord.refundId && paymentRecord.refundId !== refund.id) return res.status(409).json({ error: 'Refund ID does not match the active refund.' });
+      const successful = event === 'refund.processed';
+      await Payment.updateOne({ _id: paymentRecord._id, status: { $in: ['refunding', 'captured'] } }, { $set: { status: successful ? 'refunded' : 'captured', refundId: refund.id } });
+      if (paymentRecord.orderId) {
+        const order = await Order.findByIdAndUpdate(paymentRecord.orderId, { $set: { paymentStatus: successful ? 'refunded' : 'paid' } }, { new: true });
+        if (successful) await reverseLoyaltyPoints(paymentRecord.orderId);
+        if (order) publishOrderUpdate(order);
+        await writeAuditLog({ actor: { email: 'razorpay-webhook', role: 'system' }, action: successful ? 'order.refunded' : 'order.refund_failed', targetType: 'Order', targetId: paymentRecord.orderId, details: { refundId: refund.id, amount: paymentRecord.amount } });
+      }
+      return res.json({ received: true, refundStatus: successful ? 'refunded' : 'failed' });
     }
 
-    if (order.razorpayOrderId !== razorpay_order_id) {
-      return res.status(400).json({ error: 'Payment order ID mismatch.' });
+    const payment = req.body?.payload?.payment?.entity;
+    if (event !== 'payment.captured' || !payment?.order_id || !payment?.id) {
+      return res.json({ received: true, ignored: true });
     }
 
-    if (!['pending', 'payment_created', 'payment_processing', 'paid'].includes(order.paymentStatus)) {
-      return res.status(400).json({ error: 'Order payment is not in a verifiable state.' });
+    const paymentRecord = await Payment.findOne({ razorpayOrderId: payment.order_id });
+    if (!paymentRecord) return res.status(404).json({ error: 'Payment record for this Razorpay order was not found.' });
+    if (payment.currency !== (paymentRecord.currency || 'INR') || payment.amount !== minorUnits(paymentRecord.amount, paymentRecord.currency || 'INR') || payment.status !== 'captured') {
+      return res.status(400).json({ error: 'Captured payment amount, currency, or status does not match the payment record.' });
+    }
+    if (paymentRecord.status === 'captured') {
+      const completedOrder = paymentRecord.orderId ? await Order.findById(paymentRecord.orderId) : null;
+      return res.json({ received: true, duplicate: true, ...(completedOrder && { order: publicPaymentState(completedOrder) }) });
     }
 
-    const secret = process.env.RAZORPAY_KEY_SECRET;
-    if (!secret || secret === 'placeholder_secret') {
-      return res.status(500).json({ error: 'Razorpay secret is not configured.' });
+    if (paymentRecord.diningBillId) {
+      const bill = await DiningBill.findById(paymentRecord.diningBillId);
+      if (!bill) return res.status(404).json({ error: 'Dining bill for this payment was not found.' });
+      if (bill.razorpayOrderId !== payment.order_id || bill.dueAmount !== paymentRecord.amount) {
+        return res.status(409).json({ error: 'Dining bill changed after payment initialization.' });
+      }
+      const session = await mongoose.startSession();
+      let updatedBill;
+      try {
+        await session.withTransaction(async () => {
+          updatedBill = await DiningBill.findOneAndUpdate(
+            { _id: bill._id, status: { $ne: 'PAID' }, dueAmount: paymentRecord.amount },
+            { $set: { paidAmount: bill.grandTotal, dueAmount: 0, status: 'PAID', paidAt: new Date(), razorpayPaymentId: payment.id } },
+            { new: true, runValidators: true, session }
+          );
+          if (!updatedBill) return;
+          await Order.updateMany(
+            { diningSessionId: bill.diningSessionId, paymentStatus: { $ne: 'paid' }, orderStatus: { $ne: 'cancelled' } },
+            { $set: { paymentStatus: 'paid', paymentVerifiedAt: new Date(), razorpayPaymentId: payment.id } },
+            { session }
+          );
+          await DiningSession.findOneAndUpdate(
+            { _id: bill.diningSessionId, status: { $ne: 'CLOSED' } },
+            { $set: { status: 'CLOSED', closedAt: new Date() } },
+            { new: true, session }
+          );
+          await Payment.updateOne(
+            { _id: paymentRecord._id, status: { $ne: 'captured' } },
+            { $set: { status: 'captured', razorpayPaymentId: payment.id, webhookEventId: String(req.get('x-razorpay-event-id') || '').slice(0, 150), capturedAt: new Date() } },
+            { session }
+          );
+        });
+      } finally {
+        await session.endSession();
+      }
+      if (!updatedBill) return res.json({ received: true, duplicate: true });
+      const settledOrders = await Order.find({ diningSessionId: bill.diningSessionId }).lean();
+      for (const settledOrder of settledOrders) {
+        await awardLoyaltyPoints(settledOrder._id);
+        publishOrderUpdate(settledOrder);
+      }
+      publishLiveUpdate('admin', 'bill-updated', { bill: updatedBill });
+      return res.json({ received: true, bill: { _id: updatedBill._id, status: updatedBill.status, dueAmount: updatedBill.dueAmount } });
     }
 
-    if (!verifyRazorpaySignature({
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature,
-      keySecret: secret,
-    })) {
-      return res.status(400).json({ error: 'Payment verification failed. Invalid signature.' });
-    }
-
-    // A duplicate of the exact successful verification is idempotent and does
-    // not need to call Razorpay or write the order again.
-    if (
-      order.paymentStatus === 'paid' &&
-      order.paymentVerifiedAt &&
-      order.razorpayPaymentId === razorpay_payment_id &&
-      order.razorpaySignature === razorpay_signature
-    ) {
-      return alreadyVerifiedResponse(res, order);
-    }
-
-    const razorpay = getRazorpay(req);
-    const paymentDetails = await razorpay.payments.fetch(razorpay_payment_id);
-
-    if (!paymentDetails?.order_id || paymentDetails.order_id !== razorpay_order_id) {
-      return res.status(400).json({ error: 'Payment order ID mismatch.' });
-    }
-
-    const expectedAmount = Math.round(Number(order.total) * 100);
-    if (!Number.isSafeInteger(expectedAmount) || paymentDetails?.amount !== expectedAmount) {
-      return res.status(400).json({ error: 'Payment amount mismatch.' });
-    }
-
-    if (paymentDetails.currency !== 'INR') {
-      return res.status(400).json({ error: 'Invalid payment currency.' });
-    }
-
-    if (paymentDetails.status !== 'captured') {
-      return res.status(400).json({ error: 'Payment not captured by Razorpay.' });
-    }
-
-    if (order.paymentStatus === 'paid') {
-      // A different valid payment cannot overwrite an already settled order.
-      return res.status(409).json({ error: 'Order payment has already been completed.' });
-    }
+    const order = await Order.findById(paymentRecord.orderId);
+    if (!order) return res.status(404).json({ error: 'Order for this Razorpay payment was not found.' });
+    if (order.paymentMethod !== 'razorpay' || order.razorpayOrderId !== payment.order_id) return res.status(400).json({ error: 'Payment method or gateway order mismatch.' });
 
     const result = await confirmOrderAndDeduct(order._id, {
       additionalUpdates: {
         paymentStatus: 'paid',
         paymentVerifiedAt: new Date(),
-        razorpayPaymentId: razorpay_payment_id,
-        razorpaySignature: razorpay_signature,
+        razorpayPaymentId: payment.id,
       },
     });
-
-    return res.json({ success: true, order: publicPaymentState(result.order) });
+    await awardLoyaltyPoints(result.order._id);
+    publishOrderUpdate(result.order);
+    const eventId = String(req.get('x-razorpay-event-id') || '').slice(0, 150);
+    await Payment.findOneAndUpdate(
+      { _id: paymentRecord._id, status: { $ne: 'captured' } },
+      { $set: { status: 'captured', razorpayPaymentId: payment.id, webhookEventId: eventId, capturedAt: new Date() } },
+      { new: true, runValidators: true }
+    );
+    return res.json({ received: true, order: publicPaymentState(result.order) });
   } catch (error) {
-    console.error('Payment verification error:', error.message);
+    console.error('Razorpay webhook error:', error.message);
     const status = error.statusCode || error.status || 500;
-    return res.status(status).json({
-      error: error.message || 'Payment verification failed.',
-      code: error.code,
-      details: error.details,
+    return res.status(status).json({ error: error.message || 'Unable to process Razorpay webhook.', code: error.code });
+  }
+});
+
+// POST /api/payment/verify
+// Compatibility endpoint for older customer bundles. A browser callback is
+// never a payment authority; completion is handled exclusively by /webhook.
+router.post('/verify', async (req, res) => {
+  try {
+    const validOrderId = getOrderId(req.body?.orderId);
+    if (!validOrderId) return res.status(400).json({ error: 'A valid order ID is required.' });
+    const order = await requireOrderAccess(req, res, validOrderId, req.body?.accessToken);
+    if (!order) return;
+    return res.status(order.paymentStatus === 'paid' ? 200 : 202).json({
+      success: order.paymentStatus === 'paid',
+      verified: false,
+      message: order.paymentStatus === 'paid' ? 'Payment was confirmed by webhook.' : 'Payment is awaiting the provider webhook.',
+      order: publicPaymentState(order),
     });
+  } catch (error) {
+    console.error('Payment callback status error:', error.message);
+    const status = error.statusCode || error.status || 500;
+    return res.status(status).json({ error: error.message || 'Unable to load payment status.', code: error.code });
   }
 });
 

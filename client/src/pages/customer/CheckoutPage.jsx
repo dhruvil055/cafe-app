@@ -5,6 +5,8 @@ import { ArrowLeft, CreditCard, Banknote, Loader2, AlertCircle } from 'lucide-re
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import useCartStore from '../../context/cartStore';
+import { useTenant } from '../../context/TenantContext';
+import { formatMoney } from '../../utils/money';
 
 const loadRazorpay = () => {
   return new Promise((resolve) => {
@@ -18,24 +20,56 @@ const loadRazorpay = () => {
 };
 
 export default function CheckoutPage() {
+  const tenant = useTenant();
   const navigate = useNavigate();
-  const { items, tableNumber, clearCart, diningSessionToken, addRecentOrder } = useCartStore();
+  const { items, tableNumber, tableToken, clearCart, diningSessionToken, addRecentOrder } = useCartStore();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [marketingConsent, setMarketingConsent] = useState(false);
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponLoading, setCouponLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [idempotencyKey] = useState(() => (
-    typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `chk_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
+    sessionStorage.getItem('brewhaus_checkout_idempotency') || (() => {
+      const key = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `chk_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+      sessionStorage.setItem('brewhaus_checkout_idempotency', key);
+      return key;
+    })()
   ));
 
   const subtotal = items.reduce((s, i) => s + i.itemTotal, 0);
-  const tax = Math.round(subtotal * 0.05);
-  const total = subtotal + tax;
+  const discount = appliedCoupon?.discount || 0;
+  const tax = appliedCoupon?.tax ?? Number(((subtotal - discount) * Number(tenant.taxRate || 0) / 100).toFixed(2));
+  const total = appliedCoupon?.total ?? subtotal - discount + tax;
+
+  const secureItems = () => items.map(item => ({
+    productId: item.product,
+    quantity: item.quantity,
+    ...(item.variant && { variantId: item.variant._id }),
+    ...(item.addons.length > 0 && { addonIds: item.addons.map(a => a._id) }),
+    ...(item.specialInstructions && { specialInstructions: item.specialInstructions }),
+  }));
+
+  const applyCoupon = async () => {
+    if (!couponInput.trim()) return;
+    setCouponLoading(true);
+    try {
+      const { data } = await api.post('/coupons/validate', { code: couponInput, items: secureItems() });
+      setAppliedCoupon(data);
+      setCouponInput(data.code);
+      setError('');
+      toast.success(`Coupon ${data.code} applied.`);
+    } catch (e) {
+      setAppliedCoupon(null);
+      setError(e.message || 'Coupon could not be applied.');
+    } finally { setCouponLoading(false); }
+  };
 
   if (items.length === 0) {
     return (
@@ -60,22 +94,17 @@ export default function CheckoutPage() {
     setLoading(true);
     setError('');
     try {
-      const secureItems = items.map(item => ({
-        productId: item.product,
-        quantity: item.quantity,
-        ...(item.variant && { variantId: item.variant._id }),
-        ...(item.addons.length > 0 && { addonIds: item.addons.map(a => a._id) }),
-      }));
-
       const orderData = {
         tableNumber,
+        tableToken,
         customer: {
           name: name.trim(),
           phone: phone.trim(),
           email: email.trim(),
           marketingConsent,
         },
-        items: secureItems,
+        items: secureItems(),
+        ...(appliedCoupon && { couponCode: appliedCoupon.code }),
         paymentMethod: 'cash',
         idempotencyKey,
         ...(diningSessionToken && { diningSessionToken }),
@@ -86,6 +115,7 @@ export default function CheckoutPage() {
         localStorage.setItem('brewhaus_customer_id', order.customerId);
       }
       localStorage.setItem('brewhaus_customer_phone', phone.trim());
+      sessionStorage.removeItem('brewhaus_checkout_idempotency');
       if (addRecentOrder && order?._id) {
         addRecentOrder({
           orderId: order._id,
@@ -113,22 +143,17 @@ export default function CheckoutPage() {
     setError('');
 
     try {
-      const secureItems = items.map(item => ({
-        productId: item.product,
-        quantity: item.quantity,
-        ...(item.variant && { variantId: item.variant._id }),
-        ...(item.addons.length > 0 && { addonIds: item.addons.map(a => a._id) }),
-      }));
-
       const orderData = {
         tableNumber,
+        tableToken,
         customer: {
           name: name.trim(),
           phone: phone.trim(),
           email: email.trim(),
           marketingConsent,
         },
-        items: secureItems,
+        items: secureItems(),
+        ...(appliedCoupon && { couponCode: appliedCoupon.code }),
         paymentMethod: 'razorpay',
         idempotencyKey,
         ...(diningSessionToken && { diningSessionToken }),
@@ -154,24 +179,17 @@ export default function CheckoutPage() {
         });
       }
 
-      if (import.meta.env.VITE_DEMO_PAYMENTS !== 'false') {
-        await api.post('/payment/demo-complete', { orderId: order._id, accessToken });
-        clearCart();
-        navigate(`/order-confirm/${order._id}?token=${accessToken}`);
-        return;
-      }
-
       const rzpRes = await api.post('/payment/create-order', { orderId: order._id, accessToken });
-      const { razorpayOrderId, amount, keyId } = rzpRes.data;
+      const { razorpayOrderId, amount, keyId, currency } = rzpRes.data;
 
       const loaded = await loadRazorpay();
       if (!loaded) throw new Error('Payment gateway failed to load. Check your internet connection.');
 
       const rzp = new window.Razorpay({
-        key: keyId || import.meta.env.VITE_RAZORPAY_KEY_ID,
+        key: keyId,
         amount,
-        currency: 'INR',
-        name: 'Brewhaus Cafe',
+        currency: currency || tenant.currency || 'INR',
+        name: tenant.name,
         description: `Order ${order.orderNumber} · Table ${tableNumber}`,
         order_id: razorpayOrderId,
         prefill: { name: name.trim(), contact: phone.trim(), email: email.trim() },
@@ -183,21 +201,13 @@ export default function CheckoutPage() {
             toast.error('Payment cancelled.');
           }
         },
-        handler: async (response) => {
-          try {
-            await api.post('/payment/verify', {
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              orderId: order._id,
-              accessToken,
-            });
-            clearCart();
-            navigate(`/order-confirm/${order._id}?token=${accessToken}`);
-          } catch (verifyErr) {
-            setError(verifyErr.message || 'Payment verification failed.');
-            setLoading(false);
-          }
+        handler: () => {
+          // The checkout callback is only UI feedback. Server payment status
+          // changes after Razorpay's signed webhook is validated.
+          clearCart();
+          sessionStorage.removeItem('brewhaus_checkout_idempotency');
+          toast.success('Payment submitted. We are confirming it with the payment provider.');
+          navigate(`/order-confirm/${order._id}?token=${accessToken}`);
         },
       });
 
@@ -288,7 +298,7 @@ export default function CheckoutPage() {
                 className="mt-0.5 h-4 w-4 rounded border-espresso-300 text-brew-600 focus:ring-brew-500 cursor-pointer transition accent-brew-600"
               />
               <span className="text-xs leading-relaxed text-espresso-600 group-hover:text-espresso-900 transition">
-                I agree to receive offers, promotions and updates from Brewhaus Café.
+                I agree to receive offers, promotions and updates from {tenant.name}.
               </span>
             </label>
           </div>
@@ -308,19 +318,26 @@ export default function CheckoutPage() {
                     </span>
                   )}
                 </span>
-                <span className="font-medium text-espresso-900 flex-shrink-0">{String.fromCharCode(8377)}{item.itemTotal}</span>
+                <span className="font-medium text-espresso-900 flex-shrink-0">{formatMoney(item.itemTotal, tenant.currency)}</span>
               </div>
             ))}
           </div>
+          <div className="flex gap-2 border-t border-foam pt-3">
+            <label htmlFor="checkout-coupon" className="sr-only">Coupon code</label>
+            <input id="checkout-coupon" value={couponInput} onChange={(event) => { setCouponInput(event.target.value.toUpperCase()); setAppliedCoupon(null); }} className="input-field min-w-0 flex-1" placeholder="Coupon code" maxLength={32} />
+            <button type="button" onClick={applyCoupon} disabled={couponLoading || !couponInput.trim()} className="btn-secondary shrink-0 px-4 text-sm disabled:opacity-60">{couponLoading ? 'Checking…' : appliedCoupon ? 'Apply again' : 'Apply'}</button>
+          </div>
+          {appliedCoupon && <p className="text-xs font-medium text-emerald-700">{appliedCoupon.code} applied — saving {formatMoney(discount, tenant.currency)}{appliedCoupon.description ? ` · ${appliedCoupon.description}` : ''}</p>}
           <div className="border-t border-foam pt-2 space-y-1">
             <div className="flex justify-between text-sm text-espresso-500">
-              <span>Subtotal</span><span>{String.fromCharCode(8377)}{subtotal}</span>
+              <span>Subtotal</span><span>{formatMoney(subtotal, tenant.currency)}</span>
             </div>
+            {discount > 0 && <div className="flex justify-between text-sm text-emerald-700"><span>Coupon discount</span><span>−{formatMoney(discount, tenant.currency)}</span></div>}
             <div className="flex justify-between text-sm text-espresso-500">
-              <span>GST (5%)</span><span>{String.fromCharCode(8377)}{tax}</span>
+              <span>GST ({tenant.taxRate}%)</span><span>{formatMoney(tax, tenant.currency)}</span>
             </div>
             <div className="flex justify-between font-display font-bold text-espresso-900 text-base">
-              <span>Total</span><span>{String.fromCharCode(8377)}{total}</span>
+              <span>Total</span><span>{formatMoney(total, tenant.currency)}</span>
             </div>
           </div>
         </div>
@@ -381,7 +398,7 @@ export default function CheckoutPage() {
           ) : (
             <>
               {paymentMethod === 'razorpay' ? <CreditCard size={18} /> : <Banknote size={18} />}
-              {paymentMethod === 'razorpay' ? `Pay ${String.fromCharCode(8377)}${total}` : `Place Order · ${String.fromCharCode(8377)}${total}`}
+              {paymentMethod === 'razorpay' ? `Pay ${formatMoney(total, tenant.currency)}` : `Place Order · ${formatMoney(total, tenant.currency)}`}
             </>
           )}
         </motion.button>

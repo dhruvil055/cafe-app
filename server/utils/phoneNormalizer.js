@@ -10,7 +10,7 @@ export const normalizePhoneNumber = (rawPhone) => {
   const str = String(rawPhone).trim();
 
   // Strip all whitespace, hyphens, parenthesis, dots
-  let cleaned = str.replace(/[\s\-\(\)\.]/g, '');
+  let cleaned = str.replace(/[\s().-]/g, '');
 
   if (!cleaned) return null;
 

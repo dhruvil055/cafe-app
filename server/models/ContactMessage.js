@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantIsolationPlugin } from '../utils/tenantContext.js';
 
 const contactMessageSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, minlength: 2, maxlength: 80 },
@@ -11,4 +12,5 @@ const contactMessageSchema = new mongoose.Schema({
 contactMessageSchema.index({ createdAt: -1 });
 contactMessageSchema.index({ contact: 1, createdAt: -1 });
 
+contactMessageSchema.plugin(tenantIsolationPlugin);
 export default mongoose.model('ContactMessage', contactMessageSchema);

@@ -1,10 +1,10 @@
 import mongoose from 'mongoose';
+import { tenantIsolationPlugin } from '../utils/tenantContext.js';
 
 const marketingSettingSchema = new mongoose.Schema({
   key: {
     type: String,
     required: true,
-    unique: true,
     default: 'global',
   },
   maxPromotionsPerCustomerPeriod: {
@@ -58,4 +58,6 @@ export const getMarketingSettings = async () => {
   }
 };
 
+marketingSettingSchema.plugin(tenantIsolationPlugin);
+marketingSettingSchema.index({ tenantId: 1, key: 1 }, { unique: true });
 export default mongoose.model('MarketingSetting', marketingSettingSchema);

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
+import { setAccessToken } from '../services/accessToken';
 
 const AuthContext = createContext(null);
 
@@ -12,17 +13,15 @@ export function AuthProvider({ children }) {
       .then((res) => setUser(res.data.user))
       .catch(() => {
         setUser(null);
-        localStorage.removeItem('brewhaus_admin_token');
+        setAccessToken(null);
       })
       .finally(() => setLoading(false));
   }, []);
 
-  const login = async (email, password) => {
-    const { data } = await api.post('/auth/login', { email, password });
+  const login = async (email, password, twoFactorCode) => {
+    const { data } = await api.post('/auth/login', { email, password, ...(twoFactorCode && { twoFactorCode }) });
     const { user: authUser } = data;
-    if (data.token) {
-      localStorage.setItem('brewhaus_admin_token', data.token);
-    }
+    setAccessToken(data.token);
     setUser(authUser);
     return authUser;
   };
@@ -34,8 +33,13 @@ export function AuthProvider({ children }) {
       // ignore logout failures and keep the UI in a safe logged-out state
     }
 
-    localStorage.removeItem('brewhaus_admin_token');
+    setAccessToken(null);
     setUser(null);
+  };
+
+  const setAuthSession = (token, authUser) => {
+    setAccessToken(token);
+    setUser(authUser);
   };
 
   const updateUser = (updatedUser) => {
@@ -48,6 +52,7 @@ export function AuthProvider({ children }) {
     login,
     logout,
     updateUser,
+    setAuthSession,
     isAuthenticated: Boolean(user),
   }), [user, loading]);
 

@@ -78,8 +78,8 @@ class WebPushChannelProvider extends BaseNotificationProvider {
     }
 
     const payload = JSON.stringify({
-      title: title || 'Brewhaus Café',
-      body: message || 'Special announcement from Brewhaus Café',
+      title: title || 'Café update',
+      body: message || 'A new announcement from your café.',
       icon: '/favicon.svg',
       badge: '/favicon.svg',
       image: image || undefined,

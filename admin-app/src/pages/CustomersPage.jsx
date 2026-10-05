@@ -9,8 +9,11 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import { useTenant } from '../context/TenantContext';
+import { formatMoney } from '../utils/money';
 
 export default function CustomersPage() {
+  const tenant = useTenant();
   const [customers, setCustomers] = useState([]);
   const [stats, setStats] = useState({
     totalCustomers: 0,
@@ -335,9 +338,9 @@ export default function CustomersPage() {
               className="rounded-lg border border-stone-200 bg-white px-2 py-1 text-xs text-stone-600"
             >
               <option value="">Spending: All</option>
-              <option value="1000">&gt; ₹1,000</option>
-              <option value="3000">&gt; ₹3,000</option>
-              <option value="5000">&gt; ₹5,000 (VIP)</option>
+              <option value="1000">&gt; {formatMoney(1000, tenant.currency)}</option>
+              <option value="3000">&gt; {formatMoney(3000, tenant.currency)}</option>
+              <option value="5000">&gt; {formatMoney(5000, tenant.currency)} (VIP)</option>
             </select>
 
             {(search || notificationsFilter || consentFilter || statusFilter || frequencyFilter || minSpentFilter) && (
@@ -446,7 +449,7 @@ export default function CustomersPage() {
 
                       {/* Total Spent */}
                       <td className="px-4 py-3 text-right font-semibold text-stone-900">
-                        ₹{Number(c.totalSpent || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatMoney(c.totalSpent, tenant.currency)}
                       </td>
 
                       {/* Last Order */}
@@ -499,7 +502,7 @@ export default function CustomersPage() {
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex items-center gap-1.5">
                           <a
-                            href={`https://api.whatsapp.com/send?phone=${c.phone ? c.phone.replace(/[^\d]/g, '') : ''}&text=${encodeURIComponent(`Hello ${c.name || 'Friend'} 👋 Greetings from Brewhaus Café!`)}`}
+                            href={`https://api.whatsapp.com/send?phone=${c.phone ? c.phone.replace(/[^\d]/g, '') : ''}&text=${encodeURIComponent(`Hello ${c.name || 'Friend'} 👋 Greetings from ${tenant.name}!`)}`}
                             target="_blank"
                             rel="noreferrer"
                             title="Open in WhatsApp"
@@ -607,7 +610,7 @@ export default function CustomersPage() {
                       <span className="flex items-center gap-1 font-mono font-medium"><Phone size={12} /> {selectedCustomer.phone}</span>
                       {selectedCustomer.email && <span className="flex items-center gap-1"><Mail size={12} /> {selectedCustomer.email}</span>}
                       <a
-                        href={`https://api.whatsapp.com/send?phone=${selectedCustomer.phone ? selectedCustomer.phone.replace(/[^\d]/g, '') : ''}&text=${encodeURIComponent(`Hello ${selectedCustomer.name || 'Friend'} 👋 Greetings from Brewhaus Café!`)}`}
+                        href={`https://api.whatsapp.com/send?phone=${selectedCustomer.phone ? selectedCustomer.phone.replace(/[^\d]/g, '') : ''}&text=${encodeURIComponent(`Hello ${selectedCustomer.name || 'Friend'} 👋 Greetings from ${tenant.name}!`)}`}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg hover:bg-emerald-100 transition"
@@ -669,8 +672,12 @@ export default function CustomersPage() {
                           <span className="font-bold text-stone-900">{selectedCustomer.totalOrders || 0}</span>
                         </div>
                         <div>
+                          <span className="text-stone-400 block text-[10px]">Loyalty Points</span>
+                          <span className="font-bold text-brew-700">{Number(selectedCustomer.loyaltyPoints || 0).toLocaleString('en-IN')} points</span>
+                        </div>
+                        <div>
                           <span className="text-stone-400 block text-[10px]">Total Spent</span>
-                          <span className="font-bold text-brew-700">₹{Number(selectedCustomer.totalSpent || 0).toLocaleString('en-IN')}</span>
+                          <span className="font-bold text-brew-700">{formatMoney(selectedCustomer.totalSpent, tenant.currency)}</span>
                         </div>
                         <div>
                           <span className="text-stone-400 block text-[10px]">Notification Status</span>
@@ -750,7 +757,7 @@ export default function CustomersPage() {
                       <div className="rounded-2xl bg-espresso-900 text-white p-4">
                         <span className="text-[11px] text-espresso-200 block">Lifetime Spending</span>
                         <span className="text-2xl font-bold font-display mt-1 block">
-                          ₹{Number(selectedCustomer.totalSpent || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          {formatMoney(selectedCustomer.totalSpent, tenant.currency)}
                         </span>
                       </div>
                       <div className="rounded-2xl bg-brew-50 border border-brew-100 p-4 text-brew-900">
@@ -780,12 +787,13 @@ export default function CustomersPage() {
                               <th className="px-3 py-2 text-right">Amount</th>
                               <th className="px-3 py-2 text-center">Payment</th>
                               <th className="px-3 py-2 text-center">Status</th>
+                              <th className="px-3 py-2 text-center">Rating</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-stone-100">
                             {!profileData?.orders || profileData.orders.length === 0 ? (
                               <tr>
-                                <td colSpan="6" className="py-6 text-center text-stone-400">
+                                <td colSpan="7" className="py-6 text-center text-stone-400">
                                   No previous orders recorded for this customer.
                                 </td>
                               </tr>
@@ -800,7 +808,7 @@ export default function CustomersPage() {
                                     {ord.items?.length || 0} items
                                   </td>
                                   <td className="px-3 py-2 text-right font-semibold text-stone-800">
-                                    ₹{ord.total}
+                                    {formatMoney(ord.total, tenant.currency)}
                                   </td>
                                   <td className="px-3 py-2 text-center">
                                     <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${ord.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-600'}`}>
@@ -812,6 +820,7 @@ export default function CustomersPage() {
                                       {ord.orderStatus}
                                     </span>
                                   </td>
+                                  <td className="px-3 py-2 text-center text-amber-600" title={ord.rating?.comment || ''}>{ord.rating?.score ? `${ord.rating.score}/5` : '—'}</td>
                                 </tr>
                               ))
                             )}

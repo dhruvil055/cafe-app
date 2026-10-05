@@ -53,6 +53,25 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
     crossOriginResourcePolicy: { policy: 'cross-origin' },
     crossOriginOpenerPolicy: { policy: 'same-origin' },
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+        imgSrc: ["'self'", "data:", "https:", "blob:"],
+        connectSrc: ["'self'", "https://api.razorpay.com", "wss:", "ws:"],
+        frameAncestors: ["'none'"],
+        frameSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+    frameguard: { action: 'deny' },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    xssFilter: true,
+    noSniff: true,
   }));
   app.use(cookieParser());
 
@@ -117,7 +136,7 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
   // ── Rate limiting ──────────────────────────────────────────────────────────
   // Enforced in production and test suites; disabled in local development
   // so hot-reloads and multiple browser tabs are not throttled.
-  if (process.env.NODE_ENV !== 'development') {
+  if (!['development', 'test'].includes(process.env.NODE_ENV)) {
     // General baseline — covers all /api/ routes (200 req/15min)
     const apiLimiter = rateLimit({
       windowMs: 15 * 60 * 1000,
@@ -246,3 +265,5 @@ if (isMainModule) {
     process.exit(1);
   });
 }
+
+

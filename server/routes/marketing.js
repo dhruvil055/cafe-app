@@ -5,7 +5,7 @@ import CampaignDelivery from '../models/CampaignDelivery.js';
 import Customer from '../models/Customer.js';
 import PushSubscription from '../models/PushSubscription.js';
 import MarketingSetting, { getMarketingSettings } from '../models/MarketingSetting.js';
-import { protect, staffOrAdmin } from '../middleware/auth.js';
+import { ownerOrManager, protect } from '../middleware/auth.js';
 import { notificationService } from '../services/notificationService.js';
 import {
   executeCampaign,
@@ -20,7 +20,7 @@ const router = express.Router();
  * Marketing Overview & Analytics
  * GET /api/marketing/stats
  */
-router.get('/stats', protect, staffOrAdmin, async (req, res) => {
+router.get('/stats', protect, ownerOrManager, async (req, res) => {
   try {
     const [
       optedInCustomers,
@@ -112,7 +112,7 @@ router.get('/stats', protect, staffOrAdmin, async (req, res) => {
  * Real-time Audience Estimation Count
  * GET /api/marketing/audience/count
  */
-router.get('/audience/count', protect, staffOrAdmin, async (req, res) => {
+router.get('/audience/count', protect, ownerOrManager, async (req, res) => {
   try {
     const { audienceType = 'all_opted_in', minOrders, maxOrders, minSpent, daysSinceFirstOrder, maxDaysInactive } = req.query;
 
@@ -136,7 +136,7 @@ router.get('/audience/count', protect, staffOrAdmin, async (req, res) => {
  * List Campaigns
  * GET /api/marketing/campaigns
  */
-router.get('/campaigns', protect, staffOrAdmin, async (req, res) => {
+router.get('/campaigns', protect, ownerOrManager, async (req, res) => {
   try {
     const { status, channel, page = 1, limit = 20 } = req.query;
     const query = {};
@@ -175,7 +175,7 @@ router.get('/campaigns', protect, staffOrAdmin, async (req, res) => {
  * Create & Dispatch / Schedule Campaign
  * POST /api/marketing/campaigns
  */
-router.post('/campaigns', protect, staffOrAdmin, async (req, res) => {
+router.post('/campaigns', protect, ownerOrManager, async (req, res) => {
   try {
     const {
       name,
@@ -252,7 +252,7 @@ router.post('/campaigns', protect, staffOrAdmin, async (req, res) => {
  * Campaign Details with Delivery Logs
  * GET /api/marketing/campaigns/:id
  */
-router.get('/campaigns/:id', protect, staffOrAdmin, async (req, res) => {
+router.get('/campaigns/:id', protect, ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid campaign ID.' });
@@ -304,7 +304,7 @@ router.get('/campaigns/:id', protect, staffOrAdmin, async (req, res) => {
  * Manually Trigger Send Campaign
  * POST /api/marketing/campaigns/:id/send
  */
-router.post('/campaigns/:id/send', protect, staffOrAdmin, async (req, res) => {
+router.post('/campaigns/:id/send', protect, ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid campaign ID.' });
@@ -337,7 +337,7 @@ router.post('/campaigns/:id/send', protect, staffOrAdmin, async (req, res) => {
  * Cancel Campaign
  * POST /api/marketing/campaigns/:id/cancel
  */
-router.post('/campaigns/:id/cancel', protect, staffOrAdmin, async (req, res) => {
+router.post('/campaigns/:id/cancel', protect, ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid campaign ID.' });
@@ -366,7 +366,7 @@ router.post('/campaigns/:id/cancel', protect, staffOrAdmin, async (req, res) => 
  * Retry Failed Deliveries
  * POST /api/marketing/campaigns/:id/retry-failed
  */
-router.post('/campaigns/:id/retry-failed', protect, staffOrAdmin, async (req, res) => {
+router.post('/campaigns/:id/retry-failed', protect, ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid campaign ID.' });
@@ -385,7 +385,7 @@ router.post('/campaigns/:id/retry-failed', protect, staffOrAdmin, async (req, re
  * GET /api/marketing/settings
  * PUT /api/marketing/settings
  */
-router.get('/settings', protect, staffOrAdmin, async (req, res) => {
+router.get('/settings', protect, ownerOrManager, async (req, res) => {
   try {
     const settings = await getMarketingSettings();
     res.json({ settings });
@@ -395,7 +395,7 @@ router.get('/settings', protect, staffOrAdmin, async (req, res) => {
   }
 });
 
-router.put('/settings', protect, staffOrAdmin, async (req, res) => {
+router.put('/settings', protect, ownerOrManager, async (req, res) => {
   try {
     const { maxPromotionsPerCustomerPeriod, periodDays, enabledChannels, whatsappCloud, twilio } = req.body;
     const settings = await getMarketingSettings();
@@ -439,14 +439,14 @@ router.put('/settings', protect, staffOrAdmin, async (req, res) => {
  * Send Test Message directly to a number
  * POST /api/marketing/test-dispatch
  */
-router.post('/test-dispatch', protect, staffOrAdmin, async (req, res) => {
+router.post('/test-dispatch', protect, ownerOrManager, async (req, res) => {
   try {
     const { channel, phone, title, message, offerCode } = req.body;
     if (!channel) return res.status(400).json({ error: 'Channel is required.' });
 
     const normalizedPhone = normalizePhoneNumber(phone) || phone;
     const digitsOnly = String(normalizedPhone).replace(/[^\d]/g, '');
-    const formattedMessage = `${title ? `*${title}*\n\n` : ''}${message || '☕ Special Offer from Brewhaus Café!'}${offerCode ? `\n\nUse Promo Code: *${offerCode}*` : ''}\n\nVisit Brewhaus Café`;
+    const formattedMessage = `${title ? `*${title}*\n\n` : ''}${message || '☕ Special Offer from your café!'}${offerCode ? `\n\nUse Promo Code: *${offerCode}*` : ''}\n\nVisit your café`;
     const directWhatsAppUrl = `https://api.whatsapp.com/send?phone=${digitsOnly}&text=${encodeURIComponent(formattedMessage)}`;
 
     let result;
@@ -475,7 +475,7 @@ router.post('/test-dispatch', protect, staffOrAdmin, async (req, res) => {
       }
       result = await notificationService.sendPush({
         subscription: sampleSub,
-        title: title || '☕ Brewhaus Café Test',
+        title: title || '☕ Café Test',
         message: message || 'Test push notification',
         offerCode: offerCode || 'TEST',
       });
@@ -499,7 +499,7 @@ router.post('/test-dispatch', protect, staffOrAdmin, async (req, res) => {
  * Trigger Order Sync to Customers
  * POST /api/marketing/sync-orders
  */
-router.post('/sync-orders', protect, staffOrAdmin, async (req, res) => {
+router.post('/sync-orders', protect, ownerOrManager, async (req, res) => {
   try {
     const { syncOrdersToCustomers } = await import('../utils/syncOrdersToCustomers.js');
     const result = await syncOrdersToCustomers();

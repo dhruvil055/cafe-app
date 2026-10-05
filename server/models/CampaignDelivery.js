@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantIsolationPlugin } from '../utils/tenantContext.js';
 
 const campaignDeliverySchema = new mongoose.Schema({
   campaignId: {
@@ -67,4 +68,5 @@ campaignDeliverySchema.index({ campaignId: 1, status: 1 });
 campaignDeliverySchema.index({ customerId: 1, createdAt: -1 });
 campaignDeliverySchema.index({ createdAt: -1 });
 
+campaignDeliverySchema.plugin(tenantIsolationPlugin);
 export default mongoose.model('CampaignDelivery', campaignDeliverySchema);

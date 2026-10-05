@@ -20,17 +20,20 @@ import {
   Compass,
 } from 'lucide-react';
 import api from '../../services/api';
+import { useTenant } from '../../context/TenantContext';
 
-const contactDetails = [
+const contactDetails = (tenant) => {
+  const hours = Object.entries(tenant.openingHours || {}).map(([day, value]) => `${day}: ${value}`).join(' · ');
+  return [
   {
     id: 'address',
     label: 'Visit Us',
-    value: '12 Market Lane, Near Camp, Pune, India',
-    subvalue: 'Ground Floor, Heritage Quarter',
+    value: tenant.address || 'Address not provided',
+    subvalue: tenant.address ? 'Get directions to this address' : 'Add your address in café settings',
     icon: MapPin,
     action: {
       type: 'link',
-      href: 'https://www.google.com/maps/search/?api=1&query=12+Market+Lane+Near+Camp+Pune+India',
+      href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tenant.address || '')}`,
       text: 'Get Directions',
       external: true,
     },
@@ -38,40 +41,41 @@ const contactDetails = [
   {
     id: 'phone',
     label: 'Call Us',
-    value: '+91 98765 43210',
+    value: tenant.contactPhone || 'Phone not provided',
     subvalue: 'Available during café hours',
     icon: Phone,
     action: {
       type: 'tel',
-      href: 'tel:+919876543210',
+      href: `tel:${tenant.contactPhone || ''}`,
       text: 'Call Now',
     },
   },
   {
     id: 'email',
     label: 'Email Us',
-    value: 'hello@brewhauscafe.in',
+    value: tenant.contactEmail || 'Email not provided',
     subvalue: 'For catering, events & inquiries',
     icon: Mail,
     action: {
       type: 'mailto',
-      href: 'mailto:hello@brewhauscafe.in',
+      href: `mailto:${tenant.contactEmail || ''}`,
       text: 'Send Email',
     },
   },
   {
     id: 'hours',
     label: 'Opening Hours',
-    value: 'Mon - Sun: 8:00 AM – 11:00 PM',
-    subvalue: 'Kitchen closes at 10:30 PM',
+    value: hours || 'Opening hours not provided',
+    subvalue: '',
     icon: Clock,
     action: {
       type: 'copy',
-      copyText: 'Mon - Sun: 8:00 AM – 11:00 PM',
+      copyText: hours,
       text: 'Copy Hours',
     },
   },
-];
+  ];
+};
 
 const reveal = {
   initial: { opacity: 0, y: 24, filter: 'blur(8px)' },
@@ -93,6 +97,7 @@ function SectionEyebrow({ children, light = false }) {
 }
 
 export default function ContactPage() {
+  const tenant = useTenant();
   const contactSectionRef = useRef(null);
   const [copiedId, setCopiedId] = useState(null);
 
@@ -238,7 +243,7 @@ export default function ContactPage() {
       });
 
       setIsSuccess(true);
-      toast.success('Your message has been sent to Brewhaus.');
+      toast.success(`Your message has been sent to ${tenant.name}.`);
     } catch (err) {
       const message =
         err.response?.data?.error ||
@@ -280,7 +285,7 @@ export default function ContactPage() {
         {/* Background Video & Fallback Poster */}
         <img
           src="/images/about/brewhaus-cinematic-hero.webp"
-          alt="Barista preparing handcrafted coffee at Brewhaus"
+          alt={`Barista preparing handcrafted coffee at ${tenant.name}`}
           className="absolute inset-0 z-0 h-full w-full object-cover"
         />
         <video
@@ -345,7 +350,7 @@ export default function ContactPage() {
               Get in touch
             </p>
             <p className="mt-4 font-display text-3xl font-bold tracking-[0.16em] text-cream sm:text-4xl">
-              BREWHAUS
+              {tenant.name.toUpperCase()}
             </p>
             <h1 className="mt-4 max-w-xl font-display text-5xl font-semibold leading-[0.94] text-cream sm:text-7xl lg:text-[5.25rem]">
               We’d love to hear from you.
@@ -390,7 +395,7 @@ export default function ContactPage() {
           <div className="rounded-t-[9rem] border border-white/25 bg-cream/10 p-2.5 shadow-[0_30px_60px_rgba(0,0,0,0.35)] backdrop-blur-md">
             <img
               src="/images/about/brewhaus-story-cup.webp"
-              alt="Brewhaus handcrafted coffee cup"
+          alt={`Handcrafted coffee at ${tenant.name}`}
               className="h-[22rem] w-full rounded-t-[8.3rem] object-cover object-bottom"
             />
           </div>
@@ -419,7 +424,7 @@ export default function ContactPage() {
 
           {/* 3D Depth Elevation Cards */}
           <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {contactDetails.map((item, index) => {
+            {contactDetails(tenant).map((item, index) => {
               const Icon = item.icon;
               return (
                 <motion.article
@@ -502,7 +507,7 @@ export default function ContactPage() {
             {/* Left Context Column */}
             <motion.div {...reveal} className="flex flex-col justify-between">
               <div>
-                <SectionEyebrow>Write to Brewhaus</SectionEyebrow>
+                <SectionEyebrow>Write to {tenant.name}</SectionEyebrow>
                 <h2 className="mt-4 font-display text-4xl font-semibold leading-[1] text-espresso-950 sm:text-5xl lg:text-6xl">
                   Send us a direct message.
                 </h2>
@@ -545,7 +550,7 @@ export default function ContactPage() {
                   “A thoughtful cup, an easy meal, and conversations that need a little more room.”
                 </p>
                 <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-brew-700">
-                  Brewhaus Hospitality
+                  {tenant.name} Hospitality
                 </p>
               </div>
             </motion.div>
@@ -769,7 +774,7 @@ export default function ContactPage() {
                       Message Sent
                     </p>
                     <h3 className="mt-2 font-display text-4xl font-semibold text-espresso-950">
-                      Thank you for contacting Brewhaus.
+                      Thank you for contacting {tenant.name}.
                     </h3>
                     <p className="mt-4 max-w-md text-sm leading-relaxed text-espresso-600">
                       We have received your note and will get back to you shortly. Feel free to stop
@@ -805,7 +810,7 @@ export default function ContactPage() {
       <section className="relative isolate overflow-hidden bg-espresso-950 px-4 py-24 text-cream sm:px-6 lg:px-8">
         <img
           src="/images/about/brewhaus-cinematic-hero.webp"
-          alt="Atmosphere at Brewhaus Café"
+          alt={`Atmosphere at ${tenant.name}`}
           className="absolute inset-0 -z-20 h-full w-full object-cover opacity-40"
           loading="lazy"
         />
@@ -840,7 +845,7 @@ export default function ContactPage() {
             <span>•</span>
             <span>Warm Comfort Food</span>
             <span>•</span>
-            <span>Pune, India</span>
+            <span>{tenant.address || 'Visit us at the café'}</span>
           </div>
         </motion.div>
       </section>
@@ -853,10 +858,10 @@ export default function ContactPage() {
           <div className="mx-auto max-w-2xl text-center">
             <SectionEyebrow>Our Location</SectionEyebrow>
             <h2 className="mt-4 font-display text-4xl font-semibold text-espresso-950 sm:text-5xl">
-              Finding Brewhaus.
+              Finding {tenant.name}.
             </h2>
             <p className="mt-4 text-sm leading-relaxed text-espresso-600 sm:text-base">
-              Conveniently located near Camp in Pune. Step inside to escape the city rush.
+              {tenant.address || 'Find our café at the address shown below.'}
             </p>
           </div>
 
@@ -867,8 +872,8 @@ export default function ContactPage() {
             {/* Map Frame */}
             <div className="relative h-[380px] w-full sm:h-[460px]">
               <iframe
-                title="Brewhaus Cafe Location Map"
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3783.197771746654!2d73.8765!3d18.518!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bc2c06830761e0d%3A0x8670868f0f089679!2sCamp%2C%20Pune%2C%20Maharashtra!5e0!3m2!1sen!2sin!4v1700000000000!5m2!1sen!2sin"
+                title={`${tenant.name} location map`}
+                src={tenant.address ? `https://www.google.com/maps?q=${encodeURIComponent(tenant.address)}&output=embed` : 'about:blank'}
                 className="h-full w-full border-0 grayscale-[40%] contrast-110"
                 allowFullScreen=""
                 loading="lazy"
@@ -882,17 +887,17 @@ export default function ContactPage() {
                 <div className="flex items-center gap-2 text-brew-300">
                   <Compass size={16} />
                   <span className="text-[11px] font-bold uppercase tracking-[0.2em]">
-                    Brewhaus Landmark
+                    {tenant.name} Landmark
                   </span>
                 </div>
                 <h3 className="mt-2 font-display text-2xl font-bold text-cream">
-                  12 Market Lane, Near Camp
+                  {tenant.address || 'Address not provided'}
                 </h3>
-                <p className="mt-1 text-xs text-cream/70">Pune, Maharashtra, India</p>
+                <p className="mt-1 text-xs text-cream/70">{tenant.contactPhone}</p>
 
                 <div className="mt-5 flex flex-wrap items-center gap-3">
                   <a
-                    href="https://www.google.com/maps/search/?api=1&query=12+Market+Lane+Near+Camp+Pune+India"
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tenant.address || '')}`}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-2 rounded-full bg-cream px-5 py-2.5 text-xs font-bold uppercase tracking-[0.14em] text-espresso-950 transition hover:bg-brew-100 active:scale-95"
@@ -914,7 +919,7 @@ export default function ContactPage() {
       <section className="relative isolate overflow-hidden bg-espresso-950 px-4 py-24 text-center text-cream sm:px-6 sm:py-32 lg:px-8">
         <img
           src="/images/about/brewhaus-story-cup.webp"
-          alt="Brewhaus Coffee Experience"
+          alt={`${tenant.name} coffee experience`}
           className="absolute inset-0 -z-20 h-full w-full object-cover opacity-35"
           loading="lazy"
         />
@@ -923,7 +928,7 @@ export default function ContactPage() {
         <motion.div {...reveal} className="mx-auto max-w-3xl">
           <SectionEyebrow light>Fine Coffee & Dining</SectionEyebrow>
           <h2 className="mt-4 font-display text-4xl font-semibold leading-[0.96] text-cream sm:text-6xl lg:text-7xl">
-            Visit Brewhaus.
+            Visit {tenant.name}.
           </h2>
           <p className="mx-auto mt-6 max-w-xl text-base leading-8 text-cream/80 sm:text-lg">
             Enjoy handcrafted coffee, comforting food, and good moments made to last.
@@ -946,20 +951,20 @@ export default function ContactPage() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 7. REFINED BREWHAUS FOOTER */}
+      {/* 7. REFINED CAFÉ FOOTER */}
       {/* ========================================================================= */}
       <footer className="bg-[#0a0603] px-4 py-12 text-cream/65 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="font-display text-2xl font-semibold tracking-[0.12em] text-cream">
-                BREWHAUS
+                {tenant.name.toUpperCase()}
               </p>
               <p className="mt-1 text-xs uppercase tracking-[0.2em] text-brew-300">
                 Fine Coffee & Dining
               </p>
               <p className="mt-3 text-xs text-cream/50">
-                12 Market Lane, Near Camp, Pune • Mon-Sun 8AM - 11PM
+                {[tenant.address, tenant.contactPhone, tenant.contactEmail, ...Object.entries(tenant.openingHours || {}).map(([day, hours]) => `${day}: ${hours}`)].filter(Boolean).join(' • ')}
               </p>
             </div>
             <div className="flex flex-wrap gap-6 text-sm font-medium">
@@ -981,7 +986,7 @@ export default function ContactPage() {
             </div>
           </div>
           <div className="mt-10 border-t border-white/10 pt-6 text-center text-xs text-cream/40 sm:text-left">
-            © {new Date().getFullYear()} Brewhaus Café. Handcrafted with passion. All rights reserved.
+            © {new Date().getFullYear()} {tenant.name}. All rights reserved.
           </div>
         </div>
       </footer>

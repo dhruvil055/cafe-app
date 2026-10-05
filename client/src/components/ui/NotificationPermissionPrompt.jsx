@@ -39,7 +39,7 @@ export default function NotificationPermissionPrompt({
     try {
       await subscribeToWebPush({ customerId, phone });
       setPermissionState('granted');
-      toast.success('☕ Notifications enabled! You will now receive exclusive Brewhaus deals.');
+      toast.success('☕ Notifications enabled! You will now receive café updates.');
       onSuccess();
     } catch (err) {
       if (err.message === 'PERMISSION_DENIED') {
@@ -68,7 +68,7 @@ export default function NotificationPermissionPrompt({
           </div>
           <div>
             <h3 className="font-display text-base font-bold text-espresso-900 leading-tight">
-              Stay Updated with Brewhaus
+              Stay Updated with the Café
             </h3>
             <p className="text-xs text-espresso-500 mt-0.5">Get notified about:</p>
           </div>

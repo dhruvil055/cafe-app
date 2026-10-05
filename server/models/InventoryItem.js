@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantIsolationPlugin } from '../utils/tenantContext.js';
 
 export const INVENTORY_UNITS = [
   'piece', 'cup', 'glass', 'bottle',
@@ -34,4 +35,5 @@ inventoryItemSchema.virtual('stockValue').get(function () {
 inventoryItemSchema.index({ active: 1, currentQuantity: 1 });
 inventoryItemSchema.index({ name: 'text' });
 
+inventoryItemSchema.plugin(tenantIsolationPlugin);
 export default mongoose.model('InventoryItem', inventoryItemSchema);

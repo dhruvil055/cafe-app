@@ -2,13 +2,90 @@ import express from 'express';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import Category from '../models/Category.js';
-import { protect, staffOrAdmin } from '../middleware/auth.js';
+import { ownerOrManager, protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
+const resolveReportRange = (query) => {
+  const now = new Date();
+  const from = query.from ? new Date(`${query.from}T00:00:00.000`) : new Date(now.getFullYear(), now.getMonth(), 1);
+  const to = query.to ? new Date(`${query.to}T23:59:59.999`) : now;
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) return null;
+  if ((to - from) > 366 * 24 * 60 * 60 * 1000) return null;
+  return { from, to };
+};
+
+const csvCell = (value) => {
+  const safe = String(value ?? '').replace(/^[=+@-]/, "'$&").replace(/"/g, '""');
+  return `"${safe}"`;
+};
+
+const loadPaidOrders = async (range) => {
+  const query = { paymentStatus: 'paid', createdAt: { $gte: range.from, $lte: range.to } };
+  if (await Order.countDocuments(query) > 100000) {
+    const error = new Error('Report exceeds 100,000 orders; choose a shorter date range.');
+    error.status = 413;
+    throw error;
+  }
+  return Order.find(query)
+    .select('orderNumber createdAt tableNumber customer items subtotal discount couponCode tax total paymentMethod paymentStatus')
+    .sort({ createdAt: 1 })
+    .lean();
+};
+
+router.get('/exports/sales.csv', protect, ownerOrManager, async (req, res) => {
+  try {
+    const range = resolveReportRange(req.query);
+    if (!range) return res.status(400).json({ error: 'Provide a valid date range of at most 366 days.' });
+    const orders = await loadPaidOrders(range);
+    const headers = ['Order', 'Date', 'Customer', 'Phone', 'Table', 'Items', 'Payment', 'Subtotal', 'Discount', 'Coupon', 'Tax', 'Total'];
+    const rows = orders.map((order) => [order.orderNumber, order.createdAt.toISOString(), order.customer?.name, order.customer?.phone, order.tableNumber, order.items?.map((item) => `${item.name} x${item.quantity}`).join('; '), order.paymentMethod, order.subtotal, order.discount || 0, order.couponCode, order.tax, order.total]);
+    res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="brewhaus-sales-${range.from.toISOString().slice(0, 10)}.csv"` });
+    return res.send([headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n'));
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to export sales.' });
+  }
+});
+
+router.get('/reports/gst', protect, ownerOrManager, async (req, res) => {
+  try {
+    const range = resolveReportRange(req.query);
+    if (!range) return res.status(400).json({ error: 'Provide a valid date range of at most 366 days.' });
+    const orders = await loadPaidOrders(range);
+    const totals = orders.reduce((report, order) => {
+      const tax = Number(order.tax || 0);
+      report.orders += 1;
+      report.taxableValue += Number(order.subtotal || 0) - Number(order.discount || 0);
+      report.cgst += Math.round(tax / 2 * 100) / 100;
+      report.sgst += Number((tax - Math.round(tax / 2 * 100) / 100).toFixed(2));
+      report.totalTax += tax;
+      report.invoiceValue += Number(order.total || 0);
+      return report;
+    }, { orders: 0, taxableValue: 0, cgst: 0, sgst: 0, totalTax: 0, invoiceValue: 0 });
+    Object.keys(totals).forEach((key) => { if (key !== 'orders') totals[key] = Number(totals[key].toFixed(2)); });
+    return res.json({ range, gstRate: 5, totals, orders: orders.map((order) => ({ orderNumber: order.orderNumber, date: order.createdAt, taxableValue: Number((order.subtotal - (order.discount || 0)).toFixed(2)), discount: order.discount || 0, cgst: Number((order.tax / 2).toFixed(2)), sgst: Number((order.tax - Number((order.tax / 2).toFixed(2))).toFixed(2)), tax: order.tax, invoiceValue: order.total })) });
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to generate GST report.' });
+  }
+});
+
+router.get('/reports/gst.csv', protect, ownerOrManager, async (req, res) => {
+  try {
+    const range = resolveReportRange(req.query);
+    if (!range) return res.status(400).json({ error: 'Provide a valid date range of at most 366 days.' });
+    const orders = await loadPaidOrders(range);
+    const headers = ['Invoice', 'Date', 'GSTIN', 'Taxable Value', 'CGST 2.5%', 'SGST 2.5%', 'Total GST', 'Invoice Value'];
+    const rows = orders.map((order) => [order.orderNumber, order.createdAt.toISOString(), process.env.GSTIN || '', Number((order.subtotal - (order.discount || 0)).toFixed(2)), Number((order.tax / 2).toFixed(2)), Number((order.tax - Number((order.tax / 2).toFixed(2))).toFixed(2)), order.tax, order.total]);
+    res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="brewhaus-gst-${range.from.toISOString().slice(0, 10)}.csv"` });
+    return res.send([headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n'));
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to export GST report.' });
+  }
+});
+
 // GET /api/analytics/summary
 // Returns all analytics data in one round-trip
-router.get('/summary', protect, staffOrAdmin, async (req, res) => {
+router.get('/summary', protect, ownerOrManager, async (req, res) => {
   try {
     const now = new Date();
     const todayStart = new Date(now);
@@ -46,8 +123,8 @@ router.get('/summary', protect, staffOrAdmin, async (req, res) => {
       totalOrders,
       totalProducts,
       totalCategories,
-      avgOrderValue: thisMonthOrders.length > 0
-        ? Math.round(thisMonthRevenue / thisMonthOrders.length)
+      avgOrderValue: thisMonthOrders.filter(paidFilter).length > 0
+        ? Math.round(thisMonthRevenue / thisMonthOrders.filter(paidFilter).length)
         : 0,
     };
 

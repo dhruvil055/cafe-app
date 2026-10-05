@@ -5,16 +5,20 @@ import { Download, UtensilsCrossed, CheckCircle2, Clock, Loader2 } from 'lucide-
 import api from '../../services/api';
 import { downloadPdf } from '../../utils/download';
 import NotificationPermissionPrompt from '../../components/ui/NotificationPermissionPrompt';
+import { subscribeToLiveStream } from '../../utils/liveStream';
+import { useTenant } from '../../context/TenantContext';
+import { formatMoney } from '../../utils/money';
 
 const STATUS_CONFIG = {
   pending:   { label: 'Order Received',    color: 'text-yellow-600', bg: 'bg-yellow-50', icon: '📋' },
-  confirmed: { label: 'Order Confirmed',   color: 'text-blue-600',   bg: 'bg-blue-50',   icon: '✅' },
+  confirmed: { label: 'Order Received',    color: 'text-blue-600',   bg: 'bg-blue-50',   icon: '✅' },
   preparing: { label: 'Being Prepared',    color: 'text-orange-600', bg: 'bg-orange-50', icon: '👨‍🍳' },
   ready:     { label: 'Ready to Serve!',   color: 'text-green-600',  bg: 'bg-green-50',  icon: '🔔' },
-  completed: { label: 'Order Completed',   color: 'text-gray-600',   bg: 'bg-gray-50',   icon: '🎉' },
+  completed: { label: 'Served',             color: 'text-gray-600',   bg: 'bg-gray-50',   icon: '🎉' },
 };
 
 export default function OrderConfirmPage() {
+  const tenant = useTenant();
   const { orderId } = useParams();
   const [searchParams] = useSearchParams();
   const accessToken = searchParams.get('token');
@@ -24,17 +28,21 @@ export default function OrderConfirmPage() {
   const safeItems = Array.isArray(order?.items) ? order.items : [];
 
   useEffect(() => {
-    const fetchOrder = () => {
-      api.get(`/orders/${orderId}?accessToken=${accessToken}`)
-        .then(res => { setOrder(res.data.order); setLoading(false); })
-        .catch(() => setLoading(false));
-    };
-    if (accessToken) {
-      fetchOrder();
-      // Poll for status updates every 15s
-      const interval = setInterval(fetchOrder, 15000);
-      return () => clearInterval(interval);
-    }
+    if (!accessToken) return undefined;
+    const fetchOrder = () => api.get(`/orders/${orderId}?accessToken=${encodeURIComponent(accessToken)}`)
+      .then((res) => { setOrder(res.data.order); setLoading(false); })
+      .catch(() => setLoading(false));
+    fetchOrder();
+    return subscribeToLiveStream(`/orders/${orderId}/events`, {
+      headers: { 'X-Order-Access-Token': accessToken },
+      onEvent: (type, payload) => {
+        if (type === 'connected') fetchOrder();
+        if (type === 'order-update' && payload.order) {
+          setOrder((current) => ({ ...current, ...payload.order }));
+          setLoading(false);
+        }
+      },
+    });
   }, [orderId, accessToken]);
 
   const handleDownloadReceipt = async () => {
@@ -107,7 +115,9 @@ export default function OrderConfirmPage() {
           <p className="text-brew-300 text-sm mt-1">
             {order.paymentMethod === 'cash'
               ? 'Pay at the counter when you leave'
-              : 'Payment received. Your order is being processed!'}
+              : order.paymentStatus === 'paid'
+                ? 'Payment received. Your order is being processed!'
+                : 'Payment submitted. We are waiting for the payment provider to confirm it.'}
           </p>
         </motion.div>
       </div>
@@ -120,7 +130,7 @@ export default function OrderConfirmPage() {
               { label: 'Order #', value: order.orderNumber },
               { label: 'Table', value: `Table ${String(order.tableNumber).padStart(2, '0')}` },
               { label: 'Payment', value: order.paymentMethod === 'razorpay' ? 'Online' : 'Cash' },
-              { label: 'Total', value: `₹${order.total}` },
+              { label: 'Total', value: formatMoney(order.total, order.currency || tenant.currency) },
             ].map(row => (
               <div key={row.label} className="bg-foam rounded-xl p-3">
                 <p className="text-xs text-espresso-400">{row.label}</p>
@@ -144,9 +154,8 @@ export default function OrderConfirmPage() {
 
           {/* Status progress */}
           <div className="mt-4 flex items-center gap-1">
-            {['pending', 'confirmed', 'preparing', 'ready', 'completed'].map((s, i) => {
-              const statuses = ['pending', 'confirmed', 'preparing', 'ready', 'completed'];
-              const currentIdx = statuses.indexOf(order.orderStatus);
+            {['received', 'preparing', 'ready', 'served'].map((s, i) => {
+              const currentIdx = ({ pending: 0, confirmed: 0, preparing: 1, ready: 2, completed: 3 })[order.orderStatus] ?? 0;
               const done = i <= currentIdx;
               return (
                 <div key={s} className="flex-1 flex items-center">
@@ -157,7 +166,7 @@ export default function OrderConfirmPage() {
             })}
           </div>
           <div className="flex justify-between mt-1">
-            {['Received', 'Confirmed', 'Preparing', 'Ready', 'Done'].map(label => (
+            {['Received', 'Preparing', 'Ready', 'Served'].map(label => (
               <span key={label} className="text-[9px] text-espresso-400 flex-1 text-center">{label}</span>
             ))}
           </div>
@@ -184,18 +193,18 @@ export default function OrderConfirmPage() {
                   </p>
                 )}
               </div>
-              <span className="font-medium text-espresso-900">₹{item.itemTotal}</span>
+              <span className="font-medium text-espresso-900">{formatMoney(item.itemTotal, order.currency || tenant.currency)}</span>
             </div>
           ))}
           <div className="border-t border-foam pt-2 space-y-1">
             <div className="flex justify-between text-sm text-espresso-500">
-              <span>Subtotal</span><span>₹{order.subtotal}</span>
+              <span>Subtotal</span><span>{formatMoney(order.subtotal, order.currency || tenant.currency)}</span>
             </div>
             <div className="flex justify-between text-sm text-espresso-500">
-              <span>GST (5%)</span><span>₹{order.tax}</span>
+              <span>GST ({order.taxRate ?? tenant.taxRate}%)</span><span>{formatMoney(order.tax, order.currency || tenant.currency)}</span>
             </div>
             <div className="flex justify-between font-display font-bold text-espresso-900">
-              <span>Total</span><span>₹{order.total}</span>
+              <span>Total</span><span>{formatMoney(order.total, order.currency || tenant.currency)}</span>
             </div>
           </div>
         </div>

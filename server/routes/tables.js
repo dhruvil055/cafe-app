@@ -1,7 +1,10 @@
 import express from 'express';
 import QRCode from 'qrcode';
 import Table from '../models/Table.js';
-import { adminOnly, protect, staffOrAdmin } from '../middleware/auth.js';
+import { adminOnly, ownerOrManager, protect } from '../middleware/auth.js';
+import { checkTableLimit } from '../middleware/planLimits.js';
+import { createTableQrToken, verifyTableQrToken } from '../utils/tableQr.js';
+import { writeAuditLog } from '../services/auditLog.js';
 
 const router = express.Router();
 
@@ -21,11 +24,15 @@ const getTrustedClientUrl = () => {
 };
 
 const refreshStaleQrCodes = async (tables) => {
-  const clientUrl = getTrustedClientUrl();
   const refreshed = await Promise.all(tables.map(async (table) => {
-    const expectedUrl = `${clientUrl}/menu?table=${encodeURIComponent(table.tableNumber)}`;
-    if (table.qrUrl === expectedUrl && table.qrCode) return table;
-    const { qrCode, qrUrl } = await generateQR(table.tableNumber);
+    let existingClaims = null;
+    try {
+      existingClaims = verifyTableQrToken(new URL(table.qrUrl).searchParams.get('tableToken'));
+    } catch {
+      // Missing or malformed QR URLs are regenerated below.
+    }
+    if (existingClaims?.tableId === String(table._id) && table.qrCode) return table;
+    const { qrCode, qrUrl } = await generateQR(table);
     table.qrCode = qrCode;
     table.qrUrl = qrUrl;
     await table.save();
@@ -34,8 +41,8 @@ const refreshStaleQrCodes = async (tables) => {
   return refreshed;
 };
 
-const generateQR = async (tableNumber) => {
-  const url = `${getTrustedClientUrl()}/menu?table=${encodeURIComponent(tableNumber)}`;
+const generateQR = async (table, tenantId = table.tenantId) => {
+  const url = `${getTrustedClientUrl()}/menu?tableToken=${encodeURIComponent(createTableQrToken(table._id, tenantId))}`;
   const qrCode = await QRCode.toDataURL(url, {
     width: 400,
     margin: 2,
@@ -55,8 +62,23 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Resolve signed table QR tokens on the server. The signature and expiry are
+// checked before a table number is returned to the customer app.
+router.get('/qr/validate', async (req, res) => {
+  try {
+    const claims = verifyTableQrToken(req.query.token);
+    if (!claims) return res.status(400).json({ valid: false, error: 'Invalid or expired table QR code.' });
+    if (String(claims.tenantId) !== String(req.tenantId)) return res.status(404).json({ valid: false, error: 'Invalid table QR code.' });
+    const table = await Table.findOne({ _id: claims.tableId, active: true }).select('tableNumber label').lean();
+    if (!table) return res.status(404).json({ valid: false, error: 'Invalid or inactive table.' });
+    return res.json({ valid: true, table: { tableNumber: table.tableNumber, label: table.label }, expiresAt: claims.expiresAt });
+  } catch (error) {
+    return res.status(400).json({ valid: false, error: 'Unable to validate table QR code.' });
+  }
+});
+
 // GET all tables — admin/staff
-router.get('/all', protect, staffOrAdmin, async (req, res) => {
+router.get('/all', protect, ownerOrManager, async (req, res) => {
   try {
     const tables = await refreshStaleQrCodes(await Table.find().sort({ tableNumber: 1 }));
     res.json({ tables });
@@ -85,7 +107,7 @@ router.get('/:number/validate', async (req, res) => {
 });
 
 // POST /api/tables — admin/staff
-router.post('/', protect, staffOrAdmin, async (req, res) => {
+router.post('/', protect, ownerOrManager, checkTableLimit, async (req, res) => {
   try {
     const { tableNumber, seats, label } = req.body;
     const normalizedTableNumber = Number(tableNumber);
@@ -97,15 +119,15 @@ router.post('/', protect, staffOrAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Seats must be an integer between 1 and 50.' });
     }
 
-    const { qrCode, qrUrl } = await generateQR(normalizedTableNumber);
-
-    const table = await Table.create({
+    const table = new Table({
       tableNumber: normalizedTableNumber,
       seats: normalizedSeats,
       label: String(label || '').trim().slice(0, 100),
-      qrCode,
-      qrUrl,
     });
+    const { qrCode, qrUrl } = await generateQR(table);
+    table.qrCode = qrCode;
+    table.qrUrl = qrUrl;
+    await table.save();
     res.status(201).json({ table });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -114,7 +136,7 @@ router.post('/', protect, staffOrAdmin, async (req, res) => {
 
 // PUT /api/tables/:id — admin/staff
 // SECURITY: Mass assignment protection - explicit field allowlist
-router.put('/:id', protect, staffOrAdmin, async (req, res) => {
+router.put('/:id', protect, ownerOrManager, async (req, res) => {
   try {
     const table = await Table.findById(req.params.id);
     if (!table) return res.status(404).json({ error: 'Table not found.' });
@@ -123,7 +145,7 @@ router.put('/:id', protect, staffOrAdmin, async (req, res) => {
     const allowedFields = ['tableNumber', 'seats', 'label', 'active'];
     const update = {};
     for (const field of allowedFields) {
-      if (req.body.hasOwnProperty(field)) {
+      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
         update[field] = req.body[field];
       }
     }
@@ -142,7 +164,7 @@ router.put('/:id', protect, staffOrAdmin, async (req, res) => {
     }
 
     if (update.tableNumber !== undefined && update.tableNumber !== table.tableNumber) {
-      const { qrCode, qrUrl } = await generateQR(update.tableNumber);
+      const { qrCode, qrUrl } = await generateQR({ _id: table._id });
       update.qrCode = qrCode;
       update.qrUrl = qrUrl;
     }
@@ -155,12 +177,12 @@ router.put('/:id', protect, staffOrAdmin, async (req, res) => {
 });
 
 // POST /api/tables/:id/regenerate-qr — admin/staff
-router.post('/:id/regenerate-qr', protect, staffOrAdmin, async (req, res) => {
+router.post('/:id/regenerate-qr', protect, ownerOrManager, async (req, res) => {
   try {
     const table = await Table.findById(req.params.id);
     if (!table) return res.status(404).json({ error: 'Table not found.' });
 
-    const { qrCode, qrUrl } = await generateQR(table.tableNumber);
+    const { qrCode, qrUrl } = await generateQR(table);
     table.qrCode = qrCode;
     table.qrUrl = qrUrl;
     await table.save();
@@ -174,7 +196,9 @@ router.post('/:id/regenerate-qr', protect, staffOrAdmin, async (req, res) => {
 // DELETE /api/tables/:id — admin
 router.delete('/:id', protect, adminOnly, async (req, res) => {
   try {
-    await Table.findByIdAndDelete(req.params.id);
+    const table = await Table.findByIdAndDelete(req.params.id);
+    if (!table) return res.status(404).json({ error: 'Table not found.' });
+    await writeAuditLog({ actor: req.user, action: 'table.deleted', targetType: 'Table', targetId: table._id, details: { tableNumber: table.tableNumber } });
     res.json({ message: 'Table deleted.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -182,7 +206,7 @@ router.delete('/:id', protect, adminOnly, async (req, res) => {
 });
 
 // POST bulk create tables — admin/staff
-router.post('/bulk', protect, staffOrAdmin, async (req, res) => {
+router.post('/bulk', protect, ownerOrManager, async (req, res) => {
   try {
     const count = Number(req.body.count);
     if (!Number.isInteger(count) || count < 1 || count > 100) {
@@ -195,11 +219,14 @@ router.post('/bulk', protect, staffOrAdmin, async (req, res) => {
     const tables = [];
     for (let i = 0; i < count; i++) {
       const tableNumber = startNum + i;
-      const { qrCode, qrUrl } = await generateQR(tableNumber);
-      tables.push({ tableNumber, qrCode, qrUrl, seats: 4 });
+      const table = new Table({ tableNumber, seats: 4 });
+      const { qrCode, qrUrl } = await generateQR(table);
+      table.qrCode = qrCode;
+      table.qrUrl = qrUrl;
+      tables.push(table);
     }
 
-    const created = await Table.insertMany(tables);
+    const created = await Table.insertMany(tables.map((table) => table.toObject()));
     res.status(201).json({ tables: created, count: created.length });
   } catch (error) {
     res.status(400).json({ error: error.message });

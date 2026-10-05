@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { Plus, Star, Lock } from 'lucide-react';
 import useCartStore from '../../context/cartStore';
 import toast from 'react-hot-toast';
+import { useTenant } from '../../context/TenantContext';
+import { formatMoney } from '../../utils/money';
 
 const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=75';
 
@@ -20,6 +22,7 @@ function getOptimizedImageProps(rawUrl) {
 }
 
 const MenuCard = forwardRef(function MenuCard({ product, onSelect, priority = false }, ref) {
+  const tenant = useTenant();
   const { addItem, tableNumber, openScanner } = useCartStore();
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -27,7 +30,7 @@ const MenuCard = forwardRef(function MenuCard({ product, onSelect, priority = fa
   const imageProps = getOptimizedImageProps(imgError ? PLACEHOLDER : product.image);
 
   // inventoryAvailable: true = has stock or no mapping, false = out of stock from inventory
-  const isAvailable = product.available && product.inventoryAvailable !== false;
+  const isAvailable = product.available && product.scheduledAvailable !== false && product.inventoryAvailable !== false;
   const isLimited = product.maxOrderableQty !== null && product.maxOrderableQty !== undefined && product.maxOrderableQty <= 5 && product.maxOrderableQty > 0;
 
   const handleQuickAdd = (e) => {
@@ -125,7 +128,7 @@ const MenuCard = forwardRef(function MenuCard({ product, onSelect, priority = fa
 
         <div className="flex items-center justify-between mt-2 gap-2">
           <span className="price-tag text-sm sm:text-base">
-            {String.fromCharCode(8377)}{product.price}
+            {formatMoney(product.price, tenant.currency)}
           </span>
           <motion.button
             whileTap={isAvailable ? { scale: 0.85 } : {}}

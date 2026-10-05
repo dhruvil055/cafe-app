@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import styles from './AboutPage.module.css';
+import { useTenant } from '../../context/TenantContext';
 
 const TOTAL_FRAMES = 240;
 const BASE_FRAME_PATH = '/coffee-frames/ezgif-frame-';
@@ -60,12 +61,13 @@ const STORY_MOMENTS = [
     start: 231,
     end: 240,
     heading: 'EVERY CUP\nTELLS A STORY.',
-    subtext: 'Experience artisanal coffee at Brewhaus.',
+    subtext: 'Experience artisanal coffee at your café.',
     className: styles.momentFinal,
   },
 ];
 
 export default function AboutPage() {
+  const tenant = useTenant();
   const canvasRef = useRef(null);
   const scrollCueRef = useRef(null);
   const containerRef = useRef(null);
@@ -324,13 +326,13 @@ export default function AboutPage() {
   return (
     <div className={styles.pageWrapper}>
       {/* Floating Top Navigation */}
-      <header className={styles.topNav} aria-label="Brewhaus Navigation">
+      <header className={styles.topNav} aria-label={`${tenant.name} navigation`}>
         <Link to="/menu" className={styles.backBtn} aria-label="Back to Menu">
           <ArrowLeft size={15} />
           <span>Back to Menu</span>
         </Link>
         <Link to="/menu" className={styles.navBrand}>
-          BREWHAUS
+          {tenant.name.toUpperCase()}
         </Link>
         <nav className={styles.navLinks}>
           <Link to="/menu" className={styles.navLink}>
@@ -399,7 +401,7 @@ export default function AboutPage() {
                       Explore Menu <ArrowRight size={15} />
                     </Link>
                     <Link to="/contact" className={styles.secondaryCta}>
-                      Visit Brewhaus
+                      Visit the café
                     </Link>
                   </div>
                 )}

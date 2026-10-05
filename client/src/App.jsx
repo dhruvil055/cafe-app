@@ -1,9 +1,10 @@
 import { Component, lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 import QuickCartPopup from './components/ui/QuickCartPopup';
 import WebPushPrompt from './components/ui/WebPushPrompt';
+import { useTenant } from './context/TenantContext';
 
 // Primary customer entry page loaded eagerly
 import MenuPage from './pages/customer/MenuPage';
@@ -20,6 +21,13 @@ const GalleryPage = lazy(() => import('./pages/customer/GalleryPage'));
 const ReceiptPage = lazy(() => import('./pages/customer/ReceiptPage'));
 const OrdersPage = lazy(() => import('./pages/customer/OrdersPage'));
 const UnsubscribePage = lazy(() => import('./pages/customer/UnsubscribePage'));
+const LegalPage = lazy(() => import('./pages/customer/LegalPage'));
+const NotFoundPage = lazy(() => import('./pages/customer/NotFoundPage'));
+
+function PolicyFooter() {
+  const tenant = useTenant();
+  return <footer className="border-t border-foam bg-[#120804] px-4 py-5 text-center text-xs text-cream/65"><nav aria-label="Legal information" className="flex flex-wrap justify-center gap-x-5 gap-y-2"><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/refund-policy">Refund policy</Link></nav><p className="mt-2">© {new Date().getFullYear()} {tenant.name}</p></footer>;
+}
 
 class ChunkErrorBoundary extends Component {
   constructor(props) {
@@ -63,7 +71,7 @@ class ChunkErrorBoundary extends Component {
           </div>
           <h2 className="text-xl font-bold font-serif mb-2 tracking-wide">Updated Version Available</h2>
           <p className="text-sm text-stone-300 max-w-sm mb-6 leading-relaxed">
-            A new version of Brewhaus Café was just deployed. Please refresh to load the updated page.
+            A new version of the café site was just deployed. Please refresh to load the updated page.
           </p>
           <button
             onClick={() => {
@@ -122,6 +130,9 @@ export default function App() {
             <Route path="/cart" element={<CartPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/unsubscribe" element={<UnsubscribePage />} />
+            <Route path="/privacy" element={<LegalPage />} />
+            <Route path="/terms" element={<LegalPage />} />
+            <Route path="/refund-policy" element={<LegalPage />} />
 
             <Route path="/receipt" element={<ReceiptPage />} />
             <Route path="/receipt/:orderId" element={<ReceiptPage />} />
@@ -132,10 +143,11 @@ export default function App() {
             <Route path="/admin" element={<Navigate to="/menu" replace />} />
             <Route path="/admin/*" element={<Navigate to="/menu" replace />} />
 
-            <Route path="*" element={<Navigate to="/menu" replace />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
       </ChunkErrorBoundary>
+      <PolicyFooter />
     </BrowserRouter>
   );
 }

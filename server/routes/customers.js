@@ -4,7 +4,7 @@ import Customer from '../models/Customer.js';
 import Order from '../models/Order.js';
 import CampaignDelivery from '../models/CampaignDelivery.js';
 import PushSubscription from '../models/PushSubscription.js';
-import { protect, staffOrAdmin } from '../middleware/auth.js';
+import { ownerOrManager, protect } from '../middleware/auth.js';
 import { normalizePhoneNumber } from '../utils/phoneNormalizer.js';
 
 const router = express.Router();
@@ -37,7 +37,7 @@ router.post('/public-unsubscribe', async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'You have been successfully unsubscribed from Brewhaus Café promotional offers.',
+      message: 'You have been successfully unsubscribed from café promotional offers.',
     });
   } catch (err) {
     console.error('Public unsubscribe error:', err);
@@ -49,7 +49,7 @@ router.post('/public-unsubscribe', async (req, res) => {
  * CRM Statistics
  * GET /api/customers/stats
  */
-router.get('/stats', protect, staffOrAdmin, async (req, res) => {
+router.get('/stats', protect, ownerOrManager, async (req, res) => {
   try {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -98,7 +98,7 @@ router.get('/stats', protect, staffOrAdmin, async (req, res) => {
  * Export Customers to CSV
  * GET /api/customers/export
  */
-router.get('/export', protect, staffOrAdmin, async (req, res) => {
+router.get('/export', protect, ownerOrManager, async (req, res) => {
   try {
     const customers = await Customer.find().sort({ createdAt: -1 }).lean();
 
@@ -149,7 +149,7 @@ router.get('/export', protect, staffOrAdmin, async (req, res) => {
  * List Customers with Search, Filtering, Sorting & Pagination
  * GET /api/customers
  */
-router.get('/', protect, staffOrAdmin, async (req, res) => {
+router.get('/', protect, ownerOrManager, async (req, res) => {
   try {
     const {
       search = '',
@@ -264,7 +264,7 @@ router.get('/', protect, staffOrAdmin, async (req, res) => {
  * Customer Profile Details + Order History + Campaign Deliveries + Devices
  * GET /api/customers/:id
  */
-router.get('/:id', protect, staffOrAdmin, async (req, res) => {
+router.get('/:id', protect, ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid customer ID.' });
@@ -282,7 +282,7 @@ router.get('/:id', protect, staffOrAdmin, async (req, res) => {
         { 'customer.phone': customer.phone },
       ],
     })
-      .select('orderNumber tableNumber items total subtotal tax paymentMethod paymentStatus orderStatus createdAt')
+      .select('orderNumber tableNumber items total subtotal discount couponCode tax paymentMethod paymentStatus orderStatus rating createdAt')
       .sort({ createdAt: -1 })
       .limit(50)
       .lean();
@@ -328,7 +328,7 @@ router.get('/:id', protect, staffOrAdmin, async (req, res) => {
  * Update Customer details, status, notes, tags
  * PUT /api/customers/:id
  */
-router.put('/:id', protect, staffOrAdmin, async (req, res) => {
+router.put('/:id', protect, ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid customer ID.' });
@@ -368,7 +368,7 @@ router.put('/:id', protect, staffOrAdmin, async (req, res) => {
  * Unsubscribe Customer (Admin action)
  * POST /api/customers/:id/unsubscribe
  */
-router.post('/:id/unsubscribe', protect, staffOrAdmin, async (req, res) => {
+router.post('/:id/unsubscribe', protect, ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid customer ID.' });
@@ -397,7 +397,7 @@ router.post('/:id/unsubscribe', protect, staffOrAdmin, async (req, res) => {
  * Subscribe Customer (Admin action)
  * POST /api/customers/:id/subscribe
  */
-router.post('/:id/subscribe', protect, staffOrAdmin, async (req, res) => {
+router.post('/:id/subscribe', protect, ownerOrManager, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid customer ID.' });

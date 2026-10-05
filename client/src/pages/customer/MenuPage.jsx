@@ -7,7 +7,10 @@ import api from '../../services/api';
 import useCartStore, { cartItemCount } from '../../context/cartStore';
 import MenuCard from '../../components/menu/MenuCard';
 import SkeletonCard from '../../components/ui/SkeletonCard';
-import { getCached, setCached, CATEGORIES_TTL_MS, DEFAULT_TTL_MS } from '../../utils/menuCache';
+import { getCached, setCached, CATEGORIES_TTL_MS, DEFAULT_TTL_MS, clearClientCache } from '../../utils/menuCache';
+import { subscribeToLiveStream } from '../../utils/liveStream';
+import TableServiceActions from '../../components/table/TableServiceActions';
+import { useTenant } from '../../context/TenantContext';
 
 const ProductModal = lazy(() => import('../../components/menu/ProductModal'));
 const QrScannerModal = lazy(() => import('../../components/ui/QrScannerModal'));
@@ -20,11 +23,12 @@ const SORT_OPTIONS = [
 ];
 
 export default function MenuPage() {
+  const tenant = useTenant();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const tableParam = searchParams.get('table');
+  const tableTokenParam = searchParams.get('tableToken');
 
-  const { items, tableNumber, setTable, openQuickCart, isScannerOpen, openScanner, closeScanner } = useCartStore();
+  const { items, tableNumber, tableToken, setTable, setDiningSessionToken, openQuickCart, isScannerOpen, openScanner, closeScanner } = useCartStore();
   // Reactive item count via selector
   const itemCount = useCartStore(cartItemCount);
 
@@ -47,16 +51,67 @@ export default function MenuPage() {
   const searchRef = useRef();
   const debounceRef = useRef();
 
-  // Set table number from URL param (no session creation)
+  // The server validates the signed, expiring QR token before connecting a table.
   useEffect(() => {
-    if (!tableParam) return;
-    const num = Number(tableParam);
-    if (!Number.isInteger(num) || num <= 0) return;
+    if (!tableTokenParam) return;
+    let active = true;
+    api.get('/tables/qr/validate', { params: { token: tableTokenParam } })
+      .then(({ data }) => {
+        if (!active || !data.valid) return;
+        setTable(data.table.tableNumber, tableTokenParam);
+        setTableConnectedAnim(true);
+        setTimeout(() => setTableConnectedAnim(false), 3000);
+      })
+      .catch(() => {
+        if (active) toast.error('This table QR code is invalid or expired. Ask staff for a new QR code.');
+      });
+    return () => { active = false; };
+  }, [tableTokenParam, setTable]);
 
-    setTable(num);
-    setTableConnectedAnim(true);
-    setTimeout(() => setTableConnectedAnim(false), 3000);
-  }, [tableParam, setTable]);
+  useEffect(() => {
+    if (!tableToken || !tableNumber) return undefined;
+    let active = true;
+    api.post('/session', {
+      tableNumber,
+      tableToken,
+      ...(useCartStore.getState().diningSessionToken && { diningSessionToken: useCartStore.getState().diningSessionToken }),
+    }).then(({ data }) => {
+      if (active && data.diningSessionToken) setDiningSessionToken(data.diningSessionToken);
+    }).catch((error) => {
+      if (active) toast.error(error.message || 'Unable to start your table session.');
+    });
+    return () => { active = false; };
+  }, [tableNumber, tableToken, setDiningSessionToken]);
+
+  useEffect(() => subscribeToLiveStream('/menu/events', {
+    onEvent: (type, payload) => {
+      if (type === 'connected') {
+        setReloadKey((current) => current + 1);
+      } else if (type === 'availability') {
+        clearClientCache();
+        setProducts((current) => current.map((product) => String(product._id) === payload.productId
+          ? { ...product, available: payload.available }
+          : product));
+      } else if (type === 'removed') {
+        clearClientCache();
+        setProducts((current) => current.filter((product) => String(product._id) !== payload.productId));
+      }
+    },
+  }), []);
+
+  useEffect(() => {
+    const refreshScheduledAvailability = () => {
+      const now = Date.now();
+      setProducts((current) => current.map((product) => {
+        const startsAt = product.availableFrom ? new Date(product.availableFrom).getTime() : null;
+        const endsAt = product.availableUntil ? new Date(product.availableUntil).getTime() : null;
+        const scheduledAvailable = (!startsAt || now >= startsAt) && (!endsAt || now < endsAt);
+        return product.scheduledAvailable === scheduledAvailable ? product : { ...product, scheduledAvailable };
+      }));
+    };
+    const timer = window.setInterval(refreshScheduledAvailability, 30000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Fetch categories with client cache
   useEffect(() => {
@@ -127,11 +182,11 @@ export default function MenuPage() {
       .finally(() => setLoading(false));
   }, [selectedCategory, debouncedSearch, vegOnly, sort, reloadKey]);
 
-  const activeTable = tableParam || tableNumber;
+  const activeTable = tableNumber;
 
   // Subtotal for sticky bar
   const subtotal = items.reduce((s, i) => s + i.itemTotal, 0);
-  const grandTotal = subtotal + Math.round(subtotal * 0.05);
+  const grandTotal = subtotal + Number((subtotal * Number(tenant.taxRate || 0) / 100).toFixed(2));
 
   return (
     <div className="min-h-screen bg-cream">
@@ -162,9 +217,7 @@ export default function MenuPage() {
             <p className="text-brew-400 text-xs font-medium tracking-widest uppercase mb-1">
               Fine Coffee &amp; Dining
             </p>
-            <h1 className="font-display text-3xl font-bold text-cream leading-tight">
-              Brewhaus Cafe
-            </h1>
+            {tenant.logoUrl ? <img src={tenant.logoUrl} alt={tenant.name} className="max-h-12 max-w-48 object-contain object-left" /> : <h1 className="font-display text-3xl font-bold text-cream leading-tight">{tenant.name}</h1>}
 
             {/* Table connected indicator or scan prompt */}
             <AnimatePresence mode="wait">
@@ -253,6 +306,8 @@ export default function MenuPage() {
           </motion.button>
         </div>
       </div>
+
+      {activeTable && <TableServiceActions />}
 
       <div className="relative z-30 -mt-7 px-4 sm:px-6">
         <nav className="mx-auto flex max-w-2xl items-center justify-between gap-1 overflow-x-auto rounded-full border border-foam bg-white/90 px-2 py-2 shadow-[0_12px_30px_rgba(26,15,8,0.12)] backdrop-blur-xl">
@@ -484,11 +539,11 @@ export default function MenuPage() {
                 setShowScanner(false);
                 closeScanner();
               }}
-              onTableFound={(tableNum) => {
+              onTableFound={(tableNum, tableToken) => {
                 setShowScanner(false);
                 closeScanner();
-                setTable(tableNum);
-                navigate(`/menu?table=${tableNum}`, { replace: true });
+                setTable(tableNum, tableToken);
+                navigate(`/menu?tableToken=${encodeURIComponent(tableToken)}`, { replace: true });
               }}
             />
           </Suspense>

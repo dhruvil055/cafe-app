@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantIsolationPlugin } from '../utils/tenantContext.js';
 
 const addonSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -17,6 +18,8 @@ const productSchema = new mongoose.Schema({
   image: { type: String, default: '' },
   category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
   available: { type: Boolean, default: true },
+  availableFrom: { type: Date, default: null },
+  availableUntil: { type: Date, default: null },
   popular: { type: Boolean, default: false },
   variants: [variantSchema],
   addons: [addonSchema],
@@ -27,5 +30,14 @@ const productSchema = new mongoose.Schema({
 productSchema.index({ name: 'text', description: 'text' });
 productSchema.index({ category: 1, available: 1 });
 productSchema.index({ popular: 1 });
+productSchema.index({ availableFrom: 1, availableUntil: 1 });
 
+productSchema.pre('validate', function (next) {
+  if (this.availableFrom && this.availableUntil && this.availableFrom >= this.availableUntil) {
+    this.invalidate('availableUntil', 'Scheduled availability end must be after its start.');
+  }
+  next();
+});
+
+productSchema.plugin(tenantIsolationPlugin);
 export default mongoose.model('Product', productSchema);

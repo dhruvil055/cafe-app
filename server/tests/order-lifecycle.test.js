@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
+import { setupTestTenant } from './tenantTestSetup.js';
 
 process.env.NODE_ENV = 'test';
 process.env.MONGO_URI = process.env.MONGO_TEST_URI || `mongodb://127.0.0.1:27017/cafe_lifecycle_test_${process.pid}`;
 process.env.JWT_SECRET = 'integration-test-jwt-secret-with-more-than-32-bytes';
+process.env.TABLE_QR_SECRET = 'integration-test-table-qr-secret-with-32-bytes';
 
 const { createApp } = await import('../index.js');
 const { default: Category } = await import('../models/Category.js');
@@ -16,10 +18,12 @@ const { default: InventoryCategory } = await import('../models/InventoryCategory
 const { default: MenuInventoryMapping } = await import('../models/MenuInventoryMapping.js');
 const { default: InventoryTransaction } = await import('../models/InventoryTransaction.js');
 const { restoreForOrder, confirmOrderAndDeduct } = await import('../services/inventoryService.js');
+const { createTableQrToken } = await import('../utils/tableQr.js');
 
 test('order lifecycle, idempotency, and inventory restoration suite', async (t) => {
   await mongoose.connect(process.env.MONGO_URI);
   await mongoose.connection.dropDatabase();
+  await setupTestTenant();
 
   const app = createApp();
   const httpServer = app.listen(0);
@@ -53,6 +57,7 @@ test('order lifecycle, idempotency, and inventory restoration suite', async (t) 
       const idempotencyKey = 'client-unique-req-12345';
       const orderPayload = {
         tableNumber: 5,
+        tableToken: createTableQrToken(table._id),
         customer: { name: 'Alice', phone: '9123456780' },
         items: [{ productId: String(product._id), quantity: 2 }],
         paymentMethod: 'cash',

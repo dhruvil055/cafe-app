@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantIsolationPlugin } from '../utils/tenantContext.js';
 
 const pushSubscriptionSchema = new mongoose.Schema({
   customerId: {
@@ -10,7 +11,6 @@ const pushSubscriptionSchema = new mongoose.Schema({
   endpoint: {
     type: String,
     required: true,
-    unique: true,
     index: true,
   },
   keys: {
@@ -67,4 +67,6 @@ pushSubscriptionSchema.pre('save', function (next) {
   next();
 });
 
+pushSubscriptionSchema.plugin(tenantIsolationPlugin);
+pushSubscriptionSchema.index({ tenantId: 1, endpoint: 1 }, { unique: true });
 export default mongoose.model('PushSubscription', pushSubscriptionSchema);

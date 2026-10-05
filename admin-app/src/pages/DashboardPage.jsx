@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Clock3, DollarSign, ShoppingBag } from 'lucide-react';
 import api from '../services/api';
+import { useTenant } from '../context/TenantContext';
+import { formatMoney } from '../utils/money';
 
 const cardConfig = [
   { label: "Today's Orders", key: 'todayCount', icon: ShoppingBag, tone: 'text-sky-600' },
@@ -10,6 +12,7 @@ const cardConfig = [
 ];
 
 export default function DashboardPage() {
+  const tenant = useTenant();
   const [stats, setStats] = useState({ todayCount: 0, todayRevenue: 0, pending: 0, completed: 0 });
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +37,7 @@ export default function DashboardPage() {
                 <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500">{label}</div>
                 <div className="mt-2 text-3xl font-bold text-stone-900">
                   {key === 'todayRevenue'
-                    ? `₹${Number(stats[key] || 0).toFixed(2)}`
+                    ? formatMoney(stats[key], tenant.currency)
                     : Number(stats[key] || 0)}
                 </div>
               </div>
@@ -65,7 +68,7 @@ export default function DashboardPage() {
                   <div className="text-sm text-stone-500">Table {order.tableNumber} • {order.customer?.name}</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-semibold text-stone-900">₹{Number(order.total || 0).toFixed(2)}</div>
+                  <div className="font-semibold text-stone-900">{formatMoney(order.total, tenant.currency)}</div>
                   <div className={`mt-1 inline-flex rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] status-${order.orderStatus}`}>
                     {order.orderStatus}
                   </div>
