@@ -31,7 +31,7 @@ const isCustomerTenantHost = (host) => {
 const cleanTenantError = (res, status, message) => res.status(status).json({ error: message, code: status === 423 ? 'TENANT_SUSPENDED' : 'TENANT_NOT_FOUND' });
 
 export const tenantResolver = async (req, res, next) => {
-  if (req.path === '/api/health' || req.path.startsWith('/api/platform') || req.path === '/api/billing/webhook') return next();
+  if (req.path === '/api/health' || req.path.startsWith('/api/platform') || req.path === '/api/billing/webhook' || req.path === '/api/tenant/public' || req.path === '/api/auth/me') return next();
   try {
     const requestHost = cleanHost(req.get('x-forwarded-host') || req.get('host'));
     let originHost = '';
