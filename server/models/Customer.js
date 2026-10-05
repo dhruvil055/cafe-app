@@ -82,12 +82,16 @@ const customerSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  // OTP login fields
+  otpCode: { type: String, select: false, default: '' },
+  otpExpiresAt: { type: Date, select: false, default: null },
+  otpVerified: { type: Boolean, default: false },
 }, { timestamps: true });
 
 customerSchema.index({ createdAt: -1 });
 customerSchema.index({ marketingConsent: 1, status: 1 });
 customerSchema.index({ totalOrders: -1, totalSpent: -1 });
+customerSchema.index({ tenantId: 1, phone: 1 }, { unique: true });
 
 customerSchema.plugin(tenantIsolationPlugin);
-customerSchema.index({ tenantId: 1, phone: 1 }, { unique: true });
 export default mongoose.model('Customer', customerSchema);

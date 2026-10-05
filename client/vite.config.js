@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { viteImagetools } from 'vite-imagetools'
+import { imagetools } from 'vite-imagetools'
 
 export default defineConfig({
-  plugins: [react(), viteImagetools()],
+  plugins: [react(), imagetools()],
   server: {
     proxy: {
       '/api': {

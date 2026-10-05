@@ -446,4 +446,100 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// POST /api/auth/send-otp — Send OTP to phone for login
+router.post('/send-otp', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Phone number is required.' });
+
+    const normalizedPhone = normalizePhoneNumber(phone);
+    if (!normalizedPhone) return res.status(400).json({ error: 'Invalid phone number format.' });
+
+    // Find or create customer
+    let customer = await Customer.findOne({ phone: normalizedPhone });
+    if (!customer) {
+      // Create customer with minimal info - they'll complete profile on first order
+      customer = await Customer.create({
+        name: 'Guest',
+        phone: normalizedPhone,
+        name: 'Guest',
+      });
+    }
+
+    // Generate 6-digit OTP
+    const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    customer.otpCode = otpCode;
+    customer.otpExpiresAt = otpExpiresAt;
+    customer.otpVerified = false;
+    await customer.save();
+
+    // TODO: Send OTP via SMS
+    // await sendSMS({ to: normalizedPhone, body: `Your OTP is ${otpCode}. Valid for 10 minutes.` });
+
+    // For development, return OTP in response (remove in production)
+    if (process.env.NODE_ENV !== 'production') {
+      return res.json({ success: true, message: 'OTP sent.', devOtp: otpCode });
+    }
+
+    res.json({ success: true, message: 'OTP sent to your phone.' });
+  } catch (error) {
+    console.error('Send OTP error:', error);
+    res.status(500).json({ error: 'Failed to send OTP.' });
+  }
+});
+
+// POST /api/auth/verify-otp — Verify OTP and login
+router.post('/verify-otp', async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+    if (!phone || !otp) return res.status(400).json({ error: 'Phone and OTP are required.' });
+
+    const normalizedPhone = normalizePhoneNumber(phone);
+    if (!normalizedPhone) return res.status(400).json({ error: 'Invalid phone number format.' });
+
+    const customer = await Customer.findOne({ phone: normalizedPhone }).select('+otpCode +otpExpiresAt');
+    if (!customer) return res.status(404).json({ error: 'No account found with this phone number.' });
+
+    // Check OTP
+    if (customer.otpCode !== otp) {
+      return res.status(400).json({ error: 'Invalid OTP.' });
+    }
+    if (customer.otpExpiresAt < new Date()) {
+      return res.status(400).json({ error: 'OTP has expired.' });
+    }
+
+    // Mark OTP as verified
+    customer.otpVerified = true;
+    customer.otpCode = '';
+    customer.otpExpiresAt = null;
+    await customer.save();
+
+    // Issue session tokens (reuse issueSession from User auth)
+    const User = (await import('../models/User.js')).default;
+    const tempUser = await User.create({
+      tenantId: req.tenantId,
+      name: customer.name,
+      email: customer.email || `${customer.phone}@guest.local`,
+      password: crypto.randomBytes(32).toString('hex'), // Random password for guest accounts
+      role: 'customer',
+    });
+
+    const token = await issueSession(tempUser, res);
+    
+    res.json({
+      token,
+      user: {
+        ...publicUser(tempUser),
+        customerId: customer._id,
+        isGuest: true,
+      },
+    });
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    res.status(500).json({ error: 'Failed to verify OTP.' });
+  }
+});
+
 export default router;

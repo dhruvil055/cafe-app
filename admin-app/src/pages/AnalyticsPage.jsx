@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, ShoppingBag, DollarSign,
-  Package, Tag, Clock, BarChart2, RefreshCw, Download,
+  Package, Tag, Clock, BarChart2, RefreshCw, Download, FileSpreadsheet,
 } from 'lucide-react';
 import api from '../services/api';
 import { useTenant } from '../context/TenantContext';
@@ -183,6 +183,8 @@ export default function AnalyticsPage() {
         </button>
         <button onClick={() => downloadReport('/analytics/exports/sales.csv', `brewhaus-sales-${new Date().toISOString().slice(0, 10)}.csv`)} className="btn-secondary ml-2 inline-flex items-center gap-2 px-3 py-2 text-xs"><Download size={14} /> Sales CSV</button>
         <button onClick={() => downloadReport('/analytics/reports/gst.csv', `brewhaus-gst-${new Date().toISOString().slice(0, 10)}.csv`)} className="btn-secondary ml-2 inline-flex items-center gap-2 px-3 py-2 text-xs"><Download size={14} /> GST report</button>
+        <button onClick={() => downloadReport('/analytics/reports/sales.xlsx', `brewhaus-sales-${new Date().toISOString().slice(0, 10)}.xlsx`)} className="btn-secondary ml-2 inline-flex items-center gap-2 px-3 py-2 text-xs"><FileSpreadsheet size={14} /> Sales Excel</button>
+        <button onClick={() => downloadReport('/analytics/reports/gst.xlsx', `brewhaus-gst-${new Date().toISOString().slice(0, 10)}.xlsx`)} className="btn-secondary ml-2 inline-flex items-center gap-2 px-3 py-2 text-xs"><FileSpreadsheet size={14} /> GST Excel</button>
       </div>
 
       {/* ── KPI cards ── */}

@@ -8,7 +8,19 @@ import useCartStore from '../../context/cartStore';
 import { useTenant } from '../../context/TenantContext';
 import { formatPhoneNumber, normalizePhoneNumber } from '../../utils/phoneNormalizer';
 import { formatMoney } from '../../utils/money';
-import TestModal from '../../components/ui/TestModal';
+// import OtpLoginModal from '../../components/ui/OtpLoginModal.simple';
+// import OtpLoginModal from '../../components/ui/OtpLoginModal.simple';
+const TestOtpModal = ({ isOpen, onClose, onLogin }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-[26px] bg-white p-6 shadow-2xl">
+        <h2 className="font-display text-2xl font-bold text-espresso-900">Test Modal</h2>
+        <button onClick={onClose} className="mt-4 btn-primary">Close</button>
+      </div>
+    </div>
+  );
+};
 
 const loadRazorpay = () => {
   return new Promise((resolve) => {
@@ -93,7 +105,10 @@ export default function CheckoutPage() {
   };
 
   const handleOtpLoginSuccess = (user, token) => {
+    // OTP login successful - pre-fill customer info from the user object
+    // The user object from OTP login contains customerId and phone
     setShowOtpLogin(false);
+    // The phone number is already in the user object from OTP login
     toast.success('Logged in successfully!');
   };
 
@@ -211,6 +226,8 @@ export default function CheckoutPage() {
           }
         },
         handler: () => {
+          // The checkout callback is only UI feedback. Server payment status
+          // changes after Razorpay's signed webhook is validated.
           clearCart();
           sessionStorage.removeItem('brewhaus_checkout_idempotency');
           toast.success('Payment submitted. We are confirming it with the payment provider.');
@@ -396,37 +413,35 @@ export default function CheckoutPage() {
             <p className="text-red-700 text-sm">{error}</p>
           </motion.div>
         )}
+      </div>
 
-        {showOtpLogin && (
-          <TestModal
-            isOpen={showOtpLogin}
-            onClose={() => setShowOtpLogin(false)}
-            onLogin={handleOtpLoginSuccess}
-          />
-        )}
-
-        {/* Fixed bottom button */}
-        <div className="bottom-safe fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-foam shadow-2xl">
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            onClick={handleSubmit}
-            disabled={loading}
-            className="w-full btn-primary flex items-center justify-center gap-2 py-4"
-          >
-            {loading ? (
-              <>
-                <Loader2 size={18} className="animate-spin" />
-                {paymentMethod === 'razorpay' ? 'Opening Payment...' : 'Placing Order...'}
-              </>
-            ) : (
-              <>
-                {paymentMethod === 'razorpay' ? <CreditCard size={18} /> : <Banknote size={18} />}
-                {paymentMethod === 'razorpay' ? `Pay ${formatMoney(total, tenant.currency)}` : `Place Order · ${formatMoney(total, tenant.currency)}`}
-              </>
-            )}
-          </motion.button>
-        </div>
+      {/* Fixed bottom button */}
+      <div className="bottom-safe fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-foam shadow-2xl">
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={handleSubmit}
+          disabled={loading}
+          className="w-full btn-primary flex items-center justify-center gap-2 py-4"
+        >
+          {loading ? (
+            <>
+              <Loader2 size={18} className="animate-spin" />
+              {paymentMethod === 'razorpay' ? 'Opening Payment...' : 'Placing Order...'}
+            </>
+          ) : (
+            <>
+              {paymentMethod === 'razorpay' ? <CreditCard size={18} /> : <Banknote size={18} />}
+              {paymentMethod === 'razorpay' ? `Pay ${formatMoney(total, tenant.currency)}` : `Place Order · ${formatMoney(total, tenant.currency)}`}
+            </>
+          )}
+        </motion.button>
       </div>
     </div>
+
+    <TestOtpModal
+      isOpen={showOtpLogin}
+      onClose={() => setShowOtpLogin(false)}
+      onLogin={handleOtpLoginSuccess}
+    />
   );
 }

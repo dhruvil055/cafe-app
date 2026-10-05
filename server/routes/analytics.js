@@ -272,4 +272,65 @@ router.get('/summary', protect, ownerOrManager, async (req, res) => {
   }
 });
 
+// GET /api/analytics/reports/sales.xlsx — Sales report as Excel
+router.get('/reports/sales.xlsx', protect, ownerOrManager, async (req, res) => {
+  try {
+    const range = resolveReportRange(req.query);
+    if (!range) return res.status(400).json({ error: 'Provide a valid date range of at most 366 days.' });
+    const orders = await loadPaidOrders(range);
+
+    // Dynamic import exceljs to avoid loading in tests unless needed
+    const ExcelJS = (await import('exceljs')).default;
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Sales Report');
+
+    // Headers
+    const headers = ['Order', 'Date', 'Customer', 'Phone', 'Table', 'Items', 'Payment', 'Subtotal', 'Discount', 'Coupon', 'Tax', 'Total'];
+    const headerRow = sheet.addRow(headers);
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7D5436' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+    });
+
+    // Data rows
+    for (const order of orders) {
+      const row = sheet.addRow([
+        order.orderNumber,
+        order.createdAt.toISOString().split('T')[0],
+        order.customer?.name || '',
+        order.customer?.phone || '',
+        order.tableNumber,
+        order.items?.map((item) => `${item.name} x${item.quantity}`).join('; '),
+        order.paymentMethod,
+        order.subtotal,
+        order.discount || 0,
+        order.couponCode,
+        order.tax,
+        order.total,
+      ]);
+      row.eachCell((cell) => {
+        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+        cell.alignment = { vertical: 'middle', wrapText: true };
+      });
+    }
+
+    // Auto-fit columns
+    sheet.columns.forEach((column) => {
+      column.width = Math.max(15, Math.min(40, (column.width || 15)));
+    });
+
+    // Set response headers
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="brewhaus-sales-${range.from.toISOString().slice(0, 10)}.xlsx"`);
+    
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error('Excel export error:', error);
+    return res.status(500).json({ error: 'Failed to generate Excel report.' });
+  }
+});
+
 export default router;
