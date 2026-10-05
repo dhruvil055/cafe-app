@@ -166,7 +166,7 @@ export default function KitchenDisplayPage() {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {orders.length === 0 ? (
               <div className="col-span-full rounded-2xl border border-dashed border-stone-800 bg-stone-900/50 py-16 text-center text-stone-500">No orders found.</div>
-            ) : (
+            ) : 
               displayedOrders.map((order) => (
                 <article key={order._id} className="relative rounded-2xl border border-stone-800 bg-stone-900/60 p-4 shadow-xl transition-all hover:border-amber-500/30">
                   <div className="flex items-start justify-between gap-3 mb-3">
@@ -215,7 +215,6 @@ export default function KitchenDisplayPage() {
                   )}
                 </article>
               ))}
-            )}
           </div>
         )}
       </main>
