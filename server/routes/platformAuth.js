@@ -104,14 +104,10 @@ router.post('/signup', async (req, res, next) => {
       console.error('[platformAuth] Failed to dispatch verification email:', emailErr.message);
     }
 
-    const emailConfigured = isEmailConfigured();
-    const showDemoCode = !emailConfigured || process.env.NODE_ENV !== 'production' || req.hostname === 'localhost' || req.hostname === '127.0.0.1' || req.hostname.endsWith('.localhost');
-
     res.status(200).json({
       message: 'Verification code sent to your email.',
       email: cleanEmail,
       slug: cleanSlug,
-      demoCode: showDemoCode ? verificationCode : undefined,
     });
   } catch (error) {
     next(error);
@@ -148,13 +144,9 @@ router.post('/resend-code', async (req, res, next) => {
       console.error('[platformAuth] Failed to resend verification email:', emailErr.message);
     }
 
-    const emailConfigured = isEmailConfigured();
-    const showDemoCode = !emailConfigured || process.env.NODE_ENV !== 'production' || req.hostname === 'localhost' || req.hostname === '127.0.0.1' || req.hostname.endsWith('.localhost');
-
     res.status(200).json({
-      message: 'A fresh verification code has been sent.',
+      message: 'A fresh verification code has been sent to your email.',
       email: pending.email,
-      demoCode: showDemoCode ? verificationCode : undefined,
     });
   } catch (error) {
     next(error);
@@ -185,10 +177,15 @@ router.post('/verify-email', async (req, res, next) => {
     const clientUrl = String(process.env.CUSTOMER_APP_URL || process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
 
     const result = await runWithSystemTenantAccess(async () => {
-      // Re-verify slug uniqueness
+      // Re-verify slug and email uniqueness
       const slugCheck = await Tenant.findOne({ slug: pending.slug });
       if (slugCheck) {
         throw new Error('SLUG_TAKEN');
+      }
+
+      const userCheck = await User.findOne({ email: pending.email });
+      if (userCheck) {
+        throw new Error('EMAIL_TAKEN');
       }
 
       // 1. Create Tenant
@@ -362,29 +359,6 @@ router.post('/verify-email', async (req, res, next) => {
         }
       }
 
-      // 5. Create Starter Tables with Signed QR Tokens
-      for (let i = 1; i <= 3; i++) {
-        const tableId = new mongoose.Types.ObjectId();
-        const qrToken = createTableQrToken(tableId, tenant._id);
-        const qrUrl = `${clientUrl}/menu?tableToken=${encodeURIComponent(qrToken)}`;
-        const qrCode = await QRCode.toDataURL(qrUrl, {
-          width: 400,
-          margin: 2,
-          color: { dark: '#1a0f08', light: '#FFFFFF' },
-          errorCorrectionLevel: 'H',
-        });
-
-        await Table.create({
-          _id: tableId,
-          tenantId: tenant._id,
-          tableNumber: i,
-          label: `Table ${i}`,
-          seats: 4,
-          active: true,
-          qrCode,
-          qrUrl,
-        });
-      }
 
       // 7. Send Welcome Email
       try {
@@ -433,6 +407,9 @@ router.post('/verify-email', async (req, res, next) => {
   } catch (error) {
     if (error.message === 'SLUG_TAKEN') {
       return res.status(400).json({ error: 'This café URL is already taken. Please choose another one.' });
+    }
+    if (error.message === 'EMAIL_TAKEN') {
+      return res.status(400).json({ error: 'An account with this email already exists. Please sign in.' });
     }
     next(error);
   }

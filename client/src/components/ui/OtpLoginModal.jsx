@@ -11,7 +11,6 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [demoOtp, setDemoOtp] = useState('');
   const { setCustomer, clearCart } = useCartStore();
 
   const normalizePhone = (phone) => phone.replace(/\D/g, '').slice(0, 10);
@@ -25,11 +24,7 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
     setLoading(true);
     setError('');
     try {
-      const { data } = await api.post('/auth/send-otp', { phone: normalized });
-      if (data.demoOtp) {
-        setDemoOtp(data.demoOtp);
-        setOtp(data.demoOtp);
-      }
+      await api.post('/auth/send-otp', { phone: normalized });
       setStep('otp');
       setError('');
     } catch (err) {
@@ -169,11 +164,6 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
                     <p className="font-semibold text-stone-900">+91 {phone.slice(0,5)} {phone.slice(5)}</p>
                   </div>
 
-                  {demoOtp && (
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-3 text-xs text-emerald-800">
-                      🧪 <strong>Dev Demo:</strong> Your OTP is <span className="font-mono font-bold bg-white px-2 py-0.5 rounded border border-emerald-200">{demoOtp}</span> (Auto-filled below)
-                    </div>
-                  )}
 
                   <div>
                     <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-stone-600">

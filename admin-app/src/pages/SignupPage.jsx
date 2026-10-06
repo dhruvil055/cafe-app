@@ -24,7 +24,6 @@ export default function SignupPage() {
   const [slug, setSlug] = useState('');
   const [slugAutoModified, setSlugAutoModified] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
-  const [demoCode, setDemoCode] = useState('');
   const [resendLoading, setResendLoading] = useState(false);
   const [resendSuccess, setResendSuccess] = useState('');
 
@@ -77,10 +76,7 @@ export default function SignupPage() {
         slug,
       });
 
-      if (data.demoCode) {
-        setDemoCode(data.demoCode);
-        setVerificationCode(data.demoCode);
-      }
+      setVerificationCode('');
       setStep('verify');
     } catch (err) {
       setError(err.message || 'Unable to register café. Please try again.');
@@ -123,10 +119,7 @@ export default function SignupPage() {
     try {
       const { data } = await api.post('/platform/auth/resend-code', { email });
       setResendSuccess(data.message || 'Verification code resent successfully.');
-      if (data.demoCode) {
-        setDemoCode(data.demoCode);
-        setVerificationCode(data.demoCode);
-      }
+      setVerificationCode('');
     } catch (err) {
       setError(err.message || 'Unable to resend code. Please try again.');
     } finally {
@@ -291,15 +284,6 @@ export default function SignupPage() {
               onSubmit={handleVerifySubmit}
               className="space-y-5"
             >
-              {demoCode && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-3.5 text-xs text-emerald-800">
-                  <span className="font-bold">🧪 Dev Demo Mode:</span> Your verification code is{' '}
-                  <span className="font-mono font-bold bg-white px-2 py-0.5 rounded border border-emerald-200 text-emerald-900">
-                    {demoCode}
-                  </span>
-                  . (Auto-filled below).
-                </div>
-              )}
 
               <div>
                 <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-stone-600 text-center">
