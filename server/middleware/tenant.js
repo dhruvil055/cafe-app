@@ -43,7 +43,11 @@ export const tenantResolver = async (req, res, next) => {
     req.path === '/api/billing/webhook' ||
     req.path === '/api/tenant/public' ||
     req.path === '/api/auth/me' ||
-    req.path === '/api/auth/refresh'
+    req.path === '/api/auth/refresh' ||
+    req.path === '/api/auth/login' ||
+    req.path === '/api/auth/logout' ||
+    req.path === '/api/auth/forgot-password' ||
+    req.path === '/api/auth/reset-password'
   ) {
     return next();
   }

@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { tenantFromAuthenticatedUser } from './tenant.js';
+import { runWithSystemTenantAccess } from '../utils/tenantContext.js';
 
 const getJwtSecret = () => {
   const secret = process.env.JWT_SECRET;
@@ -66,14 +67,23 @@ export const protect = async (req, res, next) => {
 
     const decoded = jwt.verify(token, getJwtSecret());
     if (decoded.tokenUse !== 'access') return res.status(401).json({ error: 'Invalid access token.' });
-    if (!decoded.tenantId || String(decoded.tenantId) !== String(req.tenantId)) return res.status(404).json({ error: 'Café not found.', code: 'TENANT_NOT_FOUND' });
+    if (!req.tenantId && decoded.tenantId) {
+      req.tenantId = decoded.tenantId;
+    }
+    if (decoded.tenantId && req.tenantId && String(decoded.tenantId) !== String(req.tenantId)) {
+      return res.status(404).json({ error: 'Café not found.', code: 'TENANT_NOT_FOUND' });
+    }
 
-    const user = await User.findById(decoded.id).select('-password');
+    const user = await runWithSystemTenantAccess(async () => {
+      return User.findById(decoded.id).select('-password');
+    });
     if (!user) {
       return res.status(401).json({ error: 'User not found.' });
     }
 
-    if (String(user.tenantId) !== String(req.tenantId)) return res.status(404).json({ error: 'Café not found.', code: 'TENANT_NOT_FOUND' });
+    if (user.tenantId && req.tenantId && String(user.tenantId) !== String(req.tenantId)) {
+      return res.status(404).json({ error: 'Café not found.', code: 'TENANT_NOT_FOUND' });
+    }
     req.user = user;
     if (decoded.impersonatedBy) {
       req.impersonatedBy = decoded.impersonatedBy;

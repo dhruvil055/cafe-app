@@ -3,8 +3,10 @@ import crypto from 'crypto';
 import QRCode from 'qrcode';
 import User from '../models/User.js';
 import Customer from '../models/Customer.js';
+import Tenant from '../models/Tenant.js';
 import AuditEvent from '../models/AuditEvent.js';
 import { normalizePhoneNumber } from '../utils/phoneNormalizer.js';
+import { runWithSystemTenantAccess } from '../utils/tenantContext.js';
 import { effectiveRole, protect, authorizeRoles, checkIpLockoutForLogin, recordLoginAttemptForIp } from '../middleware/auth.js';
 import {
   createAccessToken,
@@ -42,9 +44,11 @@ const clearAuthCookie = (res) => {
 const issueSession = async (user, res) => {
   const accessToken = createAccessToken(user._id, user.tenantId);
   const refreshToken = createRefreshToken();
-  user.refreshTokenHash = hashRefreshToken(refreshToken);
-  user.refreshTokenExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
-  await user.save();
+  await runWithSystemTenantAccess(async () => {
+    user.refreshTokenHash = hashRefreshToken(refreshToken);
+    user.refreshTokenExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
+    await user.save();
+  });
   setSessionCookies(res, accessToken, refreshToken);
   return accessToken;
 };
@@ -52,9 +56,11 @@ const issueSession = async (user, res) => {
 const publicUser = (user) => ({ id: user._id, name: user.name, email: user.email, role: user.role, tenantId: user.tenantId });
 
 const recordLoginFailure = async (user) => {
-  user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
-  if (user.failedLoginAttempts >= 5) user.loginLockUntil = new Date(Date.now() + 15 * 60 * 1000);
-  await user.save();
+  await runWithSystemTenantAccess(async () => {
+    user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+    if (user.failedLoginAttempts >= 5) user.loginLockUntil = new Date(Date.now() + 15 * 60 * 1000);
+    await user.save();
+  });
 };
 
 // POST /api/auth/login
@@ -72,17 +78,27 @@ router.post('/login', async (req, res) => {
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
-    const user = await User.findOne({ email: normalizedEmail }).select('+password +failedLoginAttempts +loginLockUntil +twoFactorSecretEncrypted');
+    const user = await runWithSystemTenantAccess(async () => {
+      return User.findOne({ email: normalizedEmail }).select('+password +failedLoginAttempts +loginLockUntil +twoFactorSecretEncrypted');
+    });
     if (!user) {
       recordLoginAttemptForIp(clientIp, false);
-      await AuditEvent.create({
-        actorId: null,
-        actorEmail: normalizedEmail,
-        actorRole: 'unknown',
-        action: 'auth.login_failed',
-        targetType: 'User',
-        targetId: '',
-        details: { ip: clientIp, reason: 'user_not_found' },
+      await runWithSystemTenantAccess(async () => {
+        try {
+          const defaultTenant = await Tenant.findOne({ slug: String(process.env.TENANT_DEFAULT_SLUG || 'brewhaus').toLowerCase() }).select('_id');
+          if (defaultTenant) {
+            await AuditEvent.create({
+              tenantId: defaultTenant._id,
+              actorId: null,
+              actorEmail: normalizedEmail,
+              actorRole: 'unknown',
+              action: 'auth.login_failed',
+              targetType: 'User',
+              targetId: '',
+              details: { ip: clientIp, reason: 'user_not_found' },
+            });
+          }
+        } catch { /* ignore audit failure for missing tenant */ }
       });
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
@@ -91,18 +107,28 @@ router.post('/login', async (req, res) => {
       return res.status(423).json({ error: 'Login is temporarily locked. Try again later.', code: 'LOGIN_LOCKED' });
     }
 
+    if (user.tenantId) {
+      const tenant = await runWithSystemTenantAccess(async () => Tenant.findById(user.tenantId).lean());
+      if (tenant && tenant.status !== 'active') {
+        return res.status(423).json({ error: 'This café account is suspended.', code: 'TENANT_SUSPENDED' });
+      }
+    }
+
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       await recordLoginFailure(user);
       recordLoginAttemptForIp(clientIp, false);
-      await AuditEvent.create({
-        actorId: user._id,
-        actorEmail: user.email,
-        actorRole: user.role,
-        action: 'auth.login_failed',
-        targetType: 'User',
-        targetId: user._id,
-        details: { ip: clientIp, reason: 'invalid_password' },
+      await runWithSystemTenantAccess(async () => {
+        await AuditEvent.create({
+          tenantId: user.tenantId,
+          actorId: user._id,
+          actorEmail: user.email,
+          actorRole: user.role,
+          action: 'auth.login_failed',
+          targetType: 'User',
+          targetId: user._id,
+          details: { ip: clientIp, reason: 'invalid_password' },
+        });
       });
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
@@ -112,31 +138,38 @@ router.post('/login', async (req, res) => {
       if (!verifyTotpCode(secret, req.body?.twoFactorCode)) {
         await recordLoginFailure(user);
         recordLoginAttemptForIp(clientIp, false);
-        await AuditEvent.create({
-          actorId: user._id,
-          actorEmail: user.email,
-          actorRole: user.role,
-          action: 'auth.login_failed',
-          targetType: 'User',
-          targetId: user._id,
-          details: { ip: clientIp, reason: 'invalid_2fa' },
+        await runWithSystemTenantAccess(async () => {
+          await AuditEvent.create({
+            tenantId: user.tenantId,
+            actorId: user._id,
+            actorEmail: user.email,
+            actorRole: user.role,
+            action: 'auth.login_failed',
+            targetType: 'User',
+            targetId: user._id,
+            details: { ip: clientIp, reason: 'invalid_2fa' },
+          });
         });
         return res.status(401).json({ error: 'A valid authenticator code is required.', code: 'TWO_FACTOR_REQUIRED' });
       }
     }
 
-    user.failedLoginAttempts = 0;
-    user.loginLockUntil = null;
-    recordLoginAttemptForIp(clientIp, true);
-    await AuditEvent.create({
-      actorId: user._id,
-      actorEmail: user.email,
-      actorRole: user.role,
-      action: 'auth.login_success',
-      targetType: 'User',
-      targetId: user._id,
-      details: { ip: clientIp },
+    await runWithSystemTenantAccess(async () => {
+      user.failedLoginAttempts = 0;
+      user.loginLockUntil = null;
+      await user.save();
+      await AuditEvent.create({
+        tenantId: user.tenantId,
+        actorId: user._id,
+        actorEmail: user.email,
+        actorRole: user.role,
+        action: 'auth.login_success',
+        targetType: 'User',
+        targetId: user._id,
+        details: { ip: clientIp },
+      });
     });
+    recordLoginAttemptForIp(clientIp, true);
     const token = await issueSession(user, res);
 
     res.json({
@@ -167,7 +200,9 @@ router.post('/refresh', async (req, res) => {
   const refreshToken = req.cookies?.brewhaus_refresh_token;
   if (!refreshToken) return res.status(401).json({ error: 'Refresh session is missing.' });
   const providedHash = hashRefreshToken(refreshToken);
-  const user = await User.findOne({ refreshTokenHash: providedHash, refreshTokenExpiresAt: { $gt: new Date() } }).select('+refreshTokenHash +refreshTokenExpiresAt');
+  const user = await runWithSystemTenantAccess(async () => {
+    return User.findOne({ refreshTokenHash: providedHash, refreshTokenExpiresAt: { $gt: new Date() } }).select('+refreshTokenHash +refreshTokenExpiresAt');
+  });
   if (!user) {
     clearAuthCookie(res);
     return res.status(401).json({ error: 'Refresh session has expired. Please sign in again.' });
@@ -176,17 +211,20 @@ router.post('/refresh', async (req, res) => {
     // Token reuse detection: if the hash in DB doesn't match the provided hash, token was reused
     if (user.refreshTokenHash !== providedHash) {
       // Token reuse detected — revoke all sessions for this user
-      await User.updateOne({ _id: user._id }, { $set: { refreshTokenHash: '', refreshTokenExpiresAt: null } });
-      clearAuthCookie(res);
-      await AuditEvent.create({
-        actorId: user._id,
-        actorEmail: user.email,
-        actorRole: user.role,
-        action: 'auth.token_reuse_detected',
-        targetType: 'User',
-        targetId: user._id,
-        details: { ip: req.ip },
+      await runWithSystemTenantAccess(async () => {
+        await User.updateOne({ _id: user._id }, { $set: { refreshTokenHash: '', refreshTokenExpiresAt: null } });
+        await AuditEvent.create({
+          tenantId: user.tenantId,
+          actorId: user._id,
+          actorEmail: user.email,
+          actorRole: user.role,
+          action: 'auth.token_reuse_detected',
+          targetType: 'User',
+          targetId: user._id,
+          details: { ip: req.ip },
+        });
       });
+      clearAuthCookie(res);
       return res.status(401).json({ error: 'Session invalidated due to token reuse. Please log in again.' });
     }
 
@@ -363,7 +401,9 @@ router.post('/forgot-password', async (req, res) => {
     if (!email) return res.status(400).json({ error: 'Email is required.' });
 
     const normalizedEmail = String(email).trim().toLowerCase();
-    const user = await User.findOne({ email: normalizedEmail });
+    const user = await runWithSystemTenantAccess(async () => {
+      return User.findOne({ email: normalizedEmail });
+    });
     if (!user) {
       // Don't reveal if email exists or not
       return res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
@@ -372,9 +412,11 @@ router.post('/forgot-password', async (req, res) => {
     // Generate reset token (valid for 1 hour)
     const resetToken = crypto.randomBytes(32).toString('hex');
     const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-    user.resetPasswordToken = hashedToken;
-    user.resetPasswordExpiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-    await user.save();
+    await runWithSystemTenantAccess(async () => {
+      user.resetPasswordToken = hashedToken;
+      user.resetPasswordExpiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      await user.save();
+    });
 
     const baseAppUrl = process.env.ADMIN_APP_URL || process.env.CUSTOMER_APP_URL || process.env.CLIENT_URL || 'http://localhost:5173';
     const resetUrl = `${baseAppUrl.replace(/\/$/, '')}/reset-password?token=${resetToken}&email=${encodeURIComponent(normalizedEmail)}`;
@@ -407,11 +449,13 @@ router.post('/reset-password', async (req, res) => {
     const normalizedEmail = String(email).trim().toLowerCase();
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-    const user = await User.findOne({
-      email: normalizedEmail,
-      resetPasswordToken: hashedToken,
-      resetPasswordExpiresAt: { $gt: new Date() },
-    }).select('+password');
+    const user = await runWithSystemTenantAccess(async () => {
+      return User.findOne({
+        email: normalizedEmail,
+        resetPasswordToken: hashedToken,
+        resetPasswordExpiresAt: { $gt: new Date() },
+      }).select('+password');
+    });
 
     if (!user) {
       return res.status(400).json({ error: 'Invalid or expired reset token.' });
@@ -424,26 +468,29 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 12 characters with uppercase, lowercase, number, and symbol.' });
     }
 
-    user.password = password;
-    user.resetPasswordToken = '';
-    user.resetPasswordExpiresAt = null;
-    user.failedLoginAttempts = 0;
-    user.loginLockUntil = null;
-    await user.save();
+    await runWithSystemTenantAccess(async () => {
+      user.password = password;
+      user.resetPasswordToken = '';
+      user.resetPasswordExpiresAt = null;
+      user.failedLoginAttempts = 0;
+      user.loginLockUntil = null;
+      await user.save();
 
-    // Revoke all existing sessions
-    user.refreshTokenHash = '';
-    user.refreshTokenExpiresAt = null;
-    await user.save();
+      // Revoke all existing sessions
+      user.refreshTokenHash = '';
+      user.refreshTokenExpiresAt = null;
+      await user.save();
 
-    await AuditEvent.create({
-      actorId: user._id,
-      actorEmail: user.email,
-      actorRole: user.role,
-      action: 'auth.password_reset',
-      targetType: 'User',
-      targetId: user._id,
-      details: { method: 'forgot_password' },
+      await AuditEvent.create({
+        tenantId: user.tenantId,
+        actorId: user._id,
+        actorEmail: user.email,
+        actorRole: user.role,
+        action: 'auth.password_reset',
+        targetType: 'User',
+        targetId: user._id,
+        details: { method: 'forgot_password' },
+      });
     });
 
     res.json({ success: true, message: 'Password has been reset successfully.' });

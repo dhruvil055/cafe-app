@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :focus-visible {
-  outline: 3px solid #b45309;
-  outline-offset: 3px;
+  outline: 2px solid #c96b18;
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -17,7 +17,7 @@
 }
 
 :root {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: #1a0f08;
   background: #f5f1eb;
   line-height: 1.5;
@@ -35,7 +35,8 @@ html, body, #root {
 }
 
 body {
-  background: linear-gradient(180deg, #f8f5f1 0%, #f0ece7 100%);
+  background: #f7f4ef;
+  color: #1c140e;
 }
 
 * {
@@ -46,22 +47,48 @@ button, input, select, textarea {
   font: inherit;
 }
 
-.btn-primary {
-  @apply inline-flex items-center justify-center rounded-xl bg-espresso-900 text-white font-medium transition hover:bg-espresso-800 disabled:cursor-not-allowed disabled:opacity-60;
+@layer components {
+  .card {
+    @apply rounded-2xl border border-stone-200/90 bg-white p-5 sm:p-7 shadow-sm transition-all;
+  }
+
+  .input-field {
+    @apply w-full rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-sm text-stone-900 shadow-sm transition duration-150 placeholder:text-stone-400 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-500/20 disabled:cursor-not-allowed disabled:bg-stone-50 disabled:text-stone-400;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-espresso-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-espresso-800 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .status-pending { @apply bg-amber-50 text-amber-700 border border-amber-200; }
+  .status-confirmed { @apply bg-sky-50 text-sky-700 border border-sky-200; }
+  .status-preparing { @apply bg-orange-50 text-orange-700 border border-orange-200; }
+  .status-ready { @apply bg-emerald-50 text-emerald-700 border border-emerald-200; }
+  .status-completed { @apply bg-emerald-100 text-emerald-800 border border-emerald-200; }
+  .status-cancelled { @apply bg-rose-50 text-rose-700 border border-rose-200; }
 }
 
-.btn-secondary {
-  @apply inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 font-medium transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60;
+/* Custom scrollbar for dark sidebar */
+.custom-sidebar-scroll::-webkit-scrollbar {
+  width: 5px;
 }
-
-.status-pending { @apply bg-amber-50 text-amber-700 border border-amber-200; }
-.status-confirmed { @apply bg-sky-50 text-sky-700 border border-sky-200; }
-.status-preparing { @apply bg-orange-50 text-orange-700 border border-orange-200; }
-.status-ready { @apply bg-emerald-50 text-emerald-700 border border-emerald-200; }
-.status-completed { @apply bg-emerald-100 text-emerald-800 border border-emerald-200; }
-.status-cancelled { @apply bg-rose-50 text-rose-700 border border-rose-200; }
+.custom-sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+.custom-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
 
 /* Tenant-configurable brand accents */
 .btn-primary { background-color: var(--tenant-accent, #1a0f08); }
 .bg-brew-500 { background-color: var(--tenant-primary, #c96b18); }
 .text-brew-500, .text-brew-600 { color: var(--tenant-primary, #c96b18); }
+
