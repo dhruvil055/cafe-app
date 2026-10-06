@@ -18,6 +18,11 @@ import {
   REFRESH_TOKEN_TTL_MS,
 } from '../utils/authTokens.js';
 import { setSessionCookies } from './auth.js';
+import {
+  sendVerificationCodeEmail,
+  sendWelcomeEmail,
+  isEmailConfigured,
+} from '../services/emailService.js';
 
 const router = express.Router();
 
@@ -88,11 +93,68 @@ router.post('/signup', async (req, res, next) => {
       expiresAt,
     });
 
+    // Send verification code via Nodemailer
+    try {
+      await sendVerificationCodeEmail({
+        to: cleanEmail,
+        cafeName: cleanName,
+        code: verificationCode,
+      });
+    } catch (emailErr) {
+      console.error('[platformAuth] Failed to dispatch verification email:', emailErr.message);
+    }
+
+    const emailConfigured = isEmailConfigured();
+    const showDemoCode = !emailConfigured || process.env.NODE_ENV !== 'production' || req.hostname === 'localhost' || req.hostname === '127.0.0.1' || req.hostname.endsWith('.localhost');
+
     res.status(200).json({
       message: 'Verification code sent to your email.',
       email: cleanEmail,
       slug: cleanSlug,
-      demoCode: (process.env.NODE_ENV !== 'production' || req.hostname === 'localhost' || req.hostname === '127.0.0.1' || req.hostname.endsWith('.localhost')) ? verificationCode : undefined,
+      demoCode: showDemoCode ? verificationCode : undefined,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/platform/auth/resend-code
+router.post('/resend-code', async (req, res, next) => {
+  try {
+    const { email } = req.body || {};
+    const cleanEmail = String(email || '').trim().toLowerCase();
+
+    if (!cleanEmail) {
+      return res.status(400).json({ error: 'Email is required to resend verification code.' });
+    }
+
+    const pending = await PendingSignup.findOne({ email: cleanEmail });
+    if (!pending) {
+      return res.status(404).json({ error: 'No pending signup found for this email. Please sign up again.' });
+    }
+
+    const verificationCode = String(Math.floor(100000 + Math.random() * 900000));
+    pending.verificationCode = verificationCode;
+    pending.expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await pending.save();
+
+    try {
+      await sendVerificationCodeEmail({
+        to: pending.email,
+        cafeName: pending.cafeName,
+        code: verificationCode,
+      });
+    } catch (emailErr) {
+      console.error('[platformAuth] Failed to resend verification email:', emailErr.message);
+    }
+
+    const emailConfigured = isEmailConfigured();
+    const showDemoCode = !emailConfigured || process.env.NODE_ENV !== 'production' || req.hostname === 'localhost' || req.hostname === '127.0.0.1' || req.hostname.endsWith('.localhost');
+
+    res.status(200).json({
+      message: 'A fresh verification code has been sent.',
+      email: pending.email,
+      demoCode: showDemoCode ? verificationCode : undefined,
     });
   } catch (error) {
     next(error);
@@ -324,18 +386,16 @@ router.post('/verify-email', async (req, res, next) => {
         });
       }
 
-      // 7. Send Welcome Email (placeholder)
-      if (process.env.SMTP_HOST && process.env.SMTP_PORT) {
-        try {
-          // TODO: Implement email sending
-          // await sendEmail({
-          //   to: pending.email,
-          //   subject: `Welcome to ${pending.cafeName}!`,
-          //   html: welcomeEmailTemplate(pending.cafeName, clientUrl),
-          // });
-        } catch (emailError) {
-          console.error('Welcome email failed:', emailError.message);
-        }
+      // 7. Send Welcome Email
+      try {
+        const adminUrl = String(process.env.ADMIN_APP_URL || process.env.ADMIN_CLIENT_URL || 'https://admin-cafe.infinigrowsoftech.com').replace(/\/$/, '');
+        await sendWelcomeEmail({
+          to: pending.email,
+          cafeName: pending.cafeName,
+          adminUrl,
+        });
+      } catch (emailError) {
+        console.error('Welcome email failed:', emailError.message);
       }
 
       // Cleanup pending record

@@ -25,6 +25,8 @@ export default function SignupPage() {
   const [slugAutoModified, setSlugAutoModified] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [demoCode, setDemoCode] = useState('');
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -109,6 +111,26 @@ export default function SignupPage() {
       setError(err.message || 'Verification failed. Please check the code.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (!email) return;
+    setResendLoading(true);
+    setResendSuccess('');
+    setError('');
+
+    try {
+      const { data } = await api.post('/platform/auth/resend-code', { email });
+      setResendSuccess(data.message || 'Verification code resent successfully.');
+      if (data.demoCode) {
+        setDemoCode(data.demoCode);
+        setVerificationCode(data.demoCode);
+      }
+    } catch (err) {
+      setError(err.message || 'Unable to resend code. Please try again.');
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -310,13 +332,27 @@ export default function SignupPage() {
                 )}
               </button>
 
-              <div className="text-center pt-2">
+              {resendSuccess && (
+                <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-2.5 text-center text-xs font-medium text-emerald-800">
+                  {resendSuccess}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-2 text-xs">
                 <button
                   type="button"
                   onClick={() => setStep('form')}
-                  className="text-xs text-stone-500 hover:text-stone-800 underline"
+                  className="text-stone-500 hover:text-stone-800 underline"
                 >
                   ← Back to details
+                </button>
+                <button
+                  type="button"
+                  disabled={resendLoading}
+                  onClick={handleResendCode}
+                  className="font-medium text-amber-700 hover:text-amber-800 hover:underline disabled:opacity-50"
+                >
+                  {resendLoading ? 'Sending new code...' : 'Resend code'}
                 </button>
               </div>
             </motion.form>

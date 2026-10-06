@@ -10,7 +10,7 @@ import Customer from '../models/Customer.js';
 import BillingWebhookEvent from '../models/BillingWebhookEvent.js';
 import { PLANS } from '../config/plans.js';
 import { protect, adminOnly } from '../middleware/auth.js';
-import { runWithSystemTenantAccess, getTenantId } from '../utils/tenantContext.js';
+import { runWithSystemTenantAccess } from '../utils/tenantContext.js';
 
 const router = express.Router();
 
@@ -43,85 +43,6 @@ const verifyWebhookSignatureForTenant = (rawBody, signature, tenant) => {
   return verifyWebhookSignature(rawBody, signature, secret);
 };
 
-const verifyWebhookSignature = (rawBody, signature, secret) => {
-  if (!Buffer.isBuffer(rawBody) || !signature || !secret) return false;
-  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-  const suppliedBytes = Buffer.from(String(signature));
-  const expectedBytes = Buffer.from(expected);
-  return suppliedBytes.length === expectedBytes.length && crypto.timingSafeEqual(suppliedBytes, expectedBytes);
-};
-
-const getTenantIdFromWebhook = async (subId, tenantNotesId) => {
-  let tenant = null;
-  if (subId) {
-    tenant = await Tenant.findOne({ 'subscription.razorpaySubscriptionId': subId });
-  }
-  if (!tenant && tenantNotesId) {
-    tenant = await Tenant.findById(tenantNotesId);
-  }
-  return tenant;
-};
-
-const verifyWebhookSignatureForTenant = (rawBody, signature, tenant) => {
-  const secret = tenant?.razorpayWebhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET || process.env.JWT_SECRET || 'brewhaus-billing-webhook-secret-min32chars';
-  return verifyWebhookSignature(rawBody, signature, secret);
-};
-
-const getTenantIdFromWebhook = async (subId, tenantNotesId) => {
-  let tenant = null;
-  if (subId) {
-    tenant = await Tenant.findOne({ 'subscription.razorpaySubscriptionId': subId });
-  }
-  if (!tenant && tenantNotesId) {
-    tenant = await Tenant.findById(tenantNotesId);
-  }
-  return tenant;
-};
-
-const verifyWebhookSignatureForTenant = (rawBody, signature, tenant) => {
-  const secret = tenant?.razorpayWebhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET || process.env.JWT_SECRET || 'brewhaus-billing-webhook-secret-min32chars';
-  return verifyWebhookSignature(rawBody, signature, secret);
-};
-
-const getTenantIdFromWebhook = async (subId, tenantNotesId) => {
-  let tenant = null;
-  if (subId) {
-    tenant = await Tenant.findOne({ 'subscription.razorpaySubscriptionId': subId });
-  }
-  if (!tenant && tenantNotesId) {
-    tenant = await Tenant.findById(tenantNotesId);
-  }
-  return tenant;
-};
-
-const verifyWebhookSignatureForTenant = (rawBody, signature, tenant) => {
-  const secret = tenant?.razorpayWebhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET || process.env.JWT_SECRET || 'brewhaus-billing-webhook-secret-min32chars';
-  return verifyWebhookSignature(rawBody, signature, secret);
-};
-
-const verifyWebhookSignature = (rawBody, signature, secret) => {
-  if (!Buffer.isBuffer(rawBody) || !signature || !secret) return false;
-  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-  const suppliedBytes = Buffer.from(String(signature));
-  const expectedBytes = Buffer.from(expected);
-  return suppliedBytes.length === expectedBytes.length && crypto.timingSafeEqual(suppliedBytes, expectedBytes);
-};
-
-const getTenantIdFromWebhook = async (subId, tenantNotesId) => {
-  let tenant = null;
-  if (subId) {
-    tenant = await Tenant.findOne({ 'subscription.razorpaySubscriptionId': subId });
-  }
-  if (!tenant && tenantNotesId) {
-    tenant = await Tenant.findById(tenantNotesId);
-  }
-  return tenant;
-};
-
-const verifyWebhookSignatureForTenant = (rawBody, signature, tenant) => {
-  const secret = tenant?.razorpayWebhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET || process.env.JWT_SECRET || 'brewhaus-billing-webhook-secret-min32chars';
-  return verifyWebhookSignature(rawBody, signature, secret);
-};
 
 // POST /api/billing/webhook - Razorpay Subscription Webhook
 router.post('/webhook', async (req, res, next) => {

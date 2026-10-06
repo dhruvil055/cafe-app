@@ -20,10 +20,13 @@
     "restore:db": "node scripts/restore-db.js"
   },
   "dependencies": {
+    "@sentry/node": "^8.0.0",
+    "@sentry/profiling-node": "^8.0.0",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
+    "exceljs": "^4.4.0",
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
     "express-validator": "^7.0.1",
@@ -31,12 +34,10 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.0.3",
     "multer": "^1.4.5-lts.1",
+    "nodemailer": "^10.0.15",
     "pdfkit": "^0.14.0",
     "qrcode": "^1.5.3",
     "razorpay": "^2.9.2",
-    "web-push": "^3.6.7",
-    "@sentry/node": "^8.0.0",
-    "@sentry/profiling-node": "^8.0.0",
-    "exceljs": "^4.4.0"
+    "web-push": "^3.6.7"
   }
 }

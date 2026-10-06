@@ -14,6 +14,7 @@ import {
   generateTotpSecret,
   verifyTotpCode,
 } from '../utils/authTokens.js';
+import { sendPasswordResetEmail } from '../services/emailService.js';
 
 const router = express.Router();
 
@@ -373,9 +374,13 @@ router.post('/forgot-password', async (req, res) => {
     user.resetPasswordExpiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
     await user.save();
 
-    // TODO: Send email with reset link
-    // const resetUrl = `${process.env.CUSTOMER_APP_URL}/reset-password?token=${resetToken}&email=${encodeURIComponent(normalizedEmail)}`;
-    // await sendEmail({ to: normalizedEmail, subject: 'Password Reset', html: `...${resetUrl}...` });
+    const baseAppUrl = process.env.ADMIN_APP_URL || process.env.CUSTOMER_APP_URL || process.env.CLIENT_URL || 'http://localhost:5173';
+    const resetUrl = `${baseAppUrl.replace(/\/$/, '')}/reset-password?token=${resetToken}&email=${encodeURIComponent(normalizedEmail)}`;
+    try {
+      await sendPasswordResetEmail({ to: normalizedEmail, resetUrl });
+    } catch (mailErr) {
+      console.error('[auth] Failed to send password reset email:', mailErr.message);
+    }
 
     // For development, return token in response (remove in production)
     if (process.env.NODE_ENV !== 'production') {
