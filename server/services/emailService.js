@@ -1,12 +1,43 @@
 import nodemailer from 'nodemailer';
 
 /**
- * Check if SMTP credentials are provided in environment
+ * Check if email service is configured (via Resend HTTP API or SMTP)
  */
 export const isEmailConfigured = () => {
+  const hasResend = Boolean(process.env.RESEND_API_KEY);
   const user = process.env.SMTP_USER || process.env.EMAIL_USER;
   const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
-  return Boolean(user && pass);
+  return hasResend || Boolean(user && pass);
+};
+
+/**
+ * Send email via Resend HTTP REST API (port 443 HTTPS, bypasses Render free tier SMTP blocks)
+ */
+const sendViaHttp = async ({ to, subject, html, text }) => {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return null;
+
+  const from = process.env.RESEND_FROM || process.env.SMTP_FROM || 'BrewHaus <onboarding@resend.dev>';
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from,
+      to: Array.isArray(to) ? to : [to],
+      subject,
+      html,
+      text,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || 'Resend HTTP API failed to deliver email');
+  }
+  return { success: true, messageId: data.id };
 };
 
 /**
@@ -49,18 +80,8 @@ const getTransporter = () => {
  * Send Verification Code Email for Café Onboarding
  */
 export const sendVerificationCodeEmail = async ({ to, cafeName, code }) => {
-  const transporter = getTransporter();
-  const from = process.env.SMTP_FROM || process.env.EMAIL_FROM || `"BrewHaus Café" <${process.env.SMTP_USER || process.env.EMAIL_USER || 'noreply@brewhauscafe.com'}>`;
-
-  if (!transporter) {
-    console.warn(`\n======================================================`);
-    console.warn(`[EmailService] SMTP credentials not configured in .env!`);
-    console.warn(`Recipient: ${to}`);
-    console.warn(`Café: ${cafeName}`);
-    console.warn(`Verification Code (OTP): >>> ${code} <<<`);
-    console.warn(`======================================================\n`);
-    return { success: false, reason: 'smtp_not_configured', code };
-  }
+  const subject = `${code} is your BrewHaus verification code`;
+  const text = `Your verification code for ${cafeName} is: ${code}. Valid for 15 minutes.`;
 
   const html = `
     <!DOCTYPE html>
@@ -100,21 +121,40 @@ export const sendVerificationCodeEmail = async ({ to, cafeName, code }) => {
     </html>
   `;
 
-  try {
-    const sendPromise = transporter.sendMail({
-      from,
-      to,
-      subject: `${code} is your BrewHaus verification code`,
-      text: `Your verification code for ${cafeName} is: ${code}. Valid for 15 minutes.`,
-      html,
-    });
+  // 1. Try Resend HTTP API first (port 443 HTTPS - works on Render free tier)
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const httpResult = await sendViaHttp({ to, subject, html, text });
+      if (httpResult) {
+        console.log(`[EmailService] Verification email sent to ${to} via Resend HTTP: id=${httpResult.messageId}`);
+        return httpResult;
+      }
+    } catch (httpErr) {
+      console.warn(`[EmailService] Resend HTTP dispatch error:`, httpErr.message);
+    }
+  }
 
+  // 2. Try SMTP transport
+  const transporter = getTransporter();
+  const from = process.env.SMTP_FROM || process.env.EMAIL_FROM || `"BrewHaus Café" <${process.env.SMTP_USER || process.env.EMAIL_USER || 'noreply@brewhauscafe.com'}>`;
+
+  if (!transporter) {
+    console.warn(`\n======================================================`);
+    console.warn(`[EmailService] SMTP credentials not configured in .env!`);
+    console.warn(`Recipient: ${to}`);
+    console.warn(`Café: ${cafeName}`);
+    console.warn(`Verification Code (OTP): >>> ${code} <<<`);
+    console.warn(`======================================================\n`);
+    return { success: false, reason: 'smtp_not_configured', code };
+  }
+
+  try {
+    const sendPromise = transporter.sendMail({ from, to, subject, text, html });
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('SMTP send timed out after 8s')), 8000)
     );
-
     const info = await Promise.race([sendPromise, timeoutPromise]);
-    console.log(`[EmailService] Verification code sent to ${to}: messageId=${info.messageId}`);
+    console.log(`[EmailService] Verification code sent to ${to} via SMTP: messageId=${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error(`[EmailService] Failed to send email to ${to}:`, error.message);
