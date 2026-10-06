@@ -18,14 +18,19 @@ const getTransporter = () => {
 
   if (!user || !pass) return null;
 
-  if (process.env.SMTP_SERVICE) {
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const isGmail = process.env.SMTP_SERVICE === 'gmail' || host.includes('gmail.com') || (user && user.includes('gmail.com'));
+
+  if (isGmail) {
     return nodemailer.createTransport({
-      service: process.env.SMTP_SERVICE,
+      service: 'gmail',
       auth: { user, pass },
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 10000,
     });
   }
 
-  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
   const port = parseInt(process.env.SMTP_PORT || '587', 10);
   const secure = process.env.SMTP_SECURE === 'true' || port === 465;
 
@@ -34,6 +39,9 @@ const getTransporter = () => {
     port,
     secure,
     auth: { user, pass },
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000,
   });
 };
 
@@ -93,13 +101,19 @@ export const sendVerificationCodeEmail = async ({ to, cafeName, code }) => {
   `;
 
   try {
-    const info = await transporter.sendMail({
+    const sendPromise = transporter.sendMail({
       from,
       to,
       subject: `${code} is your BrewHaus verification code`,
       text: `Your verification code for ${cafeName} is: ${code}. Valid for 15 minutes.`,
       html,
     });
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('SMTP send timed out after 8s')), 8000)
+    );
+
+    const info = await Promise.race([sendPromise, timeoutPromise]);
     console.log(`[EmailService] Verification code sent to ${to}: messageId=${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {

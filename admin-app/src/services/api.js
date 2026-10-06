@@ -25,7 +25,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       const config = error.config;
       const requestUrl = String(config?.url || '');
-      const isAuthRequest = ['/auth/login', '/auth/refresh', '/auth/logout'].some((path) => requestUrl.includes(path));
+      const isAuthRequest = ['/auth/login', '/auth/refresh', '/auth/logout', '/auth/me', '/platform/auth'].some((path) => requestUrl.includes(path));
       if (config && !config._refreshAttempted && !isAuthRequest) {
         config._refreshAttempted = true;
         try {

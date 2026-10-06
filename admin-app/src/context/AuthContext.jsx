@@ -9,6 +9,12 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const isSignup = typeof window !== 'undefined' && window.location.pathname.startsWith('/signup');
+    if (isSignup) {
+      setLoading(false);
+      return;
+    }
+
     api.get('/auth/me')
       .then((res) => setUser(res.data.user))
       .catch(() => {

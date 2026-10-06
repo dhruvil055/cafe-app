@@ -93,16 +93,14 @@ router.post('/signup', async (req, res, next) => {
       expiresAt,
     });
 
-    // Send verification code via Nodemailer
-    try {
-      await sendVerificationCodeEmail({
-        to: cleanEmail,
-        cafeName: cleanName,
-        code: verificationCode,
-      });
-    } catch (emailErr) {
+    // Send verification code via Nodemailer in background so HTTP response returns instantly
+    sendVerificationCodeEmail({
+      to: cleanEmail,
+      cafeName: cleanName,
+      code: verificationCode,
+    }).catch((emailErr) => {
       console.error('[platformAuth] Failed to dispatch verification email:', emailErr.message);
-    }
+    });
 
     res.status(200).json({
       message: 'Verification code sent to your email.',
@@ -134,15 +132,13 @@ router.post('/resend-code', async (req, res, next) => {
     pending.expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     await pending.save();
 
-    try {
-      await sendVerificationCodeEmail({
-        to: pending.email,
-        cafeName: pending.cafeName,
-        code: verificationCode,
-      });
-    } catch (emailErr) {
+    sendVerificationCodeEmail({
+      to: pending.email,
+      cafeName: pending.cafeName,
+      code: verificationCode,
+    }).catch((emailErr) => {
       console.error('[platformAuth] Failed to resend verification email:', emailErr.message);
-    }
+    });
 
     res.status(200).json({
       message: 'A fresh verification code has been sent to your email.',
@@ -360,17 +356,15 @@ router.post('/verify-email', async (req, res, next) => {
       }
 
 
-      // 7. Send Welcome Email
-      try {
-        const adminUrl = String(process.env.ADMIN_APP_URL || process.env.ADMIN_CLIENT_URL || 'https://admin-cafe.infinigrowsoftech.com').replace(/\/$/, '');
-        await sendWelcomeEmail({
-          to: pending.email,
-          cafeName: pending.cafeName,
-          adminUrl,
-        });
-      } catch (emailError) {
+      // 7. Send Welcome Email in background
+      const adminUrl = String(process.env.ADMIN_APP_URL || process.env.ADMIN_CLIENT_URL || 'https://admin-cafe.infinigrowsoftech.com').replace(/\/$/, '');
+      sendWelcomeEmail({
+        to: pending.email,
+        cafeName: pending.cafeName,
+        adminUrl,
+      }).catch((emailError) => {
         console.error('Welcome email failed:', emailError.message);
-      }
+      });
 
       // Cleanup pending record
       await PendingSignup.deleteOne({ _id: pending._id });
