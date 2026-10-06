@@ -32,20 +32,23 @@ export const decryptTenantCredentials = (stored) => {
   return JSON.parse(Buffer.concat([decipher.update(Buffer.from(dataText, 'base64url')), decipher.final()]).toString('utf8'));
 };
 
-export const publicTenantSettings = (tenant) => ({
-  id: String(tenant._id),
-  slug: tenant.slug,
-  status: tenant.status,
-  name: tenant.settings?.cafeName || tenant.name,
-  logoUrl: tenant.settings?.logoUrl || '',
-  primaryColor: tenant.settings?.primaryColor || '#c96b18',
-  accentColor: tenant.settings?.accentColor || '#1a0f08',
-  currency: tenant.settings?.currency || 'INR',
-  timezone: tenant.settings?.timezone || 'Asia/Kolkata',
-  gstNumber: tenant.settings?.gstNumber || '',
-  taxRate: Number(tenant.settings?.taxRate ?? 5),
-  address: tenant.settings?.address || '',
-  contactEmail: tenant.settings?.contactEmail || '',
-  contactPhone: tenant.settings?.contactPhone || '',
-  openingHours: tenant.settings?.openingHours || {},
-});
+export const publicTenantSettings = (tenant) => {
+  if (!tenant) return null;
+  return {
+    id: String(tenant._id || ''),
+    slug: tenant.slug || '',
+    status: tenant.status || 'active',
+    name: tenant.settings?.cafeName || tenant.name || 'Café',
+    logoUrl: tenant.settings?.logoUrl || '',
+    primaryColor: tenant.settings?.primaryColor || '#c96b18',
+    accentColor: tenant.settings?.accentColor || '#1a0f08',
+    currency: tenant.settings?.currency || 'INR',
+    timezone: tenant.settings?.timezone || 'Asia/Kolkata',
+    gstNumber: tenant.settings?.gstNumber || '',
+    taxRate: Number(tenant.settings?.taxRate ?? 5),
+    address: tenant.settings?.address || '',
+    contactEmail: tenant.settings?.contactEmail || '',
+    contactPhone: tenant.settings?.contactPhone || '',
+    openingHours: tenant.settings?.openingHours || {},
+  };
+};

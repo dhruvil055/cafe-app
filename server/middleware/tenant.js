@@ -12,10 +12,16 @@ const getSlugFromHost = (host) => {
     const prefix = host.slice(0, -(baseDomain.length + 1));
     if (prefix && !prefix.includes('.')) return prefix;
   }
-  // Backward-compatible mapping for the existing root customer/admin domains.
-  if (['cafe.infinigrowsoftech.com', 'admin-cafe.infinigrowsoftech.com', 'localhost', '127.0.0.1'].includes(host)) return defaultSlug;
+  // Backward-compatible mapping for existing customer/admin domains and cloud deployment hosts.
+  if (
+    ['cafe.infinigrowsoftech.com', 'admin-cafe.infinigrowsoftech.com', 'localhost', '127.0.0.1'].includes(host) ||
+    host.includes('onrender.com') ||
+    host.includes('vercel.app')
+  ) {
+    return defaultSlug;
+  }
   if (host.endsWith('.localhost')) return host.split('.')[0];
-  return null;
+  return defaultSlug;
 };
 
 const isCustomerTenantHost = (host) => {
@@ -31,7 +37,16 @@ const isCustomerTenantHost = (host) => {
 const cleanTenantError = (res, status, message) => res.status(status).json({ error: message, code: status === 423 ? 'TENANT_SUSPENDED' : 'TENANT_NOT_FOUND' });
 
 export const tenantResolver = async (req, res, next) => {
-  if (req.path === '/api/health' || req.path.startsWith('/api/platform') || req.path === '/api/billing/webhook' || req.path === '/api/tenant/public' || req.path === '/api/auth/me') return next();
+  if (
+    req.path === '/api/health' ||
+    req.path.startsWith('/api/platform') ||
+    req.path === '/api/billing/webhook' ||
+    req.path === '/api/tenant/public' ||
+    req.path === '/api/auth/me' ||
+    req.path === '/api/auth/refresh'
+  ) {
+    return next();
+  }
   try {
     const requestHost = cleanHost(req.get('x-forwarded-host') || req.get('host'));
     let originHost = '';

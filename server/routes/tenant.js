@@ -5,7 +5,25 @@ import { decryptTenantCredentials, encryptTenantCredentials, publicTenantSetting
 
 const router = express.Router();
 
-router.get('/public', (req, res) => res.set('Cache-Control', 'private, max-age=60').json({ tenant: publicTenantSettings(req.tenant) }));
+router.get('/public', async (req, res, next) => {
+  try {
+    let tenant = req.tenant;
+    if (!tenant) {
+      const defaultSlug = String(process.env.TENANT_DEFAULT_SLUG || 'brewhaus').toLowerCase();
+      const slug = req.query?.slug || req.headers['x-tenant-slug'] || defaultSlug;
+      tenant = await Tenant.findOne({ slug: String(slug).toLowerCase() }).lean();
+      if (!tenant) {
+        tenant = await Tenant.findOne({ status: 'active' }).lean();
+      }
+    }
+    if (!tenant) {
+      return res.status(404).json({ error: 'Café not found' });
+    }
+    return res.set('Cache-Control', 'private, max-age=60').json({ tenant: publicTenantSettings(tenant) });
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.get('/settings', protect, authorizeRoles('owner'), async (req, res, next) => {
   try {
