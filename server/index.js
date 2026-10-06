@@ -216,6 +216,17 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
   app.use('/api/tenant/billing', billingRoutes);
   app.get('/api/tenant/export', (req, res, next) => res.redirect(307, '/api/tenant/billing/export'));
 
+  app.get('/', (req, res) => {
+    const ready = mongoose.connection.readyState === 1;
+    res.status(200).json({
+      name: 'BrewHaus Café API Server',
+      status: ready ? 'online' : 'connecting',
+      database: ready ? 'connected' : 'disconnected',
+      health: '/api/health',
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   app.get('/api/health', (req, res) => {
     const ready = mongoose.connection.readyState === 1;
     res.status(ready ? 200 : 503).json({ status: ready ? 'ok' : 'unavailable', timestamp: new Date().toISOString() });
