@@ -24,6 +24,7 @@ export default function SignupPage() {
   const [slug, setSlug] = useState('');
   const [slugAutoModified, setSlugAutoModified] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
+  const [demoCode, setDemoCode] = useState('');
   const [resendLoading, setResendLoading] = useState(false);
   const [resendSuccess, setResendSuccess] = useState('');
 
@@ -76,7 +77,13 @@ export default function SignupPage() {
         slug,
       });
 
-      setVerificationCode('');
+      if (data?.demoCode) {
+        setDemoCode(data.demoCode);
+        setVerificationCode(data.demoCode);
+      } else {
+        setDemoCode('');
+        setVerificationCode('');
+      }
       setStep('verify');
     } catch (err) {
       setError(err.message || 'Unable to register café. Please try again.');
@@ -119,7 +126,10 @@ export default function SignupPage() {
     try {
       const { data } = await api.post('/platform/auth/resend-code', { email });
       setResendSuccess(data.message || 'Verification code resent successfully.');
-      setVerificationCode('');
+      if (data?.demoCode) {
+        setDemoCode(data.demoCode);
+        setVerificationCode(data.demoCode);
+      }
     } catch (err) {
       setError(err.message || 'Unable to resend code. Please try again.');
     } finally {
@@ -284,6 +294,21 @@ export default function SignupPage() {
               onSubmit={handleVerifySubmit}
               className="space-y-5"
             >
+              {demoCode && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-xs text-amber-900 shadow-sm">
+                  <div className="flex items-center gap-2 font-bold text-amber-800">
+                    <Sparkles size={16} className="text-amber-600" />
+                    <span>Verification Code Ready:</span>
+                  </div>
+                  <p className="mt-1 text-stone-600">
+                    If email delivery is delayed on cloud hosting, your code is:{' '}
+                    <span className="font-mono font-extrabold text-sm text-amber-900 bg-white px-2 py-0.5 rounded border border-amber-300">
+                      {demoCode}
+                    </span>{' '}
+                    (Auto-filled below).
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-stone-600 text-center">

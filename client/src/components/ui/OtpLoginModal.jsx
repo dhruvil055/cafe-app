@@ -24,7 +24,10 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
     setLoading(true);
     setError('');
     try {
-      await api.post('/auth/send-otp', { phone: normalized });
+      const { data } = await api.post('/auth/send-otp', { phone: normalized });
+      if (data?.devOtp) {
+        setOtp(data.devOtp);
+      }
       setStep('otp');
       setError('');
     } catch (err) {
@@ -43,20 +46,23 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
     setError('');
     try {
       const normalizedPhone = normalizePhone(phone);
-      const { data } = await api.post('/auth/verify-otp', { phone: normalizePhoneNumber(phone), otp });
-      if (data.accessToken && data.user) {
+      const { data } = await api.post('/auth/verify-otp', { phone: normalizedPhone, otp });
+      const token = data.accessToken || data.token;
+      if (token && data.user) {
         // Store customer info for checkout
         if (data.user.customerId) {
-          // We need to fetch the customer profile
-          const customerRes = await api.get(`/customers/${data.user.customerId}`);
-          // Pre-fill checkout form
-          const customerData = customerRes.data;
-          if (data.user.customerId) {
-            localStorage.setItem('brewhaus_customer_id', data.user.customerId);
-          }
+          try {
+            // We need to fetch the customer profile
+            const customerRes = await api.get(`/customers/${data.user.customerId}`);
+            const customerData = customerRes.data;
+            if (customerData) {
+              localStorage.setItem('brewhaus_customer_id', data.user.customerId);
+            }
+          } catch { /* ignore customer profile fetch error */ }
+          localStorage.setItem('brewhaus_customer_id', data.user.customerId);
           localStorage.setItem('brewhaus_customer_phone', normalizedPhone);
         }
-        if (onLogin) onLogin(data.user, data.accessToken);
+        if (onLogin) onLogin(data.user, token);
         setStep('phone');
         setOtp('');
       } else {

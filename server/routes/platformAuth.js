@@ -93,19 +93,30 @@ router.post('/signup', async (req, res, next) => {
       expiresAt,
     });
 
-    // Send verification code via Nodemailer in background so HTTP response returns instantly
-    sendVerificationCodeEmail({
-      to: cleanEmail,
-      cafeName: cleanName,
-      code: verificationCode,
-    }).catch((emailErr) => {
+    // Send verification code
+    let emailDispatched = false;
+    try {
+      const emailResult = await sendVerificationCodeEmail({
+        to: cleanEmail,
+        cafeName: cleanName,
+        code: verificationCode,
+      });
+      emailDispatched = Boolean(emailResult?.success);
+    } catch (emailErr) {
       console.error('[platformAuth] Failed to dispatch verification email:', emailErr.message);
-    });
+    }
+
+    const emailConfigured = isEmailConfigured();
+    const showDemoCode = !emailDispatched || !emailConfigured || process.env.NODE_ENV !== 'production' || process.env.DEMO_PAYMENTS_ENABLED === 'true' || process.env.ALLOW_DEMO_OTP === 'true' || req.hostname === 'localhost' || req.hostname === '127.0.0.1' || req.hostname.endsWith('.localhost');
 
     res.status(200).json({
-      message: 'Verification code sent to your email.',
+      message: emailDispatched
+        ? 'Verification code sent to your email.'
+        : 'Verification code generated. Use the code shown below or check server logs if email is blocked by cloud host.',
       email: cleanEmail,
       slug: cleanSlug,
+      demoCode: showDemoCode ? verificationCode : undefined,
+      emailDelivered: emailDispatched,
     });
   } catch (error) {
     next(error);
@@ -132,17 +143,28 @@ router.post('/resend-code', async (req, res, next) => {
     pending.expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     await pending.save();
 
-    sendVerificationCodeEmail({
-      to: pending.email,
-      cafeName: pending.cafeName,
-      code: verificationCode,
-    }).catch((emailErr) => {
+    let emailDispatched = false;
+    try {
+      const emailResult = await sendVerificationCodeEmail({
+        to: pending.email,
+        cafeName: pending.cafeName,
+        code: verificationCode,
+      });
+      emailDispatched = Boolean(emailResult?.success);
+    } catch (emailErr) {
       console.error('[platformAuth] Failed to resend verification email:', emailErr.message);
-    });
+    }
+
+    const emailConfigured = isEmailConfigured();
+    const showDemoCode = !emailDispatched || !emailConfigured || process.env.NODE_ENV !== 'production' || process.env.DEMO_PAYMENTS_ENABLED === 'true' || process.env.ALLOW_DEMO_OTP === 'true' || req.hostname === 'localhost' || req.hostname === '127.0.0.1' || req.hostname.endsWith('.localhost');
 
     res.status(200).json({
-      message: 'A fresh verification code has been sent to your email.',
+      message: emailDispatched
+        ? 'A fresh verification code has been sent to your email.'
+        : 'A fresh verification code has been generated.',
       email: pending.email,
+      demoCode: showDemoCode ? verificationCode : undefined,
+      emailDelivered: emailDispatched,
     });
   } catch (error) {
     next(error);

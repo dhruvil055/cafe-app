@@ -54,6 +54,24 @@ export const normalizePhoneNumber = (rawPhone) => {
 };
 
 /**
+ * Formats a phone number for display.
+ *
+ * @param {string|number} rawPhone
+ * @returns {string}
+ */
+export const formatPhoneNumber = (rawPhone) => {
+  if (!rawPhone) return '';
+  const digits = String(rawPhone).replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+  }
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;
+  }
+  return String(rawPhone);
+};
+
+/**
  * Validates whether a phone number can be normalized to a valid E.164 number.
  *
  * @param {string|number} rawPhone

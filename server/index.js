@@ -78,6 +78,17 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
   const productionOrigins = new Set([
     'https://cafe.infinigrowsoftech.com',
     'https://admin-cafe.infinigrowsoftech.com',
+    ...[
+      process.env.CLIENT_URL,
+      process.env.CUSTOMER_APP_URL,
+      process.env.ADMIN_CLIENT_URL,
+      process.env.ADMIN_APP_URL,
+      process.env.CLIENT_URLS,
+      process.env.ADMIN_CLIENT_URLS,
+    ]
+      .flatMap((v) => String(v || '').split(','))
+      .map(normalizeOrigin)
+      .filter(Boolean),
   ]);
   const isAllowedOrigin = (origin) => {
     if (!origin) return true;

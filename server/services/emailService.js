@@ -1,13 +1,14 @@
 import nodemailer from 'nodemailer';
 
 /**
- * Check if email service is configured (via Resend HTTP API or SMTP)
+ * Check if email service is configured (via Resend HTTP API, Brevo HTTP API, or SMTP)
  */
 export const isEmailConfigured = () => {
   const hasResend = Boolean(process.env.RESEND_API_KEY);
+  const hasBrevo = Boolean(process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY);
   const user = process.env.SMTP_USER || process.env.EMAIL_USER;
   const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
-  return hasResend || Boolean(user && pass);
+  return hasResend || hasBrevo || Boolean(user && pass);
 };
 
 /**
@@ -17,7 +18,15 @@ const sendViaHttp = async ({ to, subject, html, text }) => {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return null;
 
-  const from = process.env.RESEND_FROM || process.env.SMTP_FROM || 'BrewHaus <onboarding@resend.dev>';
+  // Resend strictly prohibits sending from @gmail.com / public webmail domains.
+  // Use RESEND_FROM if provided, otherwise only use SMTP_FROM if it's not a free webmail domain.
+  let from = process.env.RESEND_FROM;
+  if (!from) {
+    const candidate = process.env.SMTP_FROM || '';
+    const isPublicWebmail = /@(gmail|googlemail|yahoo|outlook|hotmail|icloud)\.com/i.test(candidate);
+    from = candidate && !isPublicWebmail ? candidate : 'BrewHaus <onboarding@resend.dev>';
+  }
+
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -33,11 +42,46 @@ const sendViaHttp = async ({ to, subject, html, text }) => {
     }),
   });
 
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.message || 'Resend HTTP API failed to deliver email');
+    const errorMsg = data.message || data.error || (data.name ? `${data.name}: ${data.message}` : null) || 'Resend HTTP API failed';
+    throw new Error(errorMsg);
   }
   return { success: true, messageId: data.id };
+};
+
+/**
+ * Send email via Brevo HTTP REST API (port 443 HTTPS, bypasses Render SMTP blocks)
+ */
+const sendViaBrevo = async ({ to, subject, html, text }) => {
+  const apiKey = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
+  if (!apiKey) return null;
+
+  const senderEmail = process.env.BREVO_FROM || process.env.SMTP_USER || 'onboarding@brewhauscafe.com';
+  const senderName = process.env.BREVO_NAME || 'BrewHaus Café';
+
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: senderName, email: senderEmail },
+      to: (Array.isArray(to) ? to : [to]).map((email) => ({ email })),
+      subject,
+      htmlContent: html,
+      textContent: text,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const errorMsg = data.message || data.error || 'Brevo HTTP API failed';
+    throw new Error(errorMsg);
+  }
+  return { success: true, messageId: data.messageId };
 };
 
 /**
@@ -56,9 +100,9 @@ const getTransporter = () => {
     return nodemailer.createTransport({
       service: 'gmail',
       auth: { user, pass },
-      connectionTimeout: 8000,
-      greetingTimeout: 8000,
-      socketTimeout: 10000,
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 5000,
     });
   }
 
@@ -70,10 +114,71 @@ const getTransporter = () => {
     port,
     secure,
     auth: { user, pass },
-    connectionTimeout: 8000,
-    greetingTimeout: 8000,
-    socketTimeout: 10000,
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 5000,
   });
+};
+
+/**
+ * Multi-channel email dispatcher:
+ * 1. Resend HTTP REST API (port 443)
+ * 2. Brevo HTTP REST API (port 443)
+ * 3. Nodemailer SMTP (ports 587/465)
+ * 4. Fallback logging
+ */
+export const dispatchEmail = async ({ to, subject, html, text, cafeName }) => {
+  // 1. Try Resend HTTP API
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const httpResult = await sendViaHttp({ to, subject, html, text });
+      if (httpResult?.success) {
+        console.log(`[EmailService] Email sent to ${to} via Resend HTTP: id=${httpResult.messageId}`);
+        return httpResult;
+      }
+    } catch (httpErr) {
+      console.warn(`[EmailService] Resend HTTP dispatch warning:`, httpErr.message);
+    }
+  }
+
+  // 2. Try Brevo HTTP API
+  if (process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY) {
+    try {
+      const brevoResult = await sendViaBrevo({ to, subject, html, text });
+      if (brevoResult?.success) {
+        console.log(`[EmailService] Email sent to ${to} via Brevo HTTP: id=${brevoResult.messageId}`);
+        return brevoResult;
+      }
+    } catch (brevoErr) {
+      console.warn(`[EmailService] Brevo HTTP dispatch warning:`, brevoErr.message);
+    }
+  }
+
+  // 3. Try Nodemailer SMTP
+  const transporter = getTransporter();
+  if (transporter) {
+    const from = process.env.SMTP_FROM || process.env.EMAIL_FROM || `"BrewHaus Café" <${process.env.SMTP_USER || process.env.EMAIL_USER || 'noreply@brewhauscafe.com'}>`;
+    try {
+      const sendPromise = transporter.sendMail({ from, to, subject, text, html });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('SMTP send timed out after 5s (Render blocks outbound SMTP ports 25, 465, 587; set RESEND_API_KEY or BREVO_API_KEY on Render dashboard)')), 5000)
+      );
+      const info = await Promise.race([sendPromise, timeoutPromise]);
+      console.log(`[EmailService] Email sent to ${to} via SMTP: messageId=${info.messageId}`);
+      return { success: true, messageId: info.messageId };
+    } catch (smtpErr) {
+      console.warn(`[EmailService] SMTP delivery failed: ${smtpErr.message}`);
+    }
+  }
+
+  // Fallback: Delivery failed or blocked
+  console.warn(`\n======================================================`);
+  console.warn(`[EmailService] Note: Email not delivered via external network.`);
+  console.warn(`Recipient: ${to}`);
+  if (cafeName) console.warn(`Café: ${cafeName}`);
+  console.warn(`Subject: ${subject}`);
+  console.warn(`======================================================\n`);
+  return { success: false, reason: 'delivery_failed' };
 };
 
 /**
@@ -121,56 +226,21 @@ export const sendVerificationCodeEmail = async ({ to, cafeName, code }) => {
     </html>
   `;
 
-  // 1. Try Resend HTTP API first (port 443 HTTPS - works on Render free tier)
-  if (process.env.RESEND_API_KEY) {
-    try {
-      const httpResult = await sendViaHttp({ to, subject, html, text });
-      if (httpResult) {
-        console.log(`[EmailService] Verification email sent to ${to} via Resend HTTP: id=${httpResult.messageId}`);
-        return httpResult;
-      }
-    } catch (httpErr) {
-      console.warn(`[EmailService] Resend HTTP dispatch error:`, httpErr.message);
-    }
-  }
+  console.log(`[EmailService] Verification Code (OTP) for ${to} (${cafeName}): >>> ${code} <<<`);
 
-  // 2. Try SMTP transport
-  const transporter = getTransporter();
-  const from = process.env.SMTP_FROM || process.env.EMAIL_FROM || `"BrewHaus Café" <${process.env.SMTP_USER || process.env.EMAIL_USER || 'noreply@brewhauscafe.com'}>`;
-
-  if (!transporter) {
-    console.warn(`\n======================================================`);
-    console.warn(`[EmailService] SMTP credentials not configured in .env!`);
-    console.warn(`Recipient: ${to}`);
-    console.warn(`Café: ${cafeName}`);
-    console.warn(`Verification Code (OTP): >>> ${code} <<<`);
-    console.warn(`======================================================\n`);
-    return { success: false, reason: 'smtp_not_configured', code };
+  const dispatchResult = await dispatchEmail({ to, subject, html, text, cafeName });
+  if (dispatchResult?.success) {
+    return dispatchResult;
   }
-
-  try {
-    const sendPromise = transporter.sendMail({ from, to, subject, text, html });
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('SMTP send timed out after 8s')), 8000)
-    );
-    const info = await Promise.race([sendPromise, timeoutPromise]);
-    console.log(`[EmailService] Verification code sent to ${to} via SMTP: messageId=${info.messageId}`);
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error(`[EmailService] Failed to send email to ${to}:`, error.message);
-    throw error;
-  }
+  return { success: false, reason: 'delivery_failed', code };
 };
 
 /**
  * Send Welcome Email after successful onboarding
  */
 export const sendWelcomeEmail = async ({ to, cafeName, adminUrl }) => {
-  const transporter = getTransporter();
-  const from = process.env.SMTP_FROM || process.env.EMAIL_FROM || `"BrewHaus Café" <${process.env.SMTP_USER || process.env.EMAIL_USER || 'noreply@brewhauscafe.com'}>`;
-
-  if (!transporter) return { success: false, reason: 'smtp_not_configured' };
-
+  const subject = `Welcome to BrewHaus - ${cafeName} is live!`;
+  const text = `Your café ${cafeName} is live! Visit your dashboard: ${adminUrl}`;
   const html = `
     <!DOCTYPE html>
     <html>
@@ -191,33 +261,15 @@ export const sendWelcomeEmail = async ({ to, cafeName, adminUrl }) => {
     </html>
   `;
 
-  try {
-    const info = await transporter.sendMail({
-      from,
-      to,
-      subject: `Welcome to BrewHaus - ${cafeName} is live!`,
-      text: `Your café ${cafeName} is live! Visit your dashboard: ${adminUrl}`,
-      html,
-    });
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error(`[EmailService] Failed to send welcome email:`, error.message);
-    return { success: false, error: error.message };
-  }
+  return dispatchEmail({ to, subject, html, text, cafeName });
 };
 
 /**
  * Send Password Reset Email
  */
 export const sendPasswordResetEmail = async ({ to, resetUrl }) => {
-  const transporter = getTransporter();
-  const from = process.env.SMTP_FROM || process.env.EMAIL_FROM || `"BrewHaus Café" <${process.env.SMTP_USER || process.env.EMAIL_USER || 'noreply@brewhauscafe.com'}>`;
-
-  if (!transporter) {
-    console.warn(`[EmailService] SMTP not configured. Password reset link for ${to}: ${resetUrl}`);
-    return { success: false, reason: 'smtp_not_configured' };
-  }
-
+  const subject = `Reset your BrewHaus password`;
+  const text = `Reset your password by visiting: ${resetUrl}`;
   const html = `
     <!DOCTYPE html>
     <html>
@@ -238,17 +290,6 @@ export const sendPasswordResetEmail = async ({ to, resetUrl }) => {
     </html>
   `;
 
-  try {
-    const info = await transporter.sendMail({
-      from,
-      to,
-      subject: `Reset your BrewHaus password`,
-      text: `Reset your password by visiting: ${resetUrl}`,
-      html,
-    });
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error(`[EmailService] Failed to send password reset email:`, error.message);
-    throw error;
-  }
+  return dispatchEmail({ to, subject, html, text });
 };
+

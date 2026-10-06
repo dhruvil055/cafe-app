@@ -2,7 +2,9 @@ import express from 'express';
 import crypto from 'crypto';
 import QRCode from 'qrcode';
 import User from '../models/User.js';
+import Customer from '../models/Customer.js';
 import AuditEvent from '../models/AuditEvent.js';
+import { normalizePhoneNumber } from '../utils/phoneNormalizer.js';
 import { effectiveRole, protect, authorizeRoles, checkIpLockoutForLogin, recordLoginAttemptForIp } from '../middleware/auth.js';
 import {
   createAccessToken,
@@ -467,7 +469,6 @@ router.post('/send-otp', async (req, res) => {
       customer = await Customer.create({
         name: 'Guest',
         phone: normalizedPhone,
-        name: 'Guest',
       });
     }
 
@@ -480,15 +481,15 @@ router.post('/send-otp', async (req, res) => {
     customer.otpVerified = false;
     await customer.save();
 
-    // TODO: Send OTP via SMS
-    // await sendSMS({ to: normalizedPhone, body: `Your OTP is ${otpCode}. Valid for 10 minutes.` });
+    console.log(`[auth/send-otp] OTP for ${normalizedPhone}: >>> ${otpCode} <<<`);
 
-    // For development, return OTP in response (remove in production)
-    if (process.env.NODE_ENV !== 'production') {
-      return res.json({ success: true, message: 'OTP sent.', devOtp: otpCode });
-    }
+    const showDevOtp = !process.env.SMS_API_KEY || process.env.DEMO_PAYMENTS_ENABLED === 'true' || process.env.ALLOW_DEMO_OTP === 'true' || process.env.NODE_ENV !== 'production';
 
-    res.json({ success: true, message: 'OTP sent to your phone.' });
+    res.json({
+      success: true,
+      message: 'OTP sent to your phone.',
+      ...(showDevOtp && { devOtp: otpCode }),
+    });
   } catch (error) {
     console.error('Send OTP error:', error);
     res.status(500).json({ error: 'Failed to send OTP.' });
@@ -535,6 +536,7 @@ router.post('/verify-otp', async (req, res) => {
     
     res.json({
       token,
+      accessToken: token,
       user: {
         ...publicUser(tempUser),
         customerId: customer._id,
