@@ -75,8 +75,6 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
     setError('');
   };
 
-  if (!isOpen) return null;
-
   return (
     <AnimatePresence>
       {isOpen && (
@@ -211,9 +209,10 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
             </div>
           </div>
         </motion.div>
-      </AnimatePresence>
-    );
-  }
+      )}
+    </AnimatePresence>
+  );
+}
 
 function normalizePhoneNumber(phone) {
   return phone.replace(/\D/g, '').slice(0, 10);
