@@ -74,11 +74,12 @@ export default function NotificationPermissionPrompt({
           </div>
         </div>
         <button
+          type="button"
           onClick={handleDismiss}
-          className="text-espresso-400 hover:text-espresso-700 p-1 rounded-full transition"
-          aria-label="Dismiss"
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-espresso-400 hover:text-espresso-700 p-1 rounded-full transition focus:outline-none focus:ring-2 focus:ring-brew-500"
+          aria-label="Dismiss notification prompt"
         >
-          <X size={16} />
+          <X size={18} aria-hidden="true" />
         </button>
       </div>
 
@@ -110,17 +111,19 @@ export default function NotificationPermissionPrompt({
             </div>
           </div>
 
-          <div className="mt-4 flex items-center gap-2 pt-2 border-t border-foam">
+          <div className="mt-4 flex flex-wrap items-center gap-2 pt-2 border-t border-foam">
             <button
+              type="button"
               onClick={handleEnable}
               disabled={subscribing}
-              className="btn-primary flex-1 text-xs py-2.5 px-3 justify-center shadow-none disabled:opacity-60"
+              className="btn-primary min-h-[44px] flex-1 text-xs py-2.5 px-3 justify-center shadow-none disabled:opacity-60"
             >
               {subscribing ? 'Enabling...' : 'Enable Notifications'}
             </button>
             <button
+              type="button"
               onClick={handleDismiss}
-              className="btn-secondary text-xs py-2.5 px-3"
+              className="btn-secondary min-h-[44px] text-xs py-2.5 px-3"
             >
               Maybe Later
             </button>

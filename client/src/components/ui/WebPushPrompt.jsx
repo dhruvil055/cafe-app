@@ -134,16 +134,18 @@ export default function WebPushPrompt() {
           <div className="mt-3 flex items-center gap-2">
             <button
               ref={enableRef}
+              type="button"
               onClick={handleEnable}
               disabled={busy}
-              className="btn-primary flex-1 px-4 py-2 text-xs disabled:opacity-60"
+              className="btn-primary flex-1 px-4 py-2 text-xs min-h-[44px] disabled:opacity-60"
             >
               {busy ? 'Enabling…' : 'Enable'}
             </button>
             <button
+              type="button"
               onClick={handleDismiss}
               disabled={busy}
-              className="btn-secondary px-4 py-2 text-xs disabled:opacity-60"
+              className="btn-secondary px-4 py-2 text-xs min-h-[44px] disabled:opacity-60"
             >
               Not now
             </button>

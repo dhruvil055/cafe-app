@@ -153,9 +153,9 @@ export default function QrScannerModal({ onClose, onTableFound }) {
             type="button"
             onClick={handleClose}
             aria-label="Close QR scanner"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-foam text-espresso-500 hover:bg-espresso-50 hover:text-espresso-900 transition"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-foam text-espresso-500 hover:bg-espresso-50 hover:text-espresso-900 transition focus:outline-none focus:ring-2 focus:ring-brew-500"
           >
-            <X size={17} />
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
 
@@ -164,7 +164,7 @@ export default function QrScannerModal({ onClose, onTableFound }) {
           {pendingTable && (
             <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4">
               <div className="flex items-start gap-3">
-                <AlertTriangle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <AlertTriangle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
                   <p className="font-semibold text-amber-900 text-sm">Switch to Table {String(pendingTable.number).padStart(2, '0')}?</p>
                   <p className="text-xs text-amber-700 mt-1">
@@ -175,7 +175,7 @@ export default function QrScannerModal({ onClose, onTableFound }) {
                     <button
                       type="button"
                       onClick={handleCancelNewTable}
-                      className="flex-1 rounded-xl border border-amber-300 bg-white py-2 text-xs font-bold text-amber-800 hover:bg-amber-100 transition"
+                      className="flex-1 min-h-[44px] rounded-xl border border-amber-300 bg-white py-2 px-3 text-xs font-bold text-amber-800 hover:bg-amber-100 transition focus:outline-none focus:ring-2 focus:ring-amber-500"
                     >
                       Cancel
                     </button>
@@ -183,7 +183,7 @@ export default function QrScannerModal({ onClose, onTableFound }) {
                       type="button"
                       onClick={handleConfirmNewTable}
                       disabled={checking}
-                      className="flex-1 rounded-xl bg-amber-600 py-2 text-xs font-bold text-white hover:bg-amber-700 transition disabled:opacity-50"
+                      className="flex-1 min-h-[44px] rounded-xl bg-amber-600 py-2 px-3 text-xs font-bold text-white hover:bg-amber-700 transition disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     >
                       Switch to Table {String(pendingTable.number).padStart(2, '0')}
                     </button>
@@ -203,12 +203,12 @@ export default function QrScannerModal({ onClose, onTableFound }) {
           )}
 
           {error && (
-            <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-center text-xs font-medium text-red-700">
+            <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-center text-xs font-medium text-red-700" role="alert" aria-live="polite">
               {error}
             </div>
           )}
           {checking && (
-            <div className="mt-3 rounded-xl border border-brew-200 bg-brew-50 p-2.5 text-center text-xs font-medium text-brew-800">
+            <div className="mt-3 rounded-xl border border-brew-200 bg-brew-50 p-2.5 text-center text-xs font-medium text-brew-800" role="status" aria-live="polite">
               Validating table & starting dining session...
             </div>
           )}

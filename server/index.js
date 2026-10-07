@@ -255,7 +255,30 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
   });
 
   app.use((req, res) => {
-    res.status(404).json({ error: 'Route not found' });
+    if (req.accepts('html')) {
+      return res.status(404).send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>404 - Page Not Found | Café</title>
+  <style>
+    body { margin: 0; padding: 2rem; background: #120804; color: #FAF6F0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; text-align: center; }
+    h1 { font-size: 2.25rem; margin-bottom: 0.5rem; color: #d4862a; }
+    p { font-size: 1rem; color: #d6c7b2; max-width: 420px; margin-bottom: 1.5rem; line-height: 1.6; }
+    a { display: inline-flex; align-items: center; justify-content: center; background: #d4862a; color: #1a0f08; padding: 0.75rem 1.75rem; border-radius: 9999px; text-decoration: none; font-weight: 600; min-height: 44px; transition: opacity 0.2s; }
+    a:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div style="font-size: 3rem; margin-bottom: 1rem;">☕</div>
+  <h1>404 · Page Not Found</h1>
+  <p>The page or resource you requested could not be found. Return to our café homepage to browse our handcrafted coffee menu.</p>
+  <a href="/">Return to Home</a>
+</body>
+</html>`);
+    }
+    res.status(404).json({ error: 'Route not found', code: 'NOT_FOUND' });
   });
 
   app.use((err, req, res, next) => {

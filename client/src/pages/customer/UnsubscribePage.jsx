@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, ShieldOff, Loader2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ShieldOff, Loader2, AlertCircle } from 'lucide-react';
 import api from '../../services/api';
 import { useTenant } from '../../context/TenantContext';
+import usePageMeta from '../../hooks/usePageMeta';
 
 export default function UnsubscribePage() {
   const tenant = useTenant();
+
+  usePageMeta({
+    title: 'Marketing Email & SMS Preferences',
+    description: 'Manage your notification preferences or opt out of promotional messages, discount alerts, and marketing communications from our café.',
+  });
+
   const [searchParams] = useSearchParams();
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
@@ -41,17 +48,27 @@ export default function UnsubscribePage() {
 
   return (
     <div className="min-h-screen bg-cream text-espresso-900">
-      <div className="mx-auto max-w-xl px-4 py-12 sm:px-6">
+      <main className="mx-auto max-w-xl px-4 py-12 sm:px-6">
         <div className="mb-6 flex items-center justify-between">
-          <Link to="/menu" className="btn-secondary text-sm py-2 px-3 inline-flex items-center gap-1.5">
-            <ArrowLeft size={16} /> Back to Menu
+          <Link
+            to="/menu"
+            className="btn-secondary min-h-[44px] text-sm py-2 px-3.5 inline-flex items-center gap-1.5"
+          >
+            <ArrowLeft size={16} />
+            <span>Back to Menu</span>
           </Link>
-          <span className="font-display font-bold text-lg text-espresso-900">{tenant.name}</span>
+          <Link
+            to="/"
+            aria-label={`${tenant.name} - Home`}
+            className="font-display font-bold text-lg text-espresso-900 hover:text-brew-700 transition-colors"
+          >
+            {tenant.name}
+          </Link>
         </div>
 
         <div className="rounded-3xl border border-foam bg-white p-6 shadow-sm sm:p-8">
           {unsubscribed ? (
-            <div className="text-center py-6 space-y-4">
+            <div role="status" aria-live="polite" className="text-center py-6 space-y-4">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
                 <CheckCircle2 size={32} />
               </div>
@@ -63,7 +80,7 @@ export default function UnsubscribePage() {
                 ℹ️ Note: If you place future orders at {tenant.name}, you will still receive transactional receipts and order status updates.
               </div>
               <div className="pt-4">
-                <Link to="/menu" className="btn-primary inline-flex justify-center text-sm py-2.5 px-6">
+                <Link to="/menu" className="btn-primary min-h-[44px] inline-flex items-center justify-center text-sm py-2.5 px-6">
                   Return to Café Menu
                 </Link>
               </div>
@@ -80,26 +97,41 @@ export default function UnsubscribePage() {
                 </div>
               </div>
 
-              <p className="text-xs text-espresso-600 leading-relaxed">
-                We respect your privacy. If you would like to stop receiving SMS, WhatsApp, and promotional messages from {tenant.name}, enter your mobile number below.
+              <p className="text-sm leading-relaxed text-espresso-600">
+                Enter your mobile number to opt out of promotional SMS, WhatsApp, and email marketing from {tenant.name}.
               </p>
 
               {error && (
-                <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-600">
-                  {error}
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  className="flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-700"
+                >
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  <span>{error}</span>
                 </div>
               )}
 
               <div>
-                <label className="text-xs font-medium text-espresso-700 block mb-1">Mobile Number</label>
+                <label htmlFor="unsubscribe-phone" className="block text-xs font-semibold text-espresso-700 mb-1.5">
+                  10-Digit Mobile Number *
+                </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-espresso-400 text-sm">+91</span>
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-espresso-400">
+                    +91
+                  </span>
                   <input
+                    id="unsubscribe-phone"
                     type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                    placeholder="10-digit mobile"
-                    className="input-field pl-12"
+                    onChange={(e) => {
+                      setPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
+                      setError('');
+                    }}
+                    placeholder="9876543210"
+                    className="input-field pl-12 text-base"
                     required
                   />
                 </div>
@@ -107,15 +139,22 @@ export default function UnsubscribePage() {
 
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full btn-primary justify-center text-sm py-3"
+                disabled={loading || phone.length < 10}
+                className="w-full btn-primary min-h-[44px] flex items-center justify-center gap-2 py-3 text-sm disabled:opacity-50"
               >
-                {loading ? <Loader2 size={18} className="animate-spin" /> : 'Unsubscribe from Offers'}
+                {loading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <span>Unsubscribe From Marketing</span>
+                )}
               </button>
             </form>
           )}
         </div>
-      </div>
+      </main>
     </div>
   );
 }

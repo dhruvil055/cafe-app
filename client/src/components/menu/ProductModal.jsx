@@ -6,7 +6,7 @@ import useCartStore from '../../context/cartStore';
 import { useTenant } from '../../context/TenantContext';
 import { formatMoney } from '../../utils/money';
 
-const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=600&q=80';
+const PLACEHOLDER = '/images/coffee-placeholder.svg';
 
 export default function ProductModal({ product, onClose }) {
   const tenant = useTenant();
@@ -99,11 +99,13 @@ export default function ProductModal({ product, onClose }) {
           <div className="absolute inset-0 bg-gradient-to-t from-espresso-950/40 to-transparent" />
 
           <button
+            type="button"
             onClick={onClose}
-            className="absolute top-4 right-4 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full
-                       flex items-center justify-center shadow-md hover:bg-white transition-colors"
+            aria-label="Close product modal"
+            className="absolute top-4 right-4 min-h-[44px] min-w-[44px] w-11 h-11 bg-white/90 backdrop-blur-sm rounded-full
+                       flex items-center justify-center shadow-md hover:bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-brew-500"
           >
-            <X size={16} className="text-espresso-900" />
+            <X size={18} className="text-espresso-900" aria-hidden="true" />
           </button>
 
           {/* Badges */}
@@ -150,8 +152,9 @@ export default function ProductModal({ product, onClose }) {
                 {variants.map(v => (
                   <button
                     key={v.name}
+                    type="button"
                     onClick={() => setSelectedVariant(v)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
+                    className={`min-h-[44px] inline-flex items-center px-3.5 py-2 rounded-xl text-xs font-medium border transition-colors focus:outline-none focus:ring-2 focus:ring-brew-500 ${
                       selectedVariant?.name === v.name
                         ? 'bg-brew-500 text-white border-brew-500'
                         : 'border-foam text-espresso-700 bg-white hover:border-brew-300'
@@ -170,7 +173,17 @@ export default function ProductModal({ product, onClose }) {
               <div className="flex flex-wrap gap-2">
                 {milkAddons.map((milk) => {
                   const selected = selectedAddons.some((addon) => addon.name === milk.name);
-                  return <button key={milk.name} type="button" onClick={() => toggleAddon(milk)} aria-pressed={selected} className={`rounded-xl border px-3 py-2 text-xs font-medium ${selected ? 'border-brew-500 bg-brew-50 text-espresso-900' : 'border-foam bg-white text-espresso-700'}`}>{milk.name} (+{formatMoney(milk.price, tenant.currency)})</button>;
+                  return (
+                    <button
+                      key={milk.name}
+                      type="button"
+                      onClick={() => toggleAddon(milk)}
+                      aria-pressed={selected}
+                      className={`min-h-[44px] inline-flex items-center rounded-xl border px-3.5 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brew-500 ${selected ? 'border-brew-500 bg-brew-50 text-espresso-900' : 'border-foam bg-white text-espresso-700'}`}
+                    >
+                      {milk.name} (+{formatMoney(milk.price, tenant.currency)})
+                    </button>
+                  );
                 })}
               </div>
             </div>
@@ -186,8 +199,9 @@ export default function ProductModal({ product, onClose }) {
                   return (
                     <button
                       key={addon.name}
+                      type="button"
                       onClick={() => toggleAddon(addon)}
-                      className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-sm transition-colors ${
+                      className={`min-h-[44px] w-full flex items-center justify-between p-3 rounded-xl border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brew-500 ${
                         selected
                           ? 'border-brew-400 bg-brew-50/60 text-espresso-900'
                           : 'border-foam bg-white text-espresso-600 hover:border-brew-200'
@@ -211,8 +225,8 @@ export default function ProductModal({ product, onClose }) {
               value={instructions}
               onChange={e => setInstructions(e.target.value)}
               maxLength={120}
-              className="w-full text-xs bg-white border border-foam rounded-xl p-2.5 text-espresso-800
-                         placeholder:text-espresso-300 focus:outline-none focus:border-brew-400"
+              className="w-full min-h-[44px] text-base sm:text-xs bg-white border border-foam rounded-xl p-3 text-espresso-800
+                         placeholder:text-espresso-400 focus:outline-none focus:border-brew-400 focus:ring-2 focus:ring-brew-300"
             />
           </div>
         </div>
@@ -222,28 +236,33 @@ export default function ProductModal({ product, onClose }) {
           {/* Quantity */}
           <div className="flex items-center gap-2 border border-foam rounded-xl px-2 py-1.5 bg-cream">
             <button
+              type="button"
               className="qty-btn"
               onClick={() => changeQty(-1)}
               disabled={!isAvailable}
+              aria-label="Decrease quantity"
             >
-              <Minus size={12} />
+              <Minus size={14} aria-hidden="true" />
             </button>
             <span className="w-6 text-center font-medium text-sm text-espresso-900">{quantity}</span>
             <button
+              type="button"
               className="qty-btn"
               onClick={() => changeQty(1)}
               disabled={!isAvailable || quantity >= maxQty}
+              aria-label="Increase quantity"
             >
-              <Plus size={12} />
+              <Plus size={14} aria-hidden="true" />
             </button>
           </div>
 
           {/* Add to cart / Scan to order */}
           <motion.button
+            type="button"
             whileTap={isAvailable ? { scale: 0.97 } : {}}
             onClick={handleAdd}
             disabled={!isAvailable}
-            className={`flex-1 flex items-center justify-between py-3.5 rounded-2xl px-5 font-semibold text-sm transition-all
+            className={`flex-1 min-h-[48px] flex items-center justify-between py-3.5 rounded-2xl px-5 font-semibold text-sm transition-all focus:outline-none focus:ring-2 focus:ring-brew-500
               ${!isAvailable
                 ? 'bg-espresso-200 text-espresso-400 cursor-not-allowed'
                 : !tableNumber
@@ -256,12 +275,12 @@ export default function ProductModal({ product, onClose }) {
                 <span>Out of Stock</span>
               ) : !tableNumber ? (
                 <>
-                  <Lock size={16} className="text-amber-200" strokeWidth={2.3} />
+                  <Lock size={16} className="text-amber-200" strokeWidth={2.3} aria-hidden="true" />
                   <span>Scan Table to Order</span>
                 </>
               ) : (
                 <>
-                  <ShoppingBag size={16} />
+                  <ShoppingBag size={16} aria-hidden="true" />
                   <span>Add to Cart</span>
                 </>
               )}

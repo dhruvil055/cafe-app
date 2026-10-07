@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { useTenant } from '../../context/TenantContext';
 import { formatMoney } from '../../utils/money';
 
-const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=75';
+const PLACEHOLDER = '/images/coffee-placeholder.svg';
 
 function getOptimizedImageProps(rawUrl) {
   const url = rawUrl || PLACEHOLDER;
@@ -131,6 +131,7 @@ const MenuCard = forwardRef(function MenuCard({ product, onSelect, priority = fa
             {formatMoney(product.price, tenant.currency)}
           </span>
           <motion.button
+            type="button"
             whileTap={isAvailable ? { scale: 0.85 } : {}}
             onClick={handleQuickAdd}
             disabled={!isAvailable}
@@ -148,7 +149,7 @@ const MenuCard = forwardRef(function MenuCard({ product, onSelect, priority = fa
                 ? 'Scan Table QR to unlock ordering'
                 : `Add ${product.name} to cart`
             }
-            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all
+            className={`min-h-[44px] min-w-[44px] rounded-full flex items-center justify-center transition-all focus:outline-none focus:ring-2 focus:ring-brew-500
               ${!isAvailable
                 ? 'bg-espresso-200 text-espresso-400 cursor-not-allowed'
                 : !tableNumber
@@ -157,9 +158,9 @@ const MenuCard = forwardRef(function MenuCard({ product, onSelect, priority = fa
               }`}
           >
             {!tableNumber && isAvailable ? (
-              <Lock size={12} strokeWidth={2.4} />
+              <Lock size={14} strokeWidth={2.4} aria-hidden="true" />
             ) : (
-              <Plus size={14} strokeWidth={2.5} />
+              <Plus size={16} strokeWidth={2.5} aria-hidden="true" />
             )}
           </motion.button>
         </div>

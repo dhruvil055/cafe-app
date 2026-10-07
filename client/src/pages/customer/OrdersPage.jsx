@@ -7,6 +7,7 @@ import useCartStore from '../../context/cartStore';
 import { downloadPdf } from '../../utils/download';
 import CustomerNotificationStatus from '../../components/ui/CustomerNotificationStatus';
 import { useTenant } from '../../context/TenantContext';
+import usePageMeta from '../../hooks/usePageMeta';
 
 const STATUS = {
   pending: { label: 'Order received', detail: 'Waiting for the cafe to confirm your order.', tone: 'border-amber-200 bg-amber-50 text-amber-800' },
@@ -29,6 +30,12 @@ const PAYMENT = {
 
 export default function OrdersPage() {
   const tenant = useTenant();
+
+  usePageMeta({
+    title: 'Live Order History & Real-Time Status',
+    description: 'Track the preparation and serving status of your café orders in real-time. View past receipts, order items, and submit table service feedback.',
+  });
+
   const { diningSessionToken, tableNumber, recentOrders = [] } = useCartStore();
   const [orders, setOrders] = useState([]);
   const [bill, setBill] = useState(null);
@@ -115,7 +122,12 @@ export default function OrdersPage() {
   return (
     <div className="min-h-screen bg-sand-50 pb-20">
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-foam bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
-        <Link to="/menu" className="flex h-9 w-9 items-center justify-center rounded-full border border-foam text-espresso-700" title="Back to menu" aria-label="Back to menu">
+        <Link
+          to="/menu"
+          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-foam text-espresso-700 hover:bg-sand-100 transition-colors"
+          title="Back to menu"
+          aria-label="Back to menu"
+        >
           <ArrowLeft size={18} />
         </Link>
         <div className="min-w-0">
@@ -123,9 +135,10 @@ export default function OrdersPage() {
           <p className="text-xs text-espresso-500">Table {String(tableNumber || bill?.tableNumber || '-').padStart(2, '0')} · Live status</p>
         </div>
         <button
+          type="button"
           onClick={() => loadOrders(true)}
           disabled={refreshing}
-          className="ml-auto flex h-9 w-9 items-center justify-center rounded-full border border-foam text-espresso-700 hover:bg-sand-100"
+          className="ml-auto flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-foam text-espresso-700 hover:bg-sand-100 transition-colors"
           title="Refresh orders"
           aria-label="Refresh orders"
         >
@@ -213,16 +226,18 @@ export default function OrdersPage() {
                     <div className="mt-3 flex items-center justify-end gap-2 border-t border-foam/50 pt-2">
                       <Link
                         to={`/track/${order._id}?token=${encodeURIComponent(orderToken)}`}
-                        className="text-xs font-semibold text-brew-700 hover:underline"
+                        className="inline-flex min-h-[44px] items-center px-3 py-2 text-xs font-semibold text-brew-700 hover:underline focus:outline-none focus:ring-2 focus:ring-brew-500 rounded-lg"
                       >
                         Track Status
                       </Link>
                       <button
+                        type="button"
                         onClick={() => downloadReceipt(order._id, orderToken)}
                         disabled={downloadingId === order._id}
-                        className="inline-flex items-center text-xs font-medium text-espresso-600 hover:text-espresso-900 disabled:opacity-50"
+                        className="inline-flex min-h-[44px] items-center px-3 py-2 text-xs font-medium text-espresso-600 hover:text-espresso-900 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-brew-500 rounded-lg"
+                        aria-label={`Download receipt for order ${order._id.slice(-6).toUpperCase()}`}
                       >
-                        <Download size={13} className="mr-1" />
+                        <Download size={14} className="mr-1.5" aria-hidden="true" />
                         {downloadingId === order._id ? 'Downloading...' : 'Receipt'}
                       </button>
                     </div>
@@ -235,13 +250,47 @@ export default function OrdersPage() {
                         ratingOrder === order._id ? (
                           <div className="space-y-2">
                             <div className="flex items-center gap-1" aria-label="Choose a rating from one to five stars">
-                              {[1, 2, 3, 4, 5].map((score) => <button key={score} type="button" onClick={() => setRatingScore(score)} className={`min-h-10 min-w-10 text-2xl ${score <= ratingScore ? 'text-amber-500' : 'text-stone-300'}`} aria-label={`${score} stars`}>★</button>)}
+                              {[1, 2, 3, 4, 5].map((score) => (
+                                <button
+                                  key={score}
+                                  type="button"
+                                  onClick={() => setRatingScore(score)}
+                                  className={`flex min-h-[44px] min-w-[44px] items-center justify-center text-2xl transition-transform active:scale-95 ${score <= ratingScore ? 'text-amber-500' : 'text-stone-300'}`}
+                                  aria-label={`${score} star${score > 1 ? 's' : ''}`}
+                                >
+                                  ★
+                                </button>
+                              ))}
                             </div>
                             <label className="sr-only" htmlFor={`rating-comment-${order._id}`}>Optional feedback</label>
                             <textarea id={`rating-comment-${order._id}`} value={ratingComment} onChange={(event) => setRatingComment(event.target.value.slice(0, 500))} className="input-field min-h-20 w-full" placeholder="Share feedback (optional)" maxLength={500} />
-                            <div className="flex gap-2"><button onClick={() => submitRating(order, orderToken)} disabled={ratingSaving} className="btn-primary px-3 py-2 text-xs disabled:opacity-60">{ratingSaving ? 'Submitting…' : 'Submit rating'}</button><button onClick={() => setRatingOrder(null)} className="btn-secondary px-3 py-2 text-xs">Cancel</button></div>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => submitRating(order, orderToken)}
+                                disabled={ratingSaving}
+                                className="btn-primary min-h-[44px] px-4 py-2 text-xs font-medium disabled:opacity-60"
+                              >
+                                {ratingSaving ? 'Submitting…' : 'Submit rating'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setRatingOrder(null)}
+                                className="btn-secondary min-h-[44px] px-4 py-2 text-xs font-medium"
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           </div>
-                        ) : <button onClick={() => { setRatingOrder(order._id); setRatingScore(5); }} className="text-xs font-semibold text-brew-700 hover:underline">Rate your order</button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => { setRatingOrder(order._id); setRatingScore(5); }}
+                            className="inline-flex min-h-[44px] items-center px-3 py-2 text-xs font-semibold text-brew-700 hover:underline focus:outline-none focus:ring-2 focus:ring-brew-500 rounded-lg"
+                          >
+                            Rate your order
+                          </button>
+                        )
                       ) : <p className="text-xs text-stone-500">Reopen this order from this device to submit a rating.</p>}
                     </div>
                   )}

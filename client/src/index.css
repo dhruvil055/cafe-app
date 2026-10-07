@@ -26,10 +26,18 @@
     max-width: 100%;
   }
 
+  input, select, textarea {
+    font-size: 16px;
+  }
+  @media (min-width: 640px) {
+    input, select, textarea {
+      font-size: inherit;
+    }
+  }
+
   body {
     @apply bg-cream font-body text-espresso-900 antialiased;
     overscroll-behavior: none;
-    overflow-x: hidden;
   }
 
   ::-webkit-scrollbar {
@@ -51,18 +59,18 @@
   .btn-primary {
     @apply bg-espresso-900 text-cream font-body font-medium px-6 py-3 rounded-full
            hover:bg-espresso-700 active:scale-95 transition-all duration-200
-           disabled:opacity-50 disabled:cursor-not-allowed;
+           disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] inline-flex items-center justify-center;
   }
 
   .btn-secondary {
     @apply border border-espresso-900 text-espresso-900 font-body font-medium px-6 py-3 rounded-full
-           hover:bg-espresso-900 hover:text-cream active:scale-95 transition-all duration-200;
+           hover:bg-espresso-900 hover:text-cream active:scale-95 transition-all duration-200 min-h-[44px] inline-flex items-center justify-center;
   }
 
   .btn-accent {
     @apply bg-brew-500 text-white font-body font-medium px-6 py-3 rounded-full
            hover:bg-brew-600 active:scale-95 transition-all duration-200
-           disabled:opacity-50 disabled:cursor-not-allowed;
+           disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] inline-flex items-center justify-center;
   }
 
   .card {
@@ -76,9 +84,8 @@
   .input-field {
     @apply w-full px-4 py-3 rounded-xl border border-foam bg-white
            focus:outline-none focus:ring-2 focus:ring-brew-300 focus:border-brew-400
-           placeholder:text-espresso-400 text-espresso-900 transition-all;
+           placeholder:text-espresso-400 text-espresso-900 text-base sm:text-sm transition-all min-h-[44px];
   }
-
 }
 
 /* Smooth page transitions */
@@ -244,9 +251,9 @@ canvas {
 
 /* Quantity controls */
 .qty-btn {
-  @apply w-8 h-8 rounded-full border border-espresso-200 flex items-center justify-center
+  @apply w-11 h-11 min-w-[44px] min-h-[44px] rounded-full border border-espresso-200 flex items-center justify-center
          text-espresso-700 hover:bg-espresso-900 hover:text-cream hover:border-espresso-900
-         transition-all duration-150 text-sm font-bold active:scale-90;
+         transition-all duration-150 text-sm font-bold active:scale-90 focus:outline-none focus:ring-2 focus:ring-brew-500;
 }
 
 /* ─── Unified price / number style ─────────────────────────────────────────

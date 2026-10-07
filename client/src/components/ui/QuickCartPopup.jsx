@@ -17,7 +17,7 @@ import useCartStore from '../../context/cartStore';
 import { useTenant } from '../../context/TenantContext';
 import { formatMoney } from '../../utils/money';
 
-const PLACEHOLDER = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=200&q=80';
+const PLACEHOLDER = '/images/coffee-placeholder.svg';
 
 export default function QuickCartPopup() {
   const tenant = useTenant();

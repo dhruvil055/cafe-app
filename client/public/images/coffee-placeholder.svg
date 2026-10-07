@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#24140a"/>
+      <stop offset="50%" stop-color="#180c06"/>
+      <stop offset="100%" stop-color="#0e0603"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f0b25e"/>
+      <stop offset="100%" stop-color="#c47a22"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#bg)"/>
+  <circle cx="200" cy="200" r="130" fill="#2d1a0e" opacity="0.6"/>
+  <!-- Steam lines -->
+  <path d="M185 110 Q190 95 185 80" stroke="url(#gold)" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.75"/>
+  <path d="M200 105 Q205 90 200 75" stroke="url(#gold)" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.9"/>
+  <path d="M215 110 Q220 95 215 80" stroke="url(#gold)" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.75"/>
+  <!-- Cup body -->
+  <path d="M140 140 L260 140 C260 215 235 245 200 245 C165 245 140 215 140 140 Z" fill="url(#gold)"/>
+  <!-- Cup rim -->
+  <ellipse cx="200" cy="140" rx="60" ry="10" fill="#edd6bf"/>
+  <!-- Cup handle -->
+  <path d="M255 155 C280 155 285 205 250 210" stroke="url(#gold)" stroke-width="12" fill="none" stroke-linecap="round"/>
+  <!-- Saucer -->
+  <path d="M125 255 Q200 270 275 255" stroke="url(#gold)" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <!-- Label -->
+  <text x="200" y="325" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" letter-spacing="3" fill="#e8d5c4" text-transform="uppercase">Artisanal Selection</text>
+</svg>

@@ -1,10 +1,11 @@
 import { Component, lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 import QuickCartPopup from './components/ui/QuickCartPopup';
 import WebPushPrompt from './components/ui/WebPushPrompt';
-import { useTenant } from './context/TenantContext';
+import Navbar from './components/ui/Navbar';
+import Footer from './components/ui/Footer';
 
 // Primary customer entry page loaded eagerly
 import MenuPage from './pages/customer/MenuPage';
@@ -20,14 +21,10 @@ const ContactPage = lazy(() => import('./pages/customer/ContactPage'));
 const GalleryPage = lazy(() => import('./pages/customer/GalleryPage'));
 const ReceiptPage = lazy(() => import('./pages/customer/ReceiptPage'));
 const OrdersPage = lazy(() => import('./pages/customer/OrdersPage'));
+const BillPage = lazy(() => import('./pages/customer/BillPage'));
 const UnsubscribePage = lazy(() => import('./pages/customer/UnsubscribePage'));
 const LegalPage = lazy(() => import('./pages/customer/LegalPage'));
 const NotFoundPage = lazy(() => import('./pages/customer/NotFoundPage'));
-
-function PolicyFooter() {
-  const tenant = useTenant();
-  return <footer className="border-t border-foam bg-[#120804] px-4 py-5 text-center text-xs text-cream/65"><nav aria-label="Legal information" className="flex flex-wrap justify-center gap-x-5 gap-y-2"><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/refund-policy">Refund policy</Link></nav><p className="mt-2">© {new Date().getFullYear()} {tenant.name}</p></footer>;
-}
 
 class ChunkErrorBoundary extends Component {
   constructor(props) {
@@ -74,11 +71,12 @@ class ChunkErrorBoundary extends Component {
             A new version of the café site was just deployed. Please refresh to load the updated page.
           </p>
           <button
+            type="button"
             onClick={() => {
               sessionStorage.removeItem('chunk_boundary_reload');
               window.location.reload();
             }}
-            className="px-6 py-2.5 rounded-full bg-[#d4862a] text-[#1a0f08] font-semibold text-sm hover:bg-[#b86f1e] transition-colors cursor-pointer"
+            className="px-6 py-2.5 rounded-full bg-[#d4862a] text-[#1a0f08] font-semibold text-sm hover:bg-[#b86f1e] transition-colors cursor-pointer min-h-[44px]"
           >
             Refresh Now
           </button>
@@ -100,6 +98,7 @@ function PageFallback() {
 export default function App() {
   return (
     <BrowserRouter>
+      <Navbar />
       <QuickCartPopup />
       <WebPushPrompt />
       <Toaster
@@ -129,6 +128,7 @@ export default function App() {
             <Route path="/gallery" element={<GalleryPage />} />
             <Route path="/cart" element={<CartPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
+            <Route path="/bill" element={<BillPage />} />
             <Route path="/unsubscribe" element={<UnsubscribePage />} />
             <Route path="/privacy" element={<LegalPage />} />
             <Route path="/terms" element={<LegalPage />} />
@@ -147,7 +147,7 @@ export default function App() {
           </Routes>
         </Suspense>
       </ChunkErrorBoundary>
-      <PolicyFooter />
+      <Footer />
     </BrowserRouter>
   );
 }

@@ -21,6 +21,15 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useTenant } from '../../context/TenantContext';
+import usePageMeta from '../../hooks/usePageMeta';
+
+function formatInternationalTel(phone) {
+  if (!phone) return '';
+  const digits = String(phone).replace(/[^\d+]/g, '');
+  if (digits.startsWith('+')) return digits;
+  if (digits.length === 10) return `+91${digits}`;
+  return digits.startsWith('91') && digits.length === 12 ? `+${digits}` : `+${digits}`;
+}
 
 const contactDetails = (tenant) => {
   const hours = Object.entries(tenant.openingHours || {}).map(([day, value]) => `${day}: ${value}`).join(' · ');
@@ -33,7 +42,7 @@ const contactDetails = (tenant) => {
     icon: MapPin,
     action: {
       type: 'link',
-      href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tenant.address || '')}`,
+      href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tenant.address || 'Cafe')}`,
       text: 'Get Directions',
       external: true,
     },
@@ -46,7 +55,7 @@ const contactDetails = (tenant) => {
     icon: Phone,
     action: {
       type: 'tel',
-      href: `tel:${tenant.contactPhone || ''}`,
+      href: tenant.contactPhone ? `tel:${formatInternationalTel(tenant.contactPhone)}` : '',
       text: 'Call Now',
     },
   },
@@ -58,7 +67,7 @@ const contactDetails = (tenant) => {
     icon: Mail,
     action: {
       type: 'mailto',
-      href: `mailto:${tenant.contactEmail || ''}`,
+      href: tenant.contactEmail ? `mailto:${tenant.contactEmail}` : '',
       text: 'Send Email',
     },
   },
@@ -98,6 +107,10 @@ function SectionEyebrow({ children, light = false }) {
 
 export default function ContactPage() {
   const tenant = useTenant();
+  usePageMeta(
+    'Contact Us & Café Location Directions',
+    'Reach out to our team for reservations, event catering, menu inquiries, or find easy map directions to our artisanal café.'
+  );
   const contactSectionRef = useRef(null);
   const [copiedId, setCopiedId] = useState(null);
 
@@ -363,18 +376,18 @@ export default function ContactPage() {
               <button
                 type="button"
                 onClick={scrollToContact}
-                className="inline-flex items-center gap-2 rounded-full bg-cream px-6 py-3.5 text-xs font-bold uppercase tracking-[0.16em] text-espresso-900 shadow-[0_10px_25px_rgba(0,0,0,0.3)] transition-all duration-300 hover:bg-brew-100 hover:shadow-[0_14px_30px_rgba(0,0,0,0.4)] active:scale-95"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-cream px-6 py-3 text-xs font-bold uppercase tracking-[0.16em] text-espresso-900 shadow-[0_10px_25px_rgba(0,0,0,0.3)] transition-all duration-300 hover:bg-brew-100 hover:shadow-[0_14px_30px_rgba(0,0,0,0.4)] active:scale-95 focus:outline-none focus:ring-2 focus:ring-brew-500"
               >
                 Reach out to us <ArrowDown size={15} />
               </button>
               <a
-                href="https://www.google.com/maps/search/?api=1&query=12+Market+Lane+Near+Camp+Pune+India"
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tenant.address || 'Cafe')}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-5 py-3.5 text-xs font-semibold uppercase tracking-[0.14em] text-cream backdrop-blur-md transition-all hover:bg-white/20"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-white/25 bg-white/10 px-5 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-cream backdrop-blur-md transition-all hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-brew-500"
               >
                 <MapPin size={14} className="text-brew-300" />
-                <span>Visit Pune Café</span>
+                <span>{tenant.address ? 'Visit Our Café' : 'View Location'}</span>
               </a>
             </div>
           </motion.div>
@@ -457,7 +470,7 @@ export default function ContactPage() {
                       <button
                         type="button"
                         onClick={() => handleCopy(item.action.copyText, item.id)}
-                        className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-brew-700 transition hover:text-espresso-900"
+                        className="inline-flex min-h-[44px] items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-brew-700 transition hover:text-espresso-900 focus:outline-none focus:ring-2 focus:ring-brew-500 rounded-lg"
                       >
                         {copiedId === item.id ? (
                           <>
@@ -476,7 +489,7 @@ export default function ContactPage() {
                         href={item.action.href}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-brew-700 transition hover:text-espresso-900"
+                        className="inline-flex min-h-[44px] items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-brew-700 transition hover:text-espresso-900 focus:outline-none focus:ring-2 focus:ring-brew-500 rounded-lg"
                       >
                         <span>{item.action.text}</span>
                         <ExternalLink size={14} />
@@ -484,7 +497,7 @@ export default function ContactPage() {
                     ) : (
                       <a
                         href={item.action.href}
-                        className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-brew-700 transition hover:text-espresso-900"
+                        className="inline-flex min-h-[44px] items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-brew-700 transition hover:text-espresso-900 focus:outline-none focus:ring-2 focus:ring-brew-500 rounded-lg"
                       >
                         <span>{item.action.text}</span>
                         <ArrowRight size={14} />
@@ -584,6 +597,7 @@ export default function ContactPage() {
                     {serverError && (
                       <div
                         role="alert"
+                        aria-live="assertive"
                         className="rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-medium text-red-800"
                       >
                         {serverError}
@@ -631,7 +645,9 @@ export default function ContactPage() {
                         />
                       </div>
                       {formErrors.name && (
-                        <p className="mt-1.5 text-xs font-medium text-red-600">{formErrors.name}</p>
+                        <p className="mt-1.5 text-xs font-medium text-red-600" role="alert" aria-live="polite">
+                          {formErrors.name}
+                        </p>
                       )}
                     </div>
 
@@ -650,7 +666,7 @@ export default function ContactPage() {
                           type="text"
                           required
                           maxLength={160}
-                          placeholder="e.g. name@example.com or +91 98765 43210"
+                          placeholder="you@domain.com or +91 98765 43210"
                           value={formData.contact}
                           onChange={handleInputChange}
                           onBlur={handleBlur}
@@ -662,7 +678,7 @@ export default function ContactPage() {
                         />
                       </div>
                       {formErrors.contact && (
-                        <p className="mt-1.5 text-xs font-medium text-red-600">
+                        <p className="mt-1.5 text-xs font-medium text-red-600" role="alert" aria-live="polite">
                           {formErrors.contact}
                         </p>
                       )}
@@ -694,7 +710,7 @@ export default function ContactPage() {
                         />
                       </div>
                       {formErrors.subject && (
-                        <p className="mt-1.5 text-xs font-medium text-red-600">
+                        <p className="mt-1.5 text-xs font-medium text-red-600" role="alert" aria-live="polite">
                           {formErrors.subject}
                         </p>
                       )}
@@ -732,7 +748,7 @@ export default function ContactPage() {
                         />
                       </div>
                       {formErrors.message && (
-                        <p className="mt-1.5 text-xs font-medium text-red-600">
+                        <p className="mt-1.5 text-xs font-medium text-red-600" role="alert" aria-live="polite">
                           {formErrors.message}
                         </p>
                       )}
@@ -742,7 +758,7 @@ export default function ContactPage() {
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-espresso-900 py-4 text-xs font-bold uppercase tracking-[0.2em] text-cream shadow-md transition-all duration-300 hover:bg-espresso-800 hover:shadow-lg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex min-h-[48px] w-full items-center justify-center gap-3 rounded-2xl bg-espresso-900 py-3.5 px-6 text-xs font-bold uppercase tracking-[0.2em] text-cream shadow-md transition-all duration-300 hover:bg-espresso-800 hover:shadow-lg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-brew-500"
                     >
                       {isSubmitting ? (
                         <>
@@ -760,6 +776,8 @@ export default function ContactPage() {
                 ) : (
                   <motion.div
                     key="success-confirmation"
+                    role="status"
+                    aria-live="polite"
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
@@ -785,13 +803,13 @@ export default function ContactPage() {
                       <button
                         type="button"
                         onClick={handleResetForm}
-                        className="inline-flex items-center gap-2 rounded-full border border-espresso-300 bg-white px-6 py-3 text-xs font-bold uppercase tracking-[0.16em] text-espresso-800 transition hover:bg-espresso-50 active:scale-95"
+                        className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-espresso-300 bg-white px-6 py-3 text-xs font-bold uppercase tracking-[0.16em] text-espresso-800 transition hover:bg-espresso-50 active:scale-95 focus:outline-none focus:ring-2 focus:ring-brew-500"
                       >
                         Send another message
                       </button>
                       <Link
                         to="/menu"
-                        className="inline-flex items-center gap-2 rounded-full bg-espresso-900 px-6 py-3 text-xs font-bold uppercase tracking-[0.16em] text-cream transition hover:bg-espresso-800 active:scale-95"
+                        className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-espresso-900 px-6 py-3 text-xs font-bold uppercase tracking-[0.16em] text-cream transition hover:bg-espresso-800 active:scale-95 focus:outline-none focus:ring-2 focus:ring-brew-500"
                       >
                         Explore Menu <ArrowRight size={14} />
                       </Link>
@@ -840,11 +858,11 @@ export default function ContactPage() {
             A calm, warm sanctuary designed for slow mornings, afternoon reading, and evening
             conversations over freshly roasted artisanal coffee.
           </p>
-          <div className="mt-8 flex items-center justify-center gap-6 text-xs uppercase tracking-[0.2em] text-cream/60">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center text-xs uppercase tracking-[0.2em] text-cream/60">
             <span>Specialty Roasts</span>
-            <span>•</span>
+            <span aria-hidden="true">•</span>
             <span>Warm Comfort Food</span>
-            <span>•</span>
+            <span aria-hidden="true">•</span>
             <span>{tenant.address || 'Visit us at the café'}</span>
           </div>
         </motion.div>
@@ -893,14 +911,21 @@ export default function ContactPage() {
                 <h3 className="mt-2 font-display text-2xl font-bold text-cream">
                   {tenant.address || 'Address not provided'}
                 </h3>
-                <p className="mt-1 text-xs text-cream/70">{tenant.contactPhone}</p>
-
-                <div className="mt-5 flex flex-wrap items-center gap-3">
+                {tenant.contactPhone && (
                   <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tenant.address || '')}`}
+                    href={`tel:${formatInternationalTel(tenant.contactPhone)}`}
+                    className="mt-1 inline-flex min-h-[44px] items-center text-xs text-cream/70 hover:text-cream underline focus:outline-none focus:ring-2 focus:ring-brew-400"
+                  >
+                    {tenant.contactPhone}
+                  </a>
+                )}
+
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tenant.address || 'Cafe')}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full bg-cream px-5 py-2.5 text-xs font-bold uppercase tracking-[0.14em] text-espresso-950 transition hover:bg-brew-100 active:scale-95"
+                    className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-cream px-5 py-2.5 text-xs font-bold uppercase tracking-[0.14em] text-espresso-950 transition hover:bg-brew-100 active:scale-95 focus:outline-none focus:ring-2 focus:ring-brew-500"
                   >
                     <span>Get Directions</span>
                     <ExternalLink size={14} />
@@ -936,60 +961,19 @@ export default function ContactPage() {
           <div className="mt-10 flex flex-wrap justify-center gap-4">
             <Link
               to="/menu"
-              className="inline-flex items-center gap-2 rounded-full bg-cream px-7 py-3.5 text-xs font-bold uppercase tracking-[0.16em] text-espresso-900 transition hover:bg-brew-100 active:scale-95"
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-cream px-7 py-3 text-xs font-bold uppercase tracking-[0.16em] text-espresso-900 transition hover:bg-brew-100 active:scale-95 focus:outline-none focus:ring-2 focus:ring-brew-500"
             >
               View Menu <ArrowRight size={15} />
             </Link>
             <Link
               to="/about"
-              className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-7 py-3.5 text-xs font-bold uppercase tracking-[0.16em] text-cream backdrop-blur-sm transition hover:bg-white/20 active:scale-95"
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-white/30 bg-white/10 px-7 py-3 text-xs font-bold uppercase tracking-[0.16em] text-cream backdrop-blur-sm transition hover:bg-white/20 active:scale-95 focus:outline-none focus:ring-2 focus:ring-brew-500"
             >
               Explore Our Story <ArrowRight size={15} />
             </Link>
           </div>
         </motion.div>
       </section>
-
-      {/* ========================================================================= */}
-      {/* 7. REFINED CAFÉ FOOTER */}
-      {/* ========================================================================= */}
-      <footer className="bg-[#0a0603] px-4 py-12 text-cream/65 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="font-display text-2xl font-semibold tracking-[0.12em] text-cream">
-                {tenant.name.toUpperCase()}
-              </p>
-              <p className="mt-1 text-xs uppercase tracking-[0.2em] text-brew-300">
-                Fine Coffee & Dining
-              </p>
-              <p className="mt-3 text-xs text-cream/50">
-                {[tenant.address, tenant.contactPhone, tenant.contactEmail, ...Object.entries(tenant.openingHours || {}).map(([day, hours]) => `${day}: ${hours}`)].filter(Boolean).join(' • ')}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-6 text-sm font-medium">
-              <Link to="/menu" className="transition hover:text-cream">
-                Menu
-              </Link>
-              <Link to="/about" className="transition hover:text-cream">
-                About
-              </Link>
-              <Link to="/offers" className="transition hover:text-cream">
-                Offers
-              </Link>
-              <Link to="/gallery" className="transition hover:text-cream">
-                Gallery
-              </Link>
-              <Link to="/contact" className="text-cream underline underline-offset-4">
-                Contact
-              </Link>
-            </div>
-          </div>
-          <div className="mt-10 border-t border-white/10 pt-6 text-center text-xs text-cream/40 sm:text-left">
-            © {new Date().getFullYear()} {tenant.name}. All rights reserved.
-          </div>
-        </div>
-      </footer>
     </main>
   );
 }

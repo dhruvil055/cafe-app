@@ -11,6 +11,7 @@ import { getCached, setCached, CATEGORIES_TTL_MS, DEFAULT_TTL_MS, clearClientCac
 import { subscribeToLiveStream } from '../../utils/liveStream';
 import TableServiceActions from '../../components/table/TableServiceActions';
 import { useTenant } from '../../context/TenantContext';
+import usePageMeta from '../../hooks/usePageMeta';
 
 const ProductModal = lazy(() => import('../../components/menu/ProductModal'));
 const QrScannerModal = lazy(() => import('../../components/ui/QrScannerModal'));
@@ -24,6 +25,10 @@ const SORT_OPTIONS = [
 
 export default function MenuPage() {
   const tenant = useTenant();
+  usePageMeta(
+    'Artisanal Coffee & Gourmet Food Menu',
+    'Discover our freshly brewed espresso beverages, specialty pour-overs, handcrafted pastries, and gourmet chef specials.'
+  );
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const tableTokenParam = searchParams.get('tableToken');
@@ -31,6 +36,9 @@ export default function MenuPage() {
   const { items, tableNumber, tableToken, setTable, setDiningSessionToken, openQuickCart, isScannerOpen, openScanner, closeScanner } = useCartStore();
   // Reactive item count via selector
   const itemCount = useCartStore(cartItemCount);
+  const subtotal = items.reduce((s, i) => s + (i.itemTotal || 0), 0);
+  const tax = Number(((subtotal * Number(tenant.taxRate || 0)) / 100).toFixed(2));
+  const grandTotal = (subtotal + tax).toFixed(2);
 
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
@@ -184,9 +192,6 @@ export default function MenuPage() {
 
   const activeTable = tableNumber;
 
-  // Subtotal for sticky bar
-  const subtotal = items.reduce((s, i) => s + i.itemTotal, 0);
-  const grandTotal = subtotal + Number((subtotal * Number(tenant.taxRate || 0) / 100).toFixed(2));
 
   return (
     <div className="min-h-screen bg-cream">
@@ -217,7 +222,13 @@ export default function MenuPage() {
             <p className="text-brew-400 text-xs font-medium tracking-widest uppercase mb-1">
               Fine Coffee &amp; Dining
             </p>
-            {tenant.logoUrl ? <img src={tenant.logoUrl} alt={tenant.name} className="max-h-12 max-w-48 object-contain object-left" /> : <h1 className="font-display text-3xl font-bold text-cream leading-tight">{tenant.name}</h1>}
+            <Link to="/" aria-label={`${tenant.name} home`} className="inline-block focus:outline-none focus:ring-2 focus:ring-brew-400 rounded-lg">
+              {tenant.logoUrl ? (
+                <img src={tenant.logoUrl} alt={tenant.name} className="max-h-12 max-w-48 object-contain object-left" />
+              ) : (
+                <h1 className="font-display text-3xl font-bold text-cream leading-tight hover:text-brew-200 transition-colors">{tenant.name}</h1>
+              )}
+            </Link>
 
             {/* Table connected indicator or scan prompt */}
             <AnimatePresence mode="wait">
@@ -255,9 +266,9 @@ export default function MenuPage() {
                   exit={{ opacity: 0, scale: 0.9 }}
                   whileHover={{ scale: 1.04 }}
                   whileTap={{ scale: 0.96 }}
-                  className="inline-flex items-center gap-2 mt-2 backdrop-blur-sm bg-amber-500/20 border border-amber-400/40 rounded-full px-3.5 py-1 text-cream text-xs font-medium hover:bg-amber-500/30 transition shadow-sm"
+                  className="inline-flex min-h-[44px] items-center gap-2 mt-2 backdrop-blur-sm bg-amber-500/20 border border-amber-400/40 rounded-full px-4 py-2 text-cream text-xs font-medium hover:bg-amber-500/30 transition shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                 >
-                  <ScanLine size={13} className="text-amber-400" />
+                  <ScanLine size={14} className="text-amber-400" />
                   <span>Scan Table QR to Order</span>
                 </motion.button>
               )}
@@ -274,7 +285,7 @@ export default function MenuPage() {
             onClick={() => setShowScanner(true)}
             aria-label="Scan table QR code"
             title="Scan table QR code"
-            className="glass flex items-center gap-2 rounded-full px-3 py-3 text-sm font-medium text-espresso-900 shadow-lg"
+            className="glass flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-full px-3.5 py-2.5 text-sm font-medium text-espresso-900 shadow-lg focus:outline-none focus:ring-2 focus:ring-brew-500"
           >
             <ScanLine size={19} />
             <span className="hidden sm:inline">Scan QR</span>
@@ -285,7 +296,7 @@ export default function MenuPage() {
             whileTap={{ scale: 0.95 }}
             onClick={openQuickCart}
             aria-label="Open Cart Quick View"
-            className="relative glass rounded-full p-3 shadow-lg text-espresso-900"
+            className="relative glass flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-2.5 shadow-lg text-espresso-900 focus:outline-none focus:ring-2 focus:ring-brew-500"
           >
             <ShoppingCart size={20} className="text-espresso-900" />
             <AnimatePresence>
@@ -310,13 +321,13 @@ export default function MenuPage() {
       {activeTable && <TableServiceActions />}
 
       <div className="relative z-30 -mt-7 px-4 sm:px-6">
-        <nav className="mx-auto flex max-w-2xl items-center justify-between gap-1 overflow-x-auto rounded-full border border-foam bg-white/90 px-2 py-2 shadow-[0_12px_30px_rgba(26,15,8,0.12)] backdrop-blur-xl">
-          <Link to="/menu" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Menu</Link>
-          <Link to="/about" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">About</Link>
-          <Link to="/offers" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Offers</Link>
-          <Link to="/gallery" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Gallery</Link>
-          <Link to="/contact" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Contact</Link>
-          <Link to="/orders" className="flex-shrink-0 rounded-full px-2.5 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Orders</Link>
+        <nav aria-label="Menu page subnavigation" className="mx-auto flex max-w-2xl items-center justify-between gap-1 overflow-x-auto rounded-full border border-foam bg-white/90 px-2 py-1.5 shadow-[0_12px_30px_rgba(26,15,8,0.12)] backdrop-blur-xl">
+          <Link to="/menu" className="flex-shrink-0 min-h-[44px] inline-flex items-center rounded-full px-3 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Menu</Link>
+          <Link to="/about" className="flex-shrink-0 min-h-[44px] inline-flex items-center rounded-full px-3 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">About</Link>
+          <Link to="/offers" className="flex-shrink-0 min-h-[44px] inline-flex items-center rounded-full px-3 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Offers</Link>
+          <Link to="/gallery" className="flex-shrink-0 min-h-[44px] inline-flex items-center rounded-full px-3 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Gallery</Link>
+          <Link to="/contact" className="flex-shrink-0 min-h-[44px] inline-flex items-center rounded-full px-3 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Contact</Link>
+          <Link to="/orders" className="flex-shrink-0 min-h-[44px] inline-flex items-center rounded-full px-3 py-2 text-[11px] font-semibold text-espresso-700 transition hover:bg-espresso-50 hover:text-espresso-900 sm:px-4 sm:text-xs">Orders</Link>
         </nav>
       </div>
 
@@ -335,17 +346,21 @@ export default function MenuPage() {
             />
             {search && (
               <button
+                type="button"
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-espresso-400 hover:text-espresso-700"
+                className="absolute right-2 top-1/2 -translate-y-1/2 min-h-[44px] min-w-[44px] flex items-center justify-center text-espresso-400 hover:text-espresso-700 focus:outline-none focus:ring-2 focus:ring-brew-500 rounded-full"
+                aria-label="Clear search query"
               >
-                <X size={14} />
+                <X size={16} />
               </button>
             )}
           </div>
 
           <button
+            type="button"
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all
+            aria-expanded={showFilters}
+            className={`flex min-h-[44px] items-center gap-1.5 px-3.5 py-2.5 rounded-xl border text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-brew-500
               ${showFilters || vegOnly || sort
                 ? 'bg-espresso-900 text-cream border-espresso-900'
                 : 'border-foam text-espresso-700 bg-white'
@@ -367,11 +382,12 @@ export default function MenuPage() {
             >
               <div className="flex items-center gap-3 pb-1">
                 <button
+                  type="button"
                   onClick={() => setVegOnly(!vegOnly)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all
+                  className={`flex min-h-[44px] items-center gap-1.5 px-3.5 py-2 rounded-full border text-xs font-medium transition-all focus:outline-none focus:ring-2 focus:ring-green-500
                     ${vegOnly ? 'bg-green-600 text-white border-green-600' : 'border-foam text-espresso-700 bg-white'}`}
                 >
-                  <Leaf size={12} />
+                  <Leaf size={14} />
                   Veg Only
                 </button>
 
@@ -379,14 +395,15 @@ export default function MenuPage() {
                   <select
                     value={sort}
                     onChange={e => setSort(e.target.value)}
-                    className="w-full text-xs border border-foam rounded-full px-3 py-1.5 bg-white
-                               text-espresso-700 appearance-none pr-6 focus:outline-none"
+                    aria-label="Sort menu items"
+                    className="w-full min-h-[44px] text-xs border border-foam rounded-full px-3.5 py-2 bg-white
+                               text-espresso-700 appearance-none pr-7 focus:outline-none focus:ring-2 focus:ring-brew-500"
                   >
                     {SORT_OPTIONS.map(o => (
                       <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
-                  <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-espresso-400 pointer-events-none" />
+                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-espresso-400 pointer-events-none" />
                 </div>
               </div>
             </motion.div>
@@ -396,8 +413,9 @@ export default function MenuPage() {
         {/* Category chips */}
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
           <button
+            type="button"
             onClick={() => setSelectedCategory('all')}
-            className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all border
+            className={`flex-shrink-0 min-h-[44px] inline-flex items-center px-4 py-2 rounded-full text-sm font-medium transition-all border focus:outline-none focus:ring-2 focus:ring-brew-500
               ${selectedCategory === 'all'
                 ? 'bg-espresso-900 text-cream border-espresso-900'
                 : 'bg-white text-espresso-700 border-foam hover:border-espresso-300'
@@ -408,9 +426,10 @@ export default function MenuPage() {
           {categories.map(cat => (
             <button
               key={cat._id}
+              type="button"
               onClick={() => setSelectedCategory(cat._id)}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium
-                         transition-all border whitespace-nowrap
+              className={`flex-shrink-0 min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium
+                         transition-all border whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-brew-500
                 ${selectedCategory === cat._id
                   ? 'bg-espresso-900 text-cream border-espresso-900'
                   : 'bg-white text-espresso-700 border-foam hover:border-espresso-300'
@@ -444,8 +463,9 @@ export default function MenuPage() {
             <p className="font-display text-xl font-bold text-espresso-800">Menu temporarily unavailable</p>
             <p className="text-espresso-500 text-sm mt-1.5 max-w-md mx-auto">{menuError}</p>
             <button
+              type="button"
               onClick={() => setReloadKey(k => k + 1)}
-              className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 bg-espresso-900 hover:bg-espresso-800 text-cream rounded-full text-sm font-semibold shadow-md transition-all active:scale-95"
+              className="mt-5 inline-flex min-h-[44px] items-center gap-2 px-5 py-2.5 bg-espresso-900 hover:bg-espresso-800 text-cream rounded-full text-sm font-semibold shadow-md transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-brew-500"
             >
               <RotateCcw size={15} />
               <span>Try Again</span>
@@ -453,12 +473,13 @@ export default function MenuPage() {
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-16">
-            <span className="text-5xl">🔍</span>
+            <span className="text-5xl" role="img" aria-label="Search icon">🔍</span>
             <p className="mt-4 font-display text-xl text-espresso-700">Nothing found</p>
             <p className="text-espresso-400 text-sm mt-1">Try a different search or filter</p>
             <button
+              type="button"
               onClick={() => { setSearch(''); setVegOnly(false); setSort(''); setSelectedCategory('all'); }}
-              className="mt-4 btn-secondary text-sm py-2 px-5"
+              className="mt-4 btn-secondary text-sm py-2 px-5 min-h-[44px] inline-flex items-center"
             >
               Clear filters
             </button>
@@ -489,31 +510,27 @@ export default function MenuPage() {
           animate={{ y: 0, opacity: 1 }}
           className="fixed bottom-5 right-4 z-40"
         >
-          <Link to="/cart">
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.96 }}
-              aria-label="View Full Cart"
-              className="flex items-center justify-between gap-4 bg-espresso-900 text-cream
-                         rounded-2xl pl-3 pr-5 py-3 font-medium shadow-2xl min-w-[180px]"
-            >
-              <div className="flex items-center gap-2">
-                <motion.span
-                  key={itemCount}
-                  initial={{ scale: 1.4 }}
-                  animate={{ scale: 1 }}
-                  className="bg-brew-500 text-white text-xs font-bold w-6 h-6
-                             rounded-full flex items-center justify-center flex-shrink-0"
-                >
-                  {itemCount}
-                </motion.span>
-                <span className="text-sm">View Cart</span>
-              </div>
-              <span className="font-mono text-sm font-semibold text-brew-300">
-                {String.fromCharCode(8377)}{grandTotal}
-              </span>
-            </motion.button>
+          <Link
+            to="/cart"
+            aria-label={`View Cart with ${itemCount} items`}
+            className="flex min-h-[48px] items-center justify-between gap-4 bg-espresso-900 text-cream
+                       rounded-2xl pl-3 pr-5 py-3 font-medium shadow-2xl min-w-[180px] hover:bg-espresso-800 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-brew-500"
+          >
+            <div className="flex items-center gap-2">
+              <motion.span
+                key={itemCount}
+                initial={{ scale: 1.4 }}
+                animate={{ scale: 1 }}
+                className="bg-brew-500 text-white text-xs font-bold w-6 h-6
+                           rounded-full flex items-center justify-center flex-shrink-0"
+              >
+                {itemCount}
+              </motion.span>
+              <span className="text-sm">View Cart</span>
+            </div>
+            <span className="font-mono text-sm font-semibold text-brew-300">
+              ₹{grandTotal}
+            </span>
           </Link>
         </motion.div>
       )}

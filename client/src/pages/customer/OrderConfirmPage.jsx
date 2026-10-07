@@ -8,6 +8,7 @@ import NotificationPermissionPrompt from '../../components/ui/NotificationPermis
 import { subscribeToLiveStream } from '../../utils/liveStream';
 import { useTenant } from '../../context/TenantContext';
 import { formatMoney } from '../../utils/money';
+import usePageMeta from '../../hooks/usePageMeta';
 
 const STATUS_CONFIG = {
   pending:   { label: 'Order Received',    color: 'text-yellow-600', bg: 'bg-yellow-50', icon: '📋' },
@@ -19,6 +20,11 @@ const STATUS_CONFIG = {
 
 export default function OrderConfirmPage() {
   const tenant = useTenant();
+
+  usePageMeta({
+    title: 'Order Confirmation & Kitchen Status',
+    description: 'Your café order has been received by the kitchen! Follow real-time preparation progress and download your itemized order receipt.',
+  });
   const { orderId } = useParams();
   const [searchParams] = useSearchParams();
   const accessToken = searchParams.get('token');
@@ -210,30 +216,38 @@ export default function OrderConfirmPage() {
         </div>
 
         {/* Actions */}
-          <div className={`grid gap-3 pb-6 ${order.paymentMethod === 'cash' ? 'grid-cols-1' : 'grid-cols-1 min-[380px]:grid-cols-2'}`}>
-          <Link to={`/receipt/${orderId}?accessToken=${encodeURIComponent(accessToken)}`} className="btn-secondary flex items-center justify-center gap-2 py-3.5 text-sm">
-            View Receipt
+        <div className="grid gap-3 pb-6 grid-cols-1 sm:grid-cols-2">
+          <Link
+            to={`/receipt/${orderId}?accessToken=${encodeURIComponent(accessToken)}`}
+            className="btn-secondary min-h-[44px] flex items-center justify-center gap-2 py-3.5 text-sm"
+          >
+            <span>View Receipt</span>
           </Link>
-          <Link to={`/track/${orderId}?token=${encodeURIComponent(accessToken)}`} className="btn-accent flex items-center justify-center gap-2 py-3.5 text-sm">
-            Track Live Status
+          <Link
+            to={`/track/${orderId}?token=${encodeURIComponent(accessToken)}`}
+            className="btn-accent min-h-[44px] flex items-center justify-center gap-2 py-3.5 text-sm"
+          >
+            <span>Track Live Status</span>
           </Link>
           {order.paymentMethod !== 'cash' && (
             <button
+              type="button"
               onClick={handleDownloadReceipt}
               disabled={downloading}
-              className="btn-secondary flex items-center justify-center gap-2 py-3.5 text-sm"
+              className="btn-secondary min-h-[44px] flex items-center justify-center gap-2 py-3.5 text-sm"
             >
               {downloading
                 ? <Loader2 size={16} className="animate-spin" />
                 : <Download size={16} />}
-              {downloading ? 'Generating...' : 'Download Receipt'}
+              <span>{downloading ? 'Generating...' : 'Download Receipt'}</span>
             </button>
           )}
-          <Link to="/menu">
-            <button className="w-full btn-accent flex items-center justify-center gap-2 py-3.5 text-sm">
-              <UtensilsCrossed size={16} />
-              Back to Menu
-            </button>
+          <Link
+            to="/menu"
+            className="w-full btn-primary min-h-[44px] flex items-center justify-center gap-2 py-3.5 text-sm sm:col-span-2"
+          >
+            <UtensilsCrossed size={16} />
+            <span>Back to Menu</span>
           </Link>
         </div>
       </div>

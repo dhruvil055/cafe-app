@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { HelmetProvider } from 'react-helmet-async'
 import App from './App.jsx'
 import './index.css'
 import { TenantProvider } from './context/TenantContext.jsx'
@@ -20,7 +21,9 @@ window.addEventListener('vite:preloadError', (event) => {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <TenantProvider><App /></TenantProvider>
+    <HelmetProvider>
+      <TenantProvider><App /></TenantProvider>
+    </HelmetProvider>
   </React.StrictMode>,
 )
 

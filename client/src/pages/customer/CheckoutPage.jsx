@@ -8,7 +8,7 @@ import useCartStore from '../../context/cartStore';
 import { useTenant } from '../../context/TenantContext';
 import { formatPhoneNumber, normalizePhoneNumber } from '../../utils/phoneNormalizer';
 import { formatMoney } from '../../utils/money';
-import TestModal from '../../components/ui/TestModal';
+import OtpLoginModal from '../../components/ui/OtpLoginModal';
 
 const loadRazorpay = () => {
   return new Promise((resolve) => {
@@ -234,7 +234,7 @@ export default function CheckoutPage() {
     <div className="min-h-screen bg-cream">
       {/* Header */}
       <div className="flex items-center gap-3 p-4 border-b border-foam bg-white sticky top-0 z-10">
-        <Link to="/cart" className="w-9 h-9 rounded-full border border-foam flex items-center justify-center">
+        <Link to="/cart" aria-label="Back to cart" className="min-w-[44px] min-h-[44px] rounded-full border border-foam flex items-center justify-center text-espresso-700 hover:bg-espresso-50 transition-colors">
           <ArrowLeft size={18} />
         </Link>
         <h1 className="font-display text-xl font-bold text-espresso-900">Checkout</h1>
@@ -300,7 +300,7 @@ export default function CheckoutPage() {
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              placeholder="name@example.com"
+              placeholder="you@domain.com"
               className="input-field"
               autoComplete="email"
             />
@@ -390,6 +390,8 @@ export default function CheckoutPage() {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
+            role="alert"
+            aria-live="polite"
             className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3"
           >
             <AlertCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
@@ -398,7 +400,7 @@ export default function CheckoutPage() {
         )}
 
         {showOtpLogin && (
-          <TestModal
+          <OtpLoginModal
             isOpen={showOtpLogin}
             onClose={() => setShowOtpLogin(false)}
             onLogin={handleOtpLoginSuccess}

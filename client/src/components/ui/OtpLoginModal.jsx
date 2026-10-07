@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, AlertCircle, Mail, Smartphone } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import api from '../../services/api';
-import { useCartStore } from '../../context/cartStore';
-import { formatPhoneNumber } from '../../utils/phoneNormalizer';
 
 export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
   const [step, setStep] = useState('phone'); // 'phone' | 'otp'
@@ -11,14 +10,14 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { setCustomer, clearCart } = useCartStore();
 
-  const normalizePhone = (phone) => phone.replace(/\D/g, '').slice(0, 10);
+  const normalizePhone = (p) => p.replace(/\D/g, '').slice(0, 10);
 
-  const handleSendOtp = async () => {
+  const handleSendOtp = async (e) => {
+    e?.preventDefault?.();
     const normalized = normalizePhone(phone);
     if (!normalized || normalized.length !== 10) {
-      setError('Please enter a valid 10-digit phone number.');
+      setError('Please enter a valid 10-digit mobile number.');
       return;
     }
     setLoading(true);
@@ -37,7 +36,8 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
     }
   };
 
-  const handleVerifyOtp = async () => {
+  const handleVerifyOtp = async (e) => {
+    e?.preventDefault?.();
     if (!otp || otp.length !== 6) {
       setError('Please enter the 6-digit OTP.');
       return;
@@ -49,13 +49,10 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
       const { data } = await api.post('/auth/verify-otp', { phone: normalizedPhone, otp });
       const token = data.accessToken || data.token;
       if (token && data.user) {
-        // Store customer info for checkout
         if (data.user.customerId) {
           try {
-            // We need to fetch the customer profile
             const customerRes = await api.get(`/customers/${data.user.customerId}`);
-            const customerData = customerRes.data;
-            if (customerData) {
+            if (customerRes.data) {
               localStorage.setItem('brewhaus_customer_id', data.user.customerId);
             }
           } catch { /* ignore customer profile fetch error */ }
@@ -66,7 +63,7 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
         setStep('phone');
         setOtp('');
       } else {
-        setError('Invalid OTP.');
+        setError('Invalid OTP code. Please verify and try again.');
       }
     } catch (err) {
       setError(err.message || 'Invalid or expired OTP.');
@@ -88,14 +85,19 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
         >
           <div className="w-full max-w-md rounded-[26px] bg-white p-6 shadow-2xl">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="font-display text-2xl font-bold text-espresso-900">
                 {step === 'phone' ? 'Login with Phone' : 'Enter OTP'}
               </h2>
-              <button onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-stone-200 text-stone-500 hover:bg-stone-100">
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close login modal"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-stone-200 text-stone-500 hover:bg-stone-100 hover:text-stone-900 transition-colors"
+              >
                 <X size={20} />
               </button>
             </div>
@@ -104,6 +106,8 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
+                role="alert"
+                aria-live="polite"
                 className="mb-4 flex items-start gap-2.5 rounded-2xl border border-red-200 bg-red-50 p-3.5 text-sm text-red-700"
               >
                 <AlertCircle size={18} className="mt-0.5 shrink-0" />
@@ -122,15 +126,16 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
                   className="space-y-4"
                 >
                   <div>
-                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-stone-600">Mobile Number</label>
+                    <label htmlFor="otp-phone-input" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-stone-600">Mobile Number</label>
                     <div className="relative">
                       <Smartphone size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" />
                       <input
+                        id="otp-phone-input"
                         type="tel"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                         placeholder="Enter 10-digit mobile number"
-                        className="w-full rounded-2xl border border-stone-200 bg-stone-50/70 pl-11 pr-4 py-3 text-sm text-stone-900 outline-none ring-brew-400 transition placeholder:text-stone-400 focus:border-brew-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brew-500/10"
+                        className="w-full rounded-2xl border border-stone-200 bg-stone-50/70 pl-11 pr-4 py-3 text-base text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-brew-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brew-500/20"
                         inputMode="numeric"
                         maxLength={10}
                       />
@@ -140,16 +145,17 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
                   <button
                     type="submit"
                     disabled={loading || phone.length !== 10}
-                    className="w-full btn-primary rounded-xl px-4 py-3 font-semibold text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full btn-primary min-h-[44px] flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <>
                         <Loader2 size={16} className="animate-spin" />
-                        Sending OTP...
+                        <span>Sending OTP...</span>
                       </>
                     ) : (
                       <>
-                        <Mail size={16} /> Send OTP
+                        <Mail size={16} />
+                        <span>Send OTP</span>
                       </>
                     )}
                   </button>
@@ -168,18 +174,18 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
                     <p className="font-semibold text-stone-900">+91 {phone.slice(0,5)} {phone.slice(5)}</p>
                   </div>
 
-
                   <div>
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-stone-600">
+                    <label htmlFor="otp-code-input" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-stone-600">
                       Enter 6-Digit Code
                     </label>
                     <input
+                      id="otp-code-input"
                       type="text"
                       maxLength={6}
                       value={otp}
                       onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       placeholder="000000"
-                      className="w-full text-center tracking-[0.5em] font-mono text-2xl font-bold rounded-2xl border border-stone-200 bg-stone-50/70 py-3 text-sm focus:border-brew-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brew-500/10"
+                      className="w-full text-center tracking-[0.5em] font-mono text-2xl font-bold rounded-2xl border border-stone-200 bg-stone-50/70 py-3 text-stone-900 focus:border-brew-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brew-500/10"
                       inputMode="numeric"
                       autoComplete="one-time-code"
                       autoFocus
@@ -189,21 +195,24 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
                   <button
                     type="submit"
                     disabled={loading || otp.length !== 6}
-                    className="w-full btn-primary rounded-xl px-4 py-3 font-semibold text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full btn-primary min-h-[44px] flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <>
                         <Loader2 size={16} className="animate-spin" />
-                        Verifying...
+                        <span>Verifying...</span>
                       </>
                     ) : (
-                      <>
-                        Verify OTP
-                      </>
+                      <span>Verify OTP</span>
                     )}
                   </button>
 
-                  <button type="button" onClick={handleBack} disabled={loading} className="mt-4 w-full btn-secondary inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={handleBack}
+                    disabled={loading}
+                    className="mt-4 w-full btn-secondary min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs"
+                  >
                     Back to phone number
                   </button>
                 </motion.form>
@@ -211,15 +220,11 @@ export default function OtpLoginModal({ isOpen, onClose, onLogin }) {
             </AnimatePresence>
 
             <div className="mt-6 text-center text-xs text-stone-500">
-              <p>By continuing, you agree to our <a href="/terms" className="underline hover:text-amber-700">Terms</a> and <a href="/privacy" className="underline hover:text-amber-700">Privacy Policy</a>.</p>
+              <p>By continuing, you agree to our <Link to="/terms" onClick={onClose} className="underline hover:text-amber-700">Terms</Link> and <Link to="/privacy" onClick={onClose} className="underline hover:text-amber-700">Privacy Policy</Link>.</p>
             </div>
           </div>
         </motion.div>
       )}
     </AnimatePresence>
   );
-}
-
-function normalizePhoneNumber(phone) {
-  return phone.replace(/\D/g, '').slice(0, 10);
 }
