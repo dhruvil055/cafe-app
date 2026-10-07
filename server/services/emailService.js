@@ -4,11 +4,12 @@ import nodemailer from 'nodemailer';
  * Check if email service is configured (via Resend HTTP API, Brevo HTTP API, or SMTP)
  */
 export const isEmailConfigured = () => {
+  const hasRelay = Boolean(process.env.GMAIL_RELAY_URL);
   const hasResend = Boolean(process.env.RESEND_API_KEY);
   const hasBrevo = Boolean(process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY);
   const user = process.env.SMTP_USER || process.env.EMAIL_USER;
   const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
-  return hasResend || hasBrevo || Boolean(user && pass);
+  return hasRelay || hasResend || hasBrevo || Boolean(user && pass);
 };
 
 /**
@@ -85,6 +86,33 @@ const sendViaBrevo = async ({ to, subject, html, text }) => {
 };
 
 /**
+ * Send email via Google Apps Script Webhook (native Gmail over port 443 HTTPS)
+ */
+const sendViaGoogleScript = async ({ to, subject, html, text, cafeName }) => {
+  const url = String(process.env.GMAIL_RELAY_URL || '').trim();
+  if (!url) return null;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      to,
+      subject,
+      html,
+      text,
+      senderName: cafeName || process.env.BREVO_NAME || 'BrewHaus Café',
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.success === false) {
+    const errorMsg = data.error || data.message || `Google Script Relay failed with status ${res.status}`;
+    throw new Error(errorMsg);
+  }
+  return { success: true, messageId: data.messageId || 'gmail-script-ok' };
+};
+
+/**
  * Build Nodemailer transporter
  */
 const getTransporter = () => {
@@ -122,15 +150,30 @@ const getTransporter = () => {
 
 /**
  * Multi-channel email dispatcher:
- * 1. Resend HTTP REST API (port 443)
- * 2. Brevo HTTP REST API (port 443)
- * 3. Nodemailer SMTP (ports 587/465)
- * 4. Fallback logging
+ * 1. Google Apps Script Gmail relay (port 443)
+ * 2. Resend HTTP REST API (port 443)
+ * 3. Brevo HTTP REST API (port 443)
+ * 4. Nodemailer SMTP (ports 587/465)
+ * 5. Fallback logging
  */
 export const dispatchEmail = async ({ to, subject, html, text, cafeName }) => {
   let lastFailure = null;
 
-  // 1. Try Resend HTTP API
+  // 1. Try Google Apps Script native Gmail relay
+  if (process.env.GMAIL_RELAY_URL) {
+    try {
+      const relayResult = await sendViaGoogleScript({ to, subject, html, text, cafeName });
+      if (relayResult?.success) {
+        console.log(`[EmailService] Email sent to ${to} via Gmail Relay`);
+        return relayResult;
+      }
+    } catch (relayErr) {
+      lastFailure = `Gmail Relay: ${relayErr.message}`;
+      console.warn(`[EmailService] Gmail Relay dispatch warning:`, relayErr.message);
+    }
+  }
+
+  // 2. Try Resend HTTP API
   if (process.env.RESEND_API_KEY) {
     try {
       const httpResult = await sendViaHttp({ to, subject, html, text });
