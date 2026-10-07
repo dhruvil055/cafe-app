@@ -33,6 +33,7 @@ import platformAuthRoutes from './routes/platformAuth.js';
 import platformAdminRoutes from './routes/platformAdmin.js';
 import billingRoutes from './routes/billing.js';
 import { startCampaignScheduler } from './services/campaignRunner.js';
+import { isEmailConfigured } from './services/emailService.js';
 import { requestContext } from './middleware/requestContext.js';
 import { validateRequestEnvelope } from './middleware/requestValidation.js';
 import { tenantResolver } from './middleware/tenant.js';
@@ -240,7 +241,17 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
 
   app.get('/api/health', (req, res) => {
     const ready = mongoose.connection.readyState === 1;
-    res.status(ready ? 200 : 503).json({ status: ready ? 'ok' : 'unavailable', timestamp: new Date().toISOString() });
+    res.status(ready ? 200 : 503).json({
+      status: ready ? 'ok' : 'unavailable',
+      timestamp: new Date().toISOString(),
+      email: {
+        configured: isEmailConfigured(),
+        hasBrevoApiKey: Boolean(process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY),
+        brevoSender: process.env.BREVO_FROM || process.env.SMTP_USER || null,
+        hasResendApiKey: Boolean(process.env.RESEND_API_KEY),
+        hasSmtpCreds: Boolean((process.env.SMTP_USER || process.env.EMAIL_USER) && (process.env.SMTP_PASS || process.env.EMAIL_PASS)),
+      },
+    });
   });
 
   app.use((req, res) => {

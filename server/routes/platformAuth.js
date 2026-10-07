@@ -29,14 +29,8 @@ const router = express.Router();
 const SLUG_REGEX = /^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])?$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Expose OTP when in non-production, demo mode, or when explicit flags are set.
-const canExposeOtp = (req) =>
-  process.env.NODE_ENV !== 'production' ||
-  process.env.ALLOW_DEMO_OTP === 'true' ||
-  process.env.DEMO_PAYMENTS_ENABLED === 'true' ||
-  req.hostname === 'localhost' ||
-  req.hostname === '127.0.0.1' ||
-  req.hostname.endsWith('.localhost');
+// Only expose OTP in automated test runs (never in production or live environments)
+const canExposeOtp = (req) => process.env.NODE_ENV === 'test';
 
 const EMAIL_FAILED_MESSAGE =
   'We could not send the verification email right now. Please try again in a moment or contact support.';
@@ -107,6 +101,7 @@ router.post('/signup', async (req, res, next) => {
 
     // Send verification code
     let emailDispatched = false;
+    let dispatchReason = null;
     try {
       const emailResult = await sendVerificationCodeEmail({
         to: cleanEmail,
@@ -114,24 +109,25 @@ router.post('/signup', async (req, res, next) => {
         code: verificationCode,
       });
       emailDispatched = Boolean(emailResult?.success);
+      if (!emailDispatched) {
+        dispatchReason = emailResult?.reason;
+      }
     } catch (emailErr) {
+      dispatchReason = emailErr.message;
       console.error('[platformAuth] Failed to dispatch verification email:', emailErr.message);
     }
 
-    // Expose OTP when in non-production, demo mode, or when email failed to dispatch (to prevent blocking signup)
-    const showDemoCode = !emailDispatched || canExposeOtp(req);
+    const showDemoCode = canExposeOtp(req);
 
-    if (!emailDispatched) {
-      console.warn(
-        `[platformAuth] Verification email NOT delivered to ${cleanEmail}. Email configured: ${isEmailConfigured()}. ` +
-        'Render blocks SMTP ports — to deliver OTP by email, set BREVO_API_KEY or RESEND_API_KEY in Render environment.'
-      );
+    if (!emailDispatched && !showDemoCode) {
+      console.error(`[platformAuth] Email to ${cleanEmail} failed: ${dispatchReason}`);
+      return res.status(400).json({
+        error: `Could not send verification email to ${cleanEmail}: ${dispatchReason || 'Delivery failed'}. Check email settings on Render.`,
+      });
     }
 
     res.status(200).json({
-      message: emailDispatched
-        ? 'Verification code sent to your email.'
-        : 'Cloud email delivery was blocked or unavailable on this host. Use the code shown below.',
+      message: 'Verification code sent to your email.',
       email: cleanEmail,
       slug: cleanSlug,
       demoCode: showDemoCode ? verificationCode : undefined,
@@ -163,6 +159,7 @@ router.post('/resend-code', async (req, res, next) => {
     await pending.save();
 
     let emailDispatched = false;
+    let dispatchReason = null;
     try {
       const emailResult = await sendVerificationCodeEmail({
         to: pending.email,
@@ -170,23 +167,25 @@ router.post('/resend-code', async (req, res, next) => {
         code: verificationCode,
       });
       emailDispatched = Boolean(emailResult?.success);
+      if (!emailDispatched) {
+        dispatchReason = emailResult?.reason;
+      }
     } catch (emailErr) {
+      dispatchReason = emailErr.message;
       console.error('[platformAuth] Failed to resend verification email:', emailErr.message);
     }
 
-    // Expose OTP when in non-production, demo mode, or when email failed to dispatch (to prevent blocking signup)
-    const showDemoCode = !emailDispatched || canExposeOtp(req);
+    const showDemoCode = canExposeOtp(req);
 
-    if (!emailDispatched) {
-      console.warn(
-        `[platformAuth] Resend verification email NOT delivered to ${pending.email}. Email configured: ${isEmailConfigured()}.`
-      );
+    if (!emailDispatched && !showDemoCode) {
+      console.error(`[platformAuth] Resend email to ${pending.email} failed: ${dispatchReason}`);
+      return res.status(400).json({
+        error: `Could not resend verification email to ${pending.email}: ${dispatchReason || 'Delivery failed'}. Check email settings on Render.`,
+      });
     }
 
     res.status(200).json({
-      message: emailDispatched
-        ? 'A fresh verification code has been sent to your email.'
-        : 'Cloud email delivery was blocked or unavailable on this host. Use the code shown below.',
+      message: 'A fresh verification code has been sent to your email.',
       email: pending.email,
       demoCode: showDemoCode ? verificationCode : undefined,
       emailDelivered: emailDispatched,

@@ -54,11 +54,11 @@ const sendViaHttp = async ({ to, subject, html, text }) => {
  * Send email via Brevo HTTP REST API (port 443 HTTPS, bypasses Render SMTP blocks)
  */
 const sendViaBrevo = async ({ to, subject, html, text }) => {
-  const apiKey = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
+  const apiKey = String(process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY || '').trim();
   if (!apiKey) return null;
 
-  const senderEmail = process.env.BREVO_FROM || process.env.SMTP_USER || 'onboarding@brewhauscafe.com';
-  const senderName = process.env.BREVO_NAME || 'BrewHaus Café';
+  const senderEmail = String(process.env.BREVO_FROM || process.env.SMTP_USER || 'infinigrowsoftech@gmail.com').trim();
+  const senderName = String(process.env.BREVO_NAME || 'BrewHaus Café').trim();
 
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
@@ -78,7 +78,7 @@ const sendViaBrevo = async ({ to, subject, html, text }) => {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const errorMsg = data.message || data.error || 'Brevo HTTP API failed';
+    const errorMsg = data.message || data.error || (data.code ? `${data.code}: ${data.message}` : null) || `Brevo HTTP API failed (status ${res.status})`;
     throw new Error(errorMsg);
   }
   return { success: true, messageId: data.messageId };
@@ -128,6 +128,8 @@ const getTransporter = () => {
  * 4. Fallback logging
  */
 export const dispatchEmail = async ({ to, subject, html, text, cafeName }) => {
+  let lastFailure = null;
+
   // 1. Try Resend HTTP API
   if (process.env.RESEND_API_KEY) {
     try {
@@ -137,6 +139,7 @@ export const dispatchEmail = async ({ to, subject, html, text, cafeName }) => {
         return httpResult;
       }
     } catch (httpErr) {
+      lastFailure = `Resend: ${httpErr.message}`;
       console.warn(`[EmailService] Resend HTTP dispatch warning:`, httpErr.message);
     }
   }
@@ -150,6 +153,7 @@ export const dispatchEmail = async ({ to, subject, html, text, cafeName }) => {
         return brevoResult;
       }
     } catch (brevoErr) {
+      lastFailure = `Brevo: ${brevoErr.message}`;
       console.warn(`[EmailService] Brevo HTTP dispatch warning:`, brevoErr.message);
     }
   }
@@ -161,14 +165,17 @@ export const dispatchEmail = async ({ to, subject, html, text, cafeName }) => {
     try {
       const sendPromise = transporter.sendMail({ from, to, subject, text, html });
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('SMTP send timed out after 5s (Render blocks outbound SMTP ports 25, 465, 587; set RESEND_API_KEY or BREVO_API_KEY on Render dashboard)')), 5000)
+        setTimeout(() => reject(new Error('SMTP timed out (Render blocks outbound SMTP ports 25, 465, 587; set BREVO_API_KEY on Render dashboard)')), 5000)
       );
       const info = await Promise.race([sendPromise, timeoutPromise]);
       console.log(`[EmailService] Email sent to ${to} via SMTP: messageId=${info.messageId}`);
       return { success: true, messageId: info.messageId };
     } catch (smtpErr) {
+      lastFailure = lastFailure || `SMTP: ${smtpErr.message}`;
       console.warn(`[EmailService] SMTP delivery failed: ${smtpErr.message}`);
     }
+  } else if (!lastFailure) {
+    lastFailure = 'Email service not configured. Add BREVO_API_KEY in Render environment.';
   }
 
   // Fallback: Delivery failed or blocked
@@ -177,8 +184,9 @@ export const dispatchEmail = async ({ to, subject, html, text, cafeName }) => {
   console.warn(`Recipient: ${to}`);
   if (cafeName) console.warn(`Café: ${cafeName}`);
   console.warn(`Subject: ${subject}`);
+  console.warn(`Reason: ${lastFailure}`);
   console.warn(`======================================================\n`);
-  return { success: false, reason: 'delivery_failed' };
+  return { success: false, reason: lastFailure };
 };
 
 /**
@@ -232,7 +240,7 @@ export const sendVerificationCodeEmail = async ({ to, cafeName, code }) => {
   if (dispatchResult?.success) {
     return dispatchResult;
   }
-  return { success: false, reason: 'delivery_failed', code };
+  return { success: false, reason: dispatchResult?.reason || 'delivery_failed', code };
 };
 
 /**
