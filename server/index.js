@@ -267,7 +267,10 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
     if (status >= 500 && typeof tracker === 'function') {
       try { tracker(safeError, { requestId: req.requestId, method: req.method, path: req.path }); } catch { /* Tracking must never break the response. */ }
     }
-    if (status >= 500) process.stderr.write(`${JSON.stringify({ timestamp: new Date().toISOString(), level: 'error', event: 'http.error', requestId: req.requestId, status, name: err.name || 'Error' })}\n`);
+    if (status >= 500) {
+      console.error(`[HTTP ${status} Error] ${req.method} ${req.originalUrl || req.url}:`, err);
+      process.stderr.write(`${JSON.stringify({ timestamp: new Date().toISOString(), level: 'error', event: 'http.error', requestId: req.requestId, status, name: err.name || 'Error', message: err.message })}\n`);
+    }
     res.status(status).json({
       error: status >= 500 ? (process.env.NODE_ENV === 'development' ? err.message : 'Internal server error') : (err.message || 'Request failed.'),
       code: err.code || (status >= 500 ? 'INTERNAL_ERROR' : 'REQUEST_ERROR'),

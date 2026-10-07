@@ -218,241 +218,267 @@ router.post('/verify-email', async (req, res, next) => {
 
     const clientUrl = String(process.env.CUSTOMER_APP_URL || process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
 
+    let createdTenantId = null;
+
     const result = await runWithSystemTenantAccess(async () => {
-      // Re-verify slug and email uniqueness
-      const slugCheck = await Tenant.findOne({ slug: pending.slug });
-      if (slugCheck) {
-        throw new Error('SLUG_TAKEN');
-      }
+        // Re-verify slug and email uniqueness
+        const slugCheck = await Tenant.findOne({ slug: pending.slug });
+        const userCheck = await User.findOne({ email: pending.email });
 
-      const userCheck = await User.findOne({ email: pending.email });
-      if (userCheck) {
-        throw new Error('EMAIL_TAKEN');
-      }
+        // Self-healing: if an earlier verification attempt failed midway for this exact pending signup
+        // (orphan tenant/user with 0 tables created), purge the orphan records so the retry succeeds.
+        if (slugCheck && userCheck && String(userCheck.tenantId) === String(slugCheck._id)) {
+          const tableCount = await Table.countDocuments({ tenantId: slugCheck._id });
+          if (tableCount === 0) {
+            console.warn(`[platformAuth] Recovering incomplete prior provision for tenant slug '${pending.slug}'. Purging incomplete records.`);
+            await Category.deleteMany({ tenantId: slugCheck._id });
+            await Product.deleteMany({ tenantId: slugCheck._id });
+            await Table.deleteMany({ tenantId: slugCheck._id });
+            await User.deleteMany({ tenantId: slugCheck._id });
+            await Tenant.deleteOne({ _id: slugCheck._id });
+          } else {
+            throw new Error('SLUG_TAKEN');
+          }
+        } else {
+          if (slugCheck) {
+            throw new Error('SLUG_TAKEN');
+          }
+          if (userCheck) {
+            throw new Error('EMAIL_TAKEN');
+          }
+        }
 
-      // 1. Create Tenant
-      const tenant = await Tenant.create({
-        name: pending.cafeName,
-        slug: pending.slug,
-        status: 'active',
-        plan: 'starter',
-        subscription: {
+        // 1. Create Tenant
+        const tenant = await Tenant.create({
+          name: pending.cafeName,
+          slug: pending.slug,
+          status: 'active',
           plan: 'starter',
-          status: 'trial',
-          trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-          currentPeriodEnd: null,
-          gracePeriodUntil: null,
-          razorpaySubscriptionId: '',
-          razorpayCustomerId: '',
-          subscriptionCreatedAt: null,
-        },
-        settings: {
-          cafeName: pending.cafeName,
-          primaryColor: '#c96b18',
-          accentColor: '#1a0f08',
-          currency: 'INR',
-          timezone: 'Asia/Kolkata',
-          taxRate: 5,
-        },
-      });
+          subscription: {
+            plan: 'starter',
+            status: 'trial',
+            trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+            currentPeriodEnd: null,
+            gracePeriodUntil: null,
+            razorpaySubscriptionId: '',
+            razorpayCustomerId: '',
+            subscriptionCreatedAt: null,
+          },
+          settings: {
+            cafeName: pending.cafeName,
+            primaryColor: '#c96b18',
+            accentColor: '#1a0f08',
+            currency: 'INR',
+            timezone: 'Asia/Kolkata',
+            taxRate: 5,
+          },
+        });
+        createdTenantId = tenant._id;
 
-      // 2. Create Owner User
-      const user = await User.create({
-        tenantId: tenant._id,
-        name: `${pending.cafeName} Owner`,
-        email: pending.email,
-        password: pending.passwordHash,
-        role: 'owner',
-      });
-
-      // 3. Create Starter Categories
-      const hotBrews = await Category.create({
-        tenantId: tenant._id,
-        name: 'Hot Brews',
-        icon: '☕',
-        active: true,
-        sortOrder: 1,
-      });
-
-      const coldBrews = await Category.create({
-        tenantId: tenant._id,
-        name: 'Cold Beverages',
-        icon: '🧋',
-        active: true,
-        sortOrder: 2,
-      });
-
-      const pastries = await Category.create({
-        tenantId: tenant._id,
-        name: 'Pastries',
-        icon: '🥐',
-        active: true,
-        sortOrder: 3,
-      });
-
-      // 4. Create Starter Products
-      await Product.create([
-        {
+        // 2. Create Owner User
+        const user = await User.create({
           tenantId: tenant._id,
-          name: 'Espresso',
-          description: 'Rich, bold single shot made with freshly roasted beans',
-          price: 120,
-          category: hotBrews._id,
-          available: true,
-          popular: true,
-          rating: 4.8,
-          prepTime: 5,
-        },
-        {
-          tenantId: tenant._id,
-          name: 'Iced Latte',
-          description: 'Smooth espresso poured over chilled milk and artisanal ice',
-          price: 180,
-          category: coldBrews._id,
-          available: true,
-          popular: true,
-          rating: 4.9,
-          prepTime: 7,
-        },
-        {
-          tenantId: tenant._id,
-          name: 'Butter Croissant',
-          description: 'Flaky, golden-baked layered pastry served warm with butter',
-          price: 150,
-          category: pastries._id,
-          available: true,
-          popular: false,
-          rating: 4.7,
-          prepTime: 5,
-        },
-      ]);
-
-      // 5. Create Starter Tables with Signed QR Tokens
-      for (let i = 1; i <= 3; i++) {
-        const tableId = new mongoose.Types.ObjectId();
-        const qrToken = createTableQrToken(tableId, tenant._id);
-        const qrUrl = `${clientUrl}/menu?tableToken=${encodeURIComponent(qrToken)}`;
-        const qrCode = await QRCode.toDataURL(qrUrl, {
-          width: 400,
-          margin: 2,
-          color: { dark: '#1a0f08', light: '#FFFFFF' },
-          errorCorrectionLevel: 'H',
+          name: `${pending.cafeName} Owner`,
+          email: pending.email,
+          password: pending.passwordHash,
+          role: 'owner',
         });
 
-        await Table.create({
-          _id: tableId,
+        // 3. Create Starter Categories
+        const hotBrews = await Category.create({
           tenantId: tenant._id,
-          tableNumber: i,
-          label: `Table ${i}`,
-          seats: 4,
+          name: 'Hot Brews',
+          icon: '☕',
           active: true,
-          qrCode,
-          qrUrl,
+          sortOrder: 1,
         });
-      }
 
-      // 6. Create Razorpay Subscription (if configured)
-      let razorpaySubscription = null;
-      let razorpayCustomer = null;
-      if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+        const coldBrews = await Category.create({
+          tenantId: tenant._id,
+          name: 'Cold Beverages',
+          icon: '🧋',
+          active: true,
+          sortOrder: 2,
+        });
+
+        const pastries = await Category.create({
+          tenantId: tenant._id,
+          name: 'Pastries',
+          icon: '🥐',
+          active: true,
+          sortOrder: 3,
+        });
+
+        // 4. Create Starter Products
+        await Product.create([
+          {
+            tenantId: tenant._id,
+            name: 'Espresso',
+            description: 'Rich, bold single shot made with freshly roasted beans',
+            price: 120,
+            category: hotBrews._id,
+            available: true,
+            popular: true,
+            rating: 4.8,
+            prepTime: 5,
+          },
+          {
+            tenantId: tenant._id,
+            name: 'Iced Latte',
+            description: 'Smooth espresso poured over chilled milk and artisanal ice',
+            price: 180,
+            category: coldBrews._id,
+            available: true,
+            popular: true,
+            rating: 4.9,
+            prepTime: 7,
+          },
+          {
+            tenantId: tenant._id,
+            name: 'Butter Croissant',
+            description: 'Flaky, golden-baked layered pastry served warm with butter',
+            price: 150,
+            category: pastries._id,
+            available: true,
+            popular: false,
+            rating: 4.7,
+            prepTime: 5,
+          },
+        ]);
+
+        // 5. Create Starter Tables with Signed QR Tokens
+        for (let i = 1; i <= 3; i++) {
+          const tableId = new mongoose.Types.ObjectId();
+          const qrToken = createTableQrToken(tableId, tenant._id);
+          const qrUrl = `${clientUrl}/menu?tableToken=${encodeURIComponent(qrToken)}`;
+          const qrCode = await QRCode.toDataURL(qrUrl, {
+            width: 400,
+            margin: 2,
+            color: { dark: '#1a0f08', light: '#FFFFFF' },
+            errorCorrectionLevel: 'H',
+          });
+
+          await Table.create({
+            _id: tableId,
+            tenantId: tenant._id,
+            tableNumber: i,
+            label: `Table ${i}`,
+            seats: 4,
+            active: true,
+            qrCode,
+            qrUrl,
+          });
+        }
+
+        // 6. Create Razorpay Subscription (if configured and valid)
+        let razorpaySubscription = null;
+        let razorpayCustomer = null;
+        if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET && !process.env.RAZORPAY_KEY_ID.includes('xxxx')) {
+          try {
+            const razorpay = new Razorpay({
+              key_id: process.env.RAZORPAY_KEY_ID,
+              key_secret: process.env.RAZORPAY_KEY_SECRET,
+            });
+
+            const customer = await razorpay.customers.create({
+              name: pending.cafeName,
+              email: pending.email,
+              notes: {
+                tenant_id: tenant._id.toString(),
+              },
+            });
+            razorpayCustomer = customer.id;
+
+            const subscription = await razorpay.subscriptions.create({
+              plan_id: process.env.RAZORPAY_STARTER_PLAN_ID || 'plan_starter',
+              customer_notify: 1,
+              total_count: 0,
+              quantity: 1,
+              addons: [],
+              notes: {
+                tenant_id: tenant._id.toString(),
+              },
+            });
+            razorpaySubscription = subscription.id;
+
+            if (razorpaySubscription) {
+              tenant.subscription.razorpaySubscriptionId = razorpaySubscription;
+              tenant.subscription.razorpayCustomerId = razorpayCustomer || '';
+              tenant.subscription.subscriptionCreatedAt = new Date();
+              await tenant.save();
+            }
+          } catch (razorpayError) {
+            console.warn('[platformAuth] Razorpay subscription setup skipped:', razorpayError.message);
+          }
+        }
+
+        // 7. Send Welcome Email in background
+        const adminUrl = String(process.env.ADMIN_APP_URL || process.env.ADMIN_CLIENT_URL || 'https://admin-cafe.infinigrowsoftech.com').replace(/\/$/, '');
+        sendWelcomeEmail({
+          to: pending.email,
+          cafeName: pending.cafeName,
+          adminUrl,
+        }).catch((emailError) => {
+          console.error('[platformAuth] Welcome email failed:', emailError.message);
+        });
+
+        // Cleanup pending record
+        await PendingSignup.deleteOne({ _id: pending._id });
+
+        // Generate access & refresh tokens
+        const accessToken = createAccessToken(user._id, tenant._id);
+        const refreshToken = createRefreshToken();
+        user.refreshTokenHash = hashRefreshToken(refreshToken);
+        user.refreshTokenExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
+        await user.save();
+
+        return { user, tenant, accessToken, refreshToken };
+      });
+
+      setSessionCookies(res, result.accessToken, result.refreshToken);
+
+      res.status(201).json({
+        token: result.accessToken,
+        user: {
+          id: result.user._id,
+          name: result.user.name,
+          email: result.user.email,
+          role: result.user.role,
+          tenantId: result.tenant._id,
+        },
+        tenant: {
+          id: result.tenant._id,
+          name: result.tenant.name,
+          slug: result.tenant.slug,
+          plan: result.tenant.plan,
+          subscription: result.tenant.subscription,
+        },
+      });
+    } catch (error) {
+      if (createdTenantId) {
         try {
-          const razorpay = new Razorpay({
-            key_id: process.env.RAZORPAY_KEY_ID,
-            key_secret: process.env.RAZORPAY_KEY_SECRET,
+          await runWithSystemTenantAccess(async () => {
+            await Category.deleteMany({ tenantId: createdTenantId });
+            await Product.deleteMany({ tenantId: createdTenantId });
+            await Table.deleteMany({ tenantId: createdTenantId });
+            await User.deleteMany({ tenantId: createdTenantId });
+            await Tenant.deleteOne({ _id: createdTenantId });
           });
-
-          // Create Razorpay customer
-          const customer = await razorpay.customers.create({
-            name: pending.cafeName,
-            email: pending.email,
-            contact: pending.email, // Use email as contact for now
-            notes: {
-              tenant_id: tenant._id.toString(),
-            },
-          });
-          razorpayCustomer = customer.id;
-
-          // Create subscription (14-day trial, then ₹999/month)
-          const subscription = await razorpay.subscriptions.create({
-            plan_id: process.env.RAZORPAY_STARTER_PLAN_ID || 'plan_starter', // Should be created in Razorpay dashboard
-            customer_notify: 1,
-            total_count: 0, // Infinite cycles
-            quantity: 1,
-            addons: [],
-            notes: {
-              tenant_id: tenant._id.toString(),
-            },
-          });
-          razorpaySubscription = subscription.id;
-
-          // Update tenant with Razorpay details
-          tenant.razorpayCustomerId = razorpayCustomer;
-          tenant.razorpaySubscriptionId = razorpaySubscription;
-          tenant.subscription.razorpaySubscriptionId = razorpaySubscription;
-          tenant.razorpayCustomerId = razorpayCustomer;
-          tenant.subscription.razorpaySubscriptionId = razorpaySubscription;
-          tenant.subscription.razorpayCustomerId = razorpayCustomer;
-          tenant.subscription.subscriptionCreatedAt = new Date();
-          await tenant.save();
-
-        } catch (razorpayError) {
-          console.error('Razorpay subscription creation failed:', razorpayError.message);
-          // Don't fail the signup - let them configure payments later
+          console.warn(`[platformAuth] Cleaned up partial tenant records for ${createdTenantId} after provisioning error.`);
+        } catch (cleanupErr) {
+          console.error('[platformAuth] Cleanup error:', cleanupErr.message);
         }
       }
 
-
-      // 7. Send Welcome Email in background
-      const adminUrl = String(process.env.ADMIN_APP_URL || process.env.ADMIN_CLIENT_URL || 'https://admin-cafe.infinigrowsoftech.com').replace(/\/$/, '');
-      sendWelcomeEmail({
-        to: pending.email,
-        cafeName: pending.cafeName,
-        adminUrl,
-      }).catch((emailError) => {
-        console.error('Welcome email failed:', emailError.message);
-      });
-
-      // Cleanup pending record
-      await PendingSignup.deleteOne({ _id: pending._id });
-
-      // Generate access & refresh tokens
-      const accessToken = createAccessToken(user._id, tenant._id);
-      const refreshToken = createRefreshToken();
-      user.refreshTokenHash = hashRefreshToken(refreshToken);
-      user.refreshTokenExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
-      await user.save();
-
-      return { user, tenant, accessToken, refreshToken };
-    });
-
-    setSessionCookies(res, result.accessToken, result.refreshToken);
-
-    res.status(201).json({
-      token: result.accessToken,
-      user: {
-        id: result.user._id,
-        name: result.user.name,
-        email: result.user.email,
-        role: result.user.role,
-        tenantId: result.tenant._id,
-      },
-      tenant: {
-        id: result.tenant._id,
-        name: result.tenant.name,
-        slug: result.tenant.slug,
-        plan: result.tenant.plan,
-        subscription: result.tenant.subscription,
-      },
-    });
-  } catch (error) {
-    if (error.message === 'SLUG_TAKEN') {
-      return res.status(400).json({ error: 'This café URL is already taken. Please choose another one.' });
+      console.error('[platformAuth verify-email error]:', error);
+      if (error.message === 'SLUG_TAKEN') {
+        return res.status(400).json({ error: 'This café URL is already taken. Please choose another one.' });
+      }
+      if (error.message === 'EMAIL_TAKEN') {
+        return res.status(400).json({ error: 'An account with this email already exists. Please sign in.' });
+      }
+      next(error);
     }
-    if (error.message === 'EMAIL_TAKEN') {
-      return res.status(400).json({ error: 'An account with this email already exists. Please sign in.' });
-    }
-    next(error);
-  }
-});
+  });
 
 export default router;

@@ -87,7 +87,9 @@ router.post('/webhook', async (req, res, next) => {
       }
 
       if (!verifyWebhookSignatureForTenant(rawBody, signature, tenant)) {
-        return res.status(400).json({ error: 'Invalid Razorpay webhook signature.' });
+        const sigError = new Error('Invalid Razorpay webhook signature.');
+        sigError.status = 400;
+        throw sigError;
       }
 
       if (event === 'subscription.charged') {

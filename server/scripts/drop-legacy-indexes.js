@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+dotenv.config({ path: './.env' });
 
-const dropObsoleteTenantIndexes = async (db) => {
+export const dropObsoleteTenantIndexes = async (db) => {
   const legacyUniqueIndexes = [
     { collection: 'categories', indexName: 'name_1' },
     { collection: 'tables', indexName: 'tableNumber_1' },
@@ -18,25 +20,26 @@ const dropObsoleteTenantIndexes = async (db) => {
       const indexes = await coll.indexes().catch(() => []);
       const exists = indexes.find((idx) => idx.name === item.indexName && idx.unique);
       if (exists) {
+        console.log(`Dropping obsolete unique index '${item.indexName}' on '${item.collection}'...`);
         await coll.dropIndex(item.indexName);
-        console.log(`🧹 Dropped obsolete unique index '${item.indexName}' on '${item.collection}'`);
+        console.log(`Successfully dropped '${item.indexName}' on '${item.collection}'.`);
       }
-    } catch {
-      // Index might not exist or already dropped
+    } catch (err) {
+      console.warn(`Could not drop '${item.indexName}' on '${item.collection}':`, err.message);
     }
   }
 };
 
-export const connectDB = async () => {
-  try {
-    const mongoUri = process.env.MONGO_URI;
-    if (!mongoUri) throw new Error('MONGO_URI is not configured. Add your MongoDB Atlas connection string.');
+async function run() {
+  await mongoose.connect(process.env.MONGO_URI);
+  console.log('DB connected.');
 
-    const conn = await mongoose.connect(mongoUri);
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-    await dropObsoleteTenantIndexes(conn.connection.db);
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error.message);
-    process.exit(1);
-  }
-};
+  const db = mongoose.connection.db;
+  await dropObsoleteTenantIndexes(db);
+
+  await mongoose.disconnect();
+}
+
+if (process.argv[1]?.includes('drop-legacy-indexes')) {
+  run().catch(console.error);
+}
