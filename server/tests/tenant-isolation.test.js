@@ -144,7 +144,7 @@ test('Phase 0A migrates the legacy café and centrally isolates tenant data and 
   assert.equal(unknownResponse.status, 404, 'unknown tenant slugs receive a clean not-found response');
   await assert.rejects(rollbackPhase0A(), /other tenants exist/i);
 
-  for (const name of ['categories', 'products', 'tables', 'orders', 'payments', 'users']) {
+  for (const name of ['categories', 'products', 'tables', 'orders', 'payments', 'users', 'counters']) {
     await mongoose.connection.collection(name).deleteMany({ tenantId: second._id });
   }
   await Tenant.deleteOne({ _id: second._id });

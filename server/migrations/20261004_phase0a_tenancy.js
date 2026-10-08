@@ -111,9 +111,12 @@ export const rollbackPhase0A = async () => runWithSystemTenantAccess(async () =>
         const options = saved?.options || { unique: true, name: indexName(original) };
         if (saved?.options?.name) delete options.name;
         const equivalent = indexes.find((candidate) => JSON.stringify(candidate.key) === JSON.stringify(original));
-        if (equivalent && !equivalent.unique) await coll.dropIndex(equivalent.name);
-        if (saved) await coll.createIndex(saved.key, options);
-        else if (Object.keys(original).length) await coll.createIndex(original, options);
+        if (equivalent && !equivalent.unique && equivalent.name !== '_id_') await coll.dropIndex(equivalent.name);
+        const isOnlyId = Object.keys(original).length === 1 && original._id !== undefined;
+        if (!isOnlyId) {
+          if (saved) await coll.createIndex(saved.key, options);
+          else if (Object.keys(original).length) await coll.createIndex(original, options);
+        }
       }
     }
   }

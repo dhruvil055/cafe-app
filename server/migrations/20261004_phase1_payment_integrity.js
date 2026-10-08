@@ -34,10 +34,12 @@ const run = async () => {
     const currentIndex = paymentIndexes.find((index) => index.key?.[field] === 1 && (!index.unique || !index.sparse));
     if (currentIndex) await Payment.collection.dropIndex(currentIndex.name);
   }
-  await Payment.collection.createIndex({ orderId: 1 }, { unique: true, sparse: true, name: 'orderId_1' });
-  await Payment.collection.createIndex({ diningBillId: 1 }, { unique: true, sparse: true, name: 'diningBillId_1' });
-  await Payment.collection.createIndex({ idempotencyKey: 1 }, { unique: true, name: 'idempotencyKey_1' });
-  await Payment.collection.createIndex({ razorpayOrderId: 1 }, { sparse: true, name: 'razorpayOrderId_1' });
+  await Payment.collection.createIndexes([
+    { key: { orderId: 1 }, unique: true, sparse: true, name: 'orderId_1' },
+    { key: { diningBillId: 1 }, unique: true, sparse: true, name: 'diningBillId_1' },
+    { key: { idempotencyKey: 1 }, unique: true, name: 'idempotencyKey_1' },
+    { key: { razorpayOrderId: 1 }, sparse: true, name: 'razorpayOrderId_1' },
+  ]);
 
   for await (const order of Order.find().cursor()) {
     const status = order.paymentStatus === 'paid'

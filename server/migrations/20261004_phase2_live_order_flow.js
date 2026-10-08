@@ -7,8 +7,10 @@ const run = async () => {
   if (!process.env.MONGO_URI) throw new Error('MONGO_URI is required.');
   await mongoose.connect(process.env.MONGO_URI);
   const collection = mongoose.connection.collection('tableservicerequests');
-  await collection.createIndex({ status: 1, createdAt: -1 }, { name: 'status_1_createdAt_-1' });
-  await collection.createIndex({ diningSessionId: 1, type: 1, status: 1 }, { name: 'diningSessionId_1_type_1_status_1' });
+  await collection.createIndexes([
+    { key: { status: 1, createdAt: -1 }, name: 'status_1_createdAt_-1' },
+    { key: { diningSessionId: 1, type: 1, status: 1 }, name: 'diningSessionId_1_type_1_status_1' },
+  ]);
   console.log('Phase 2 migration complete. Table service request indexes are ready.');
 };
 

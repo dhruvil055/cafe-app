@@ -17,6 +17,13 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+          --memory 2gb
+    env:
+      NODE_ENV: test
+      MONGO_URI: mongodb://127.0.0.1:27017/cafe_ci_test
+      JWT_SECRET: ci_test_jwt_secret_minimum_32_characters_long_for_security
+      SUPER_ADMIN_EMAIL: superadmin@infinigrow.com
+      SUPER_ADMIN_PASSWORD: SuperAdminPassword123!
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

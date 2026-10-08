@@ -6,7 +6,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed": "node utils/seed.js",
-    "test": "node --test tests/*.test.js",
+    "test": "node --test --test-concurrency=1 tests/*.test.js",
     "migrate:phase1": "node migrations/20261004_phase1_payment_integrity.js",
     "migrate:phase2": "node migrations/20261004_phase2_live_order_flow.js",
     "migrate:phase3": "node migrations/20261004_phase3_admin_security.js",
