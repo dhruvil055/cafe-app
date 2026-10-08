@@ -28,6 +28,7 @@ const productSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 productSchema.index({ name: 'text', description: 'text' });
+productSchema.index({ tenantId: 1, category: 1, available: 1 });
 productSchema.index({ category: 1, available: 1 });
 productSchema.index({ popular: 1 });
 productSchema.index({ availableFrom: 1, availableUntil: 1 });

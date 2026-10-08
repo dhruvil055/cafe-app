@@ -16,8 +16,28 @@ const RETRY_DELAY_MS = 1000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+import { getResolvedTenantSlug, getResolvedTenantId } from '../utils/tenantHelper';
+import useCartStore from '../context/cartStore';
+
 api.interceptors.request.use((config) => {
   config._retryCount = config._retryCount ?? 0;
+  const tenantSlug = getResolvedTenantSlug();
+  if (tenantSlug && !config.headers['X-Tenant-Slug'] && !config.headers['x-tenant-slug']) {
+    config.headers['X-Tenant-Slug'] = tenantSlug;
+  }
+  const tenantId = getResolvedTenantId();
+  if (tenantId && !config.headers['X-Tenant-Id'] && !config.headers['x-tenant-id']) {
+    config.headers['X-Tenant-Id'] = tenantId;
+  }
+  try {
+    const tableToken =
+      new URLSearchParams(window.location.search).get('tableToken') ||
+      useCartStore.getState()?.tableToken ||
+      sessionStorage.getItem('cafe_table_token');
+    if (tableToken && !config.headers['X-Table-Token'] && !config.headers['x-table-token']) {
+      config.headers['X-Table-Token'] = tableToken;
+    }
+  } catch {}
   return config;
 });
 

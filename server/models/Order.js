@@ -117,6 +117,8 @@ orderSchema.index({ tenantId: 1, orderNumber: 1 }, { unique: true });
 orderSchema.index({ tenantId: 1, idempotencyKey: 1 }, { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } });
 orderSchema.index({ tenantId: 1, accessTokenHash: 1 }, { unique: true });
 orderSchema.index({ diningSessionId: 1, createdAt: -1 });
+orderSchema.index({ tenantId: 1, orderStatus: 1, createdAt: -1 });
+orderSchema.index({ tenantId: 1, createdAt: -1 });
 orderSchema.index({ tableNumber: 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1, createdAt: -1 });
 orderSchema.index({ paymentStatus: 1 });

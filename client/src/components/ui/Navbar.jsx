@@ -7,11 +7,11 @@ import useCartStore, { cartItemCount } from '../../context/cartStore';
 
 const NAV_LINKS = [
   { to: '/menu', label: 'Menu', icon: UtensilsCrossed },
-  { to: '/about', label: 'Our Story', icon: Coffee },
+  { to: '/about', label: 'About', icon: Coffee },
   { to: '/offers', label: 'Offers', icon: Sparkles },
-  { to: '/gallery', label: 'Moments', icon: Image },
+  { to: '/gallery', label: 'Gallery', icon: Image },
   { to: '/contact', label: 'Contact', icon: Phone },
-  { to: '/orders', label: 'My Orders', icon: Clock },
+  { to: '/orders', label: 'Orders', icon: Clock },
 ];
 
 export default function Navbar({ variant = 'default' }) {
@@ -87,7 +87,7 @@ export default function Navbar({ variant = 'default' }) {
                 {tenant.name}
               </span>
               <span className="text-[10px] uppercase tracking-[0.2em] text-brew-400 font-semibold leading-none">
-                Artisanal Café
+                {tenant.tagline || 'Artisanal Café'}
               </span>
             </div>
           </Link>
@@ -126,9 +126,9 @@ export default function Navbar({ variant = 'default' }) {
 
         {/* Quick Actions (Scan QR, Cart, Mobile Hamburger) */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Table indicator or scan button */}
+          {/* Table indicator or scan button — visible on all screen sizes */}
           {tableNumber ? (
-            <div className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${
+            <div className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold border ${
               isDark ? 'bg-brew-500/15 border-brew-400/40 text-brew-200' : 'bg-brew-50 border-brew-200 text-brew-800'
             }`}>
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -139,14 +139,14 @@ export default function Navbar({ variant = 'default' }) {
               type="button"
               onClick={openScanner}
               aria-label="Scan Table QR Code"
-              className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition active:scale-95 ${
+              className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition active:scale-95 ${
                 isDark
                   ? 'border-brew-400/50 bg-brew-500/20 text-cream hover:bg-brew-500/30'
                   : 'border-espresso-200 bg-white text-espresso-800 hover:bg-espresso-50 shadow-xs'
               }`}
             >
-              <ScanLine size={14} className="text-brew-400" />
-              <span>Scan QR</span>
+              <ScanLine size={15} className="text-brew-400" />
+              <span className="hidden sm:inline">Scan QR</span>
             </button>
           )}
 

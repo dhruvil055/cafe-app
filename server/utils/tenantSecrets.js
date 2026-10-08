@@ -40,6 +40,8 @@ export const publicTenantSettings = (tenant) => {
     status: tenant.status || 'active',
     name: tenant.settings?.cafeName || tenant.name || 'Café',
     logoUrl: tenant.settings?.logoUrl || '',
+    heroImageUrl: tenant.settings?.heroImageUrl || '',
+    tagline: tenant.settings?.tagline || '',
     primaryColor: tenant.settings?.primaryColor || '#c96b18',
     accentColor: tenant.settings?.accentColor || '#1a0f08',
     currency: tenant.settings?.currency || 'INR',

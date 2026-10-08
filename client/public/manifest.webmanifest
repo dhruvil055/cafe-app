@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Brewhaus Café",
-  "short_name": "Brewhaus",
-  "description": "Browse the Brewhaus menu and order from your table.",
+  "name": "Artisanal Café",
+  "short_name": "Café",
+  "description": "Browse the café menu and order directly from your table.",
   "start_url": "/menu",
   "scope": "/",
   "display": "standalone",

@@ -1,25 +1,70 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import Tenant from '../models/Tenant.js';
 import { protect, authorizeRoles } from '../middleware/auth.js';
 import { decryptTenantCredentials, encryptTenantCredentials, publicTenantSettings } from '../utils/tenantSecrets.js';
+import { verifyTableQrToken } from '../utils/tableQr.js';
 
 const router = express.Router();
 
 router.get('/public', async (req, res, next) => {
   try {
-    let tenant = req.tenant;
-    if (!tenant) {
-      const defaultSlug = String(process.env.TENANT_DEFAULT_SLUG || 'brewhaus').toLowerCase();
-      const slug = req.query?.slug || req.headers['x-tenant-slug'] || defaultSlug;
-      tenant = await Tenant.findOne({ slug: String(slug).toLowerCase() }).lean();
-      if (!tenant) {
-        tenant = await Tenant.findOne({ status: 'active' }).lean();
+    let tenant = null;
+
+    // 1. Check tableToken first if provided in query or header
+    const tableToken = req.query?.tableToken || req.headers['x-table-token'];
+    if (tableToken) {
+      const claims = verifyTableQrToken(tableToken);
+      if (claims?.tenantId && mongoose.isValidObjectId(claims.tenantId)) {
+        tenant = await Tenant.findById(claims.tenantId).lean();
       }
     }
+
+    // 2. Check cafe / cafeId / tenant / slug query or headers
     if (!tenant) {
-      return res.status(404).json({ error: 'Café not found' });
+      const identifier = String(
+        req.query?.cafe ||
+        req.query?.cafeId ||
+        req.query?.slug ||
+        req.query?.tenant ||
+        req.headers['x-tenant-id'] ||
+        req.headers['x-tenant-slug'] ||
+        ''
+      ).trim();
+
+      if (identifier) {
+        if (mongoose.isValidObjectId(identifier)) {
+          tenant = await Tenant.findById(identifier).lean();
+        }
+        if (!tenant) {
+          tenant = await Tenant.findOne({ slug: identifier.toLowerCase() }).lean();
+        }
+      }
     }
-    return res.set('Cache-Control', 'private, max-age=60').json({ tenant: publicTenantSettings(tenant) });
+
+    // 3. Fall back to req.tenant (resolved from subdomain / host by tenantResolver)
+    if (!tenant && req.tenant) {
+      tenant = req.tenant;
+    }
+
+    // NEVER fall back to another cafe or first active tenant!
+    if (!tenant) {
+      return res.status(404).json({
+        error: 'Café not found. Please scan a valid table QR code or check the URL.',
+        code: 'TENANT_NOT_FOUND',
+      });
+    }
+
+    if (tenant.status !== 'active') {
+      return res.status(423).json({
+        error: 'This café account is suspended.',
+        code: 'TENANT_SUSPENDED',
+      });
+    }
+
+    return res.set('Cache-Control', 'private, no-cache').json({
+      tenant: publicTenantSettings(tenant),
+    });
   } catch (error) {
     next(error);
   }
@@ -53,6 +98,9 @@ router.put('/settings', protect, authorizeRoles('owner'), async (req, res, next)
     if (!/^#[0-9a-f]{6}$/i.test(primaryColor) || !/^#[0-9a-f]{6}$/i.test(accentColor)) return res.status(400).json({ error: 'Brand colors must be six-digit hex colors.' });
     const logoUrl = String(input.logoUrl || '').trim();
     if (logoUrl) { try { if (!['http:', 'https:'].includes(new URL(logoUrl).protocol)) throw new Error('invalid'); } catch { return res.status(400).json({ error: 'Logo URL must use HTTP or HTTPS.' }); } }
+    const heroImageUrl = String(input.heroImageUrl || '').trim();
+    if (heroImageUrl) { try { if (!['http:', 'https:'].includes(new URL(heroImageUrl).protocol)) throw new Error('invalid'); } catch { return res.status(400).json({ error: 'Hero image URL must use HTTP or HTTPS.' }); } }
+    const tagline = String(input.tagline || '').trim().slice(0, 200);
     const contactEmail = String(input.contactEmail || '').trim().toLowerCase();
     if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) return res.status(400).json({ error: 'Contact email is invalid.' });
     const openingHours = input.openingHours && typeof input.openingHours === 'object' && !Array.isArray(input.openingHours) ? input.openingHours : {};
@@ -60,6 +108,8 @@ router.put('/settings', protect, authorizeRoles('owner'), async (req, res, next)
       name,
       'settings.cafeName': name,
       'settings.logoUrl': logoUrl.slice(0, 2048),
+      'settings.heroImageUrl': heroImageUrl.slice(0, 2048),
+      'settings.tagline': tagline,
       'settings.primaryColor': primaryColor,
       'settings.accentColor': accentColor,
       'settings.currency': currency,

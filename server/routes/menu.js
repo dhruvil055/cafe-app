@@ -24,11 +24,12 @@ export const clearMenuCache = () => {
 // GET /api/menu — public
 router.get('/', async (req, res) => {
   try {
-    res.set('Cache-Control', 'public, max-age=20, s-maxage=60, stale-while-revalidate=30');
+    res.set('Cache-Control', 'private, no-cache');
+    res.set('Vary', 'X-Tenant-Slug, X-Tenant-Id, X-Table-Token, Origin');
     const { category, search, sort, popular } = req.query;
 
-    // Check memory cache for identical query
-    const cacheKey = JSON.stringify({ category, search, sort, popular });
+    // Check memory cache for identical query scoped by tenant
+    const cacheKey = JSON.stringify({ tenantId: String(req.tenantId || ''), category, search, sort, popular });
     const cached = menuCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
       return res.json(cached.data);

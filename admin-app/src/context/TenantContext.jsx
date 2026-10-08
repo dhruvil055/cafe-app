@@ -24,7 +24,9 @@ export function TenantProvider({ children }) {
       if (status === 423) {
         setTenantError({ status: 423, title: 'Café Account Suspended', message });
       } else if (status === 404) {
-        setTenantError({ status: 404, title: 'Café Not Found', message });
+        // When on localhost or generic admin domain, fallback cleanly without blocking the login screen
+        setTenant(fallback);
+        setTenantError(null);
       }
     });
     return () => { active = false; };

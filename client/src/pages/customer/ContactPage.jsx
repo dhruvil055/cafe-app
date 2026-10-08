@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   ArrowDown,
-  ArrowLeft,
   ArrowRight,
   Phone,
   Mail,
@@ -295,61 +294,43 @@ export default function ContactPage() {
         }}
         className="contact-hero relative isolate min-h-[720px] overflow-hidden bg-espresso-950 text-cream sm:min-h-[780px]"
       >
-        {/* Background Video & Fallback Poster */}
-        <img
-          src="/images/about/brewhaus-cinematic-hero.webp"
-          alt={`Barista preparing handcrafted coffee at ${tenant.name}`}
-          className="absolute inset-0 z-0 h-full w-full object-cover"
-        />
-        <video
-          className="absolute inset-0 z-0 h-full w-full object-cover"
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          poster="/images/about/brewhaus-cinematic-hero.webp"
-          onError={(event) => {
-            event.currentTarget.style.display = 'none';
-          }}
-          aria-hidden="true"
-        >
-          <source src="/BrewHaus.mp4" type="video/mp4" />
-        </video>
+        {/* Background Backdrop: Brewhaus video only for Brewhaus slug, else tenant hero image or luxury gradient */}
+        {tenant.slug === 'brewhaus' ? (
+          <>
+            <img
+              src="/images/about/brewhaus-cinematic-hero.webp"
+              alt={`Barista preparing handcrafted coffee at ${tenant.name}`}
+              className="absolute inset-0 z-0 h-full w-full object-cover"
+            />
+            <video
+              className="absolute inset-0 z-0 h-full w-full object-cover"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              poster="/images/about/brewhaus-cinematic-hero.webp"
+              onError={(event) => {
+                event.currentTarget.style.display = 'none';
+              }}
+              aria-hidden="true"
+            >
+              <source src="/BrewHaus.mp4" type="video/mp4" />
+            </video>
+          </>
+        ) : tenant.heroImageUrl ? (
+          <img
+            src={tenant.heroImageUrl}
+            alt={`Atmosphere at ${tenant.name}`}
+            className="absolute inset-0 z-0 h-full w-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 z-0 bg-gradient-to-br from-espresso-950 via-espresso-900 to-[#1b0d06]" />
+        )}
 
         {/* Ambient Gradient Overlays for Luxury Contrast */}
         <div className="absolute inset-0 z-10 bg-[linear-gradient(90deg,rgba(13,8,4,0.96)_0%,rgba(13,8,4,0.80)_48%,rgba(13,8,4,0.35)_100%)]" />
         <div className="absolute inset-0 z-10 bg-[linear-gradient(0deg,rgba(13,8,4,0.88)_0%,transparent_50%)]" />
-
-        {/* Navigation Bar */}
-        <nav
-          className="absolute inset-x-0 top-0 z-30 mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6 lg:px-8"
-          aria-label="Contact page navigation"
-        >
-          <Link
-            to="/menu"
-            className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/30 px-3.5 py-2 text-xs font-medium text-cream backdrop-blur-md transition-all duration-300 hover:bg-white/15 active:scale-95 sm:px-4 sm:text-sm"
-          >
-            <ArrowLeft size={15} /> <span>Back to Menu</span>
-          </Link>
-          <div className="flex items-center gap-4 text-xs font-medium text-cream/85 sm:gap-6 sm:text-sm">
-            <Link to="/about" className="transition hover:text-brew-200">
-              About
-            </Link>
-            <Link to="/offers" className="transition hover:text-brew-200">
-              Offers
-            </Link>
-            <Link to="/gallery" className="transition hover:text-brew-200">
-              Gallery
-            </Link>
-            <Link
-              to="/contact"
-              className="rounded-full bg-white/10 px-3 py-1 text-brew-200 backdrop-blur-sm"
-            >
-              Contact
-            </Link>
-          </div>
-        </nav>
 
         {/* Hero Content */}
         <div className="relative z-20 mx-auto flex min-h-[720px] max-w-7xl items-center px-4 pb-20 pt-28 sm:min-h-[780px] sm:px-6 lg:px-8">
@@ -407,8 +388,8 @@ export default function ContactPage() {
 
           <div className="rounded-t-[9rem] border border-white/25 bg-cream/10 p-2.5 shadow-[0_30px_60px_rgba(0,0,0,0.35)] backdrop-blur-md">
             <img
-              src="/images/about/brewhaus-story-cup.webp"
-          alt={`Handcrafted coffee at ${tenant.name}`}
+              src={tenant.heroImageUrl || (tenant.slug === 'brewhaus' ? '/images/about/brewhaus-story-cup.webp' : '/images/coffee-placeholder.svg')}
+              alt={`Handcrafted coffee at ${tenant.name}`}
               className="h-[22rem] w-full rounded-t-[8.3rem] object-cover object-bottom"
             />
           </div>
@@ -826,27 +807,38 @@ export default function ContactPage() {
       {/* 4. CINEMATIC CAFÉ ATMOSPHERE SECTION */}
       {/* ========================================================================= */}
       <section className="relative isolate overflow-hidden bg-espresso-950 px-4 py-24 text-cream sm:px-6 lg:px-8">
-        <img
-          src="/images/about/brewhaus-cinematic-hero.webp"
-          alt={`Atmosphere at ${tenant.name}`}
-          className="absolute inset-0 -z-20 h-full w-full object-cover opacity-40"
-          loading="lazy"
-        />
-        <video
-          className="absolute inset-0 -z-10 h-full w-full object-cover opacity-65 mix-blend-luminosity"
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="none"
-          poster="/images/about/brewhaus-cinematic-hero.webp"
-          onError={(event) => {
-            event.currentTarget.style.display = 'none';
-          }}
-          aria-hidden="true"
-        >
-          <source src="/BrewHaus.mp4" type="video/mp4" />
-        </video>
+        {tenant.slug === 'brewhaus' ? (
+          <>
+            <img
+              src="/images/about/brewhaus-cinematic-hero.webp"
+              alt={`Atmosphere at ${tenant.name}`}
+              className="absolute inset-0 -z-20 h-full w-full object-cover opacity-40"
+              loading="lazy"
+            />
+            <video
+              className="absolute inset-0 -z-10 h-full w-full object-cover opacity-65 mix-blend-luminosity"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="none"
+              poster="/images/about/brewhaus-cinematic-hero.webp"
+              onError={(event) => {
+                event.currentTarget.style.display = 'none';
+              }}
+              aria-hidden="true"
+            >
+              <source src="/BrewHaus.mp4" type="video/mp4" />
+            </video>
+          </>
+        ) : tenant.heroImageUrl ? (
+          <img
+            src={tenant.heroImageUrl}
+            alt={`Atmosphere at ${tenant.name}`}
+            className="absolute inset-0 -z-20 h-full w-full object-cover opacity-40"
+            loading="lazy"
+          />
+        ) : null}
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-espresso-950 via-espresso-950/60 to-espresso-950/80" />
 
         <motion.div {...reveal} className="mx-auto max-w-3xl text-center">
@@ -942,12 +934,21 @@ export default function ContactPage() {
       {/* 6. CALL TO ACTION SECTION */}
       {/* ========================================================================= */}
       <section className="relative isolate overflow-hidden bg-espresso-950 px-4 py-24 text-center text-cream sm:px-6 sm:py-32 lg:px-8">
-        <img
-          src="/images/about/brewhaus-story-cup.webp"
-          alt={`${tenant.name} coffee experience`}
-          className="absolute inset-0 -z-20 h-full w-full object-cover opacity-35"
-          loading="lazy"
-        />
+        {tenant.slug === 'brewhaus' ? (
+          <img
+            src="/images/about/brewhaus-story-cup.webp"
+            alt={`${tenant.name} coffee experience`}
+            className="absolute inset-0 -z-20 h-full w-full object-cover opacity-35"
+            loading="lazy"
+          />
+        ) : tenant.heroImageUrl ? (
+          <img
+            src={tenant.heroImageUrl}
+            alt={`${tenant.name} coffee experience`}
+            className="absolute inset-0 -z-20 h-full w-full object-cover opacity-35"
+            loading="lazy"
+          />
+        ) : null}
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_center,rgba(154,96,49,0.45),rgba(13,8,4,0.96)_75%)]" />
 
         <motion.div {...reveal} className="mx-auto max-w-3xl">

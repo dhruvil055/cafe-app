@@ -32,6 +32,9 @@ import tenantRoutes from './routes/tenant.js';
 import platformAuthRoutes from './routes/platformAuth.js';
 import platformAdminRoutes from './routes/platformAdmin.js';
 import billingRoutes from './routes/billing.js';
+import publicCafesRoutes from './routes/publicCafes.js';
+import cafesRoutes from './routes/cafes.js';
+import adminCafesRoutes from './routes/adminCafes.js';
 import { startCampaignScheduler } from './services/campaignRunner.js';
 import { isEmailConfigured } from './services/emailService.js';
 import { requestContext } from './middleware/requestContext.js';
@@ -133,7 +136,12 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'idempotency-key', 'X-Requested-With', 'X-Order-Access-Token'],
+    allowedHeaders: [
+      'Content-Type', 'Authorization', 'Idempotency-Key', 'idempotency-key',
+      'X-Requested-With', 'X-Order-Access-Token',
+      'X-Tenant-Slug', 'x-tenant-slug', 'X-Tenant-Id', 'x-tenant-id', 'X-Table-Token', 'x-table-token',
+      'X-Cafe-ID', 'x-cafe-id', 'X-QR-TOKEN', 'x-qr-token'
+    ],
     maxAge: 86400,
   }));
 
@@ -184,6 +192,7 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
     app.use('/api/session', publicLimiter);
     app.use('/api/tables', publicLimiter);
     app.use('/api/gallery', publicLimiter);
+    app.use('/api/public', publicLimiter);
 
     // Strict on sensitive endpoints
     app.use('/api/auth', strictLimiter);
@@ -226,6 +235,9 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
   app.use('/api/platform/admin', platformAdminRoutes);
   app.use('/api/billing', billingRoutes);
   app.use('/api/tenant/billing', billingRoutes);
+  app.use('/api/public', publicCafesRoutes);
+  app.use('/api/cafes', cafesRoutes);
+  app.use('/api/admin', adminCafesRoutes);
   app.get('/api/tenant/export', (req, res, next) => res.redirect(307, '/api/tenant/billing/export'));
 
   app.get('/', (req, res) => {
@@ -278,7 +290,14 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
 </body>
 </html>`);
     }
-    res.status(404).json({ error: 'Route not found', code: 'NOT_FOUND' });
+    res.status(404).json({
+      success: false,
+      error: {
+        code: 'NOT_FOUND',
+        message: 'Route not found',
+      },
+      code: 'NOT_FOUND',
+    });
   });
 
   app.use((err, req, res, next) => {
@@ -294,9 +313,19 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
       console.error(`[HTTP ${status} Error] ${req.method} ${req.originalUrl || req.url}:`, err);
       process.stderr.write(`${JSON.stringify({ timestamp: new Date().toISOString(), level: 'error', event: 'http.error', requestId: req.requestId, status, name: err.name || 'Error', message: err.message })}\n`);
     }
+    const errorMessage = status >= 500
+      ? (process.env.NODE_ENV === 'development' ? err.message : 'Internal server error')
+      : (err.message || 'Request failed.');
+    const errorCode = err.code || (status >= 500 ? 'INTERNAL_ERROR' : 'REQUEST_ERROR');
+
     res.status(status).json({
-      error: status >= 500 ? (process.env.NODE_ENV === 'development' ? err.message : 'Internal server error') : (err.message || 'Request failed.'),
-      code: err.code || (status >= 500 ? 'INTERNAL_ERROR' : 'REQUEST_ERROR'),
+      success: false,
+      error: {
+        code: errorCode,
+        message: errorMessage,
+        ...(err.details && { details: err.details }),
+      },
+      code: errorCode,
       requestId: req.requestId,
       ...(process.env.NODE_ENV === 'development' && status >= 500 && { stack: err.stack }),
     });

@@ -18,6 +18,8 @@ const tenantSchema = new mongoose.Schema({
   settings: {
     cafeName: { type: String, trim: true, maxlength: 100, default: '' },
     logoUrl: { type: String, trim: true, maxlength: 2048, default: '' },
+    heroImageUrl: { type: String, trim: true, maxlength: 2048, default: '' },
+    tagline: { type: String, trim: true, maxlength: 200, default: '' },
     primaryColor: { type: String, match: /^#[0-9a-fA-F]{6}$/, default: '#c96b18' },
     accentColor: { type: String, match: /^#[0-9a-fA-F]{6}$/, default: '#1a0f08' },
     currency: { type: String, uppercase: true, match: /^[A-Z]{3}$/, default: 'INR' },

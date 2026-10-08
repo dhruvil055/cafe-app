@@ -62,11 +62,27 @@ export const protect = async (req, res, next) => {
   try {
     const token = getTokenFromRequest(req);
     if (!token) {
-      return res.status(401).json({ error: 'Access denied. No token provided.' });
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'UNAUTHENTICATED',
+          message: 'Authentication is required.',
+        },
+        message: 'Authentication is required.',
+      });
     }
 
     const decoded = jwt.verify(token, getJwtSecret());
-    if (decoded.tokenUse !== 'access') return res.status(401).json({ error: 'Invalid access token.' });
+    if (decoded.tokenUse !== 'access') {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'INVALID_TOKEN',
+          message: 'Authentication token is invalid or expired.',
+        },
+        message: 'Authentication token is invalid or expired.',
+      });
+    }
     if (!req.tenantId && decoded.tenantId) {
       req.tenantId = decoded.tenantId;
     }
@@ -78,7 +94,14 @@ export const protect = async (req, res, next) => {
       return User.findById(decoded.id).select('-password');
     });
     if (!user) {
-      return res.status(401).json({ error: 'User not found.' });
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'UNAUTHENTICATED',
+          message: 'User not found.',
+        },
+        message: 'User not found.',
+      });
     }
 
     if (user.tenantId && req.tenantId && String(user.tenantId) !== String(req.tenantId)) {
@@ -92,12 +115,26 @@ export const protect = async (req, res, next) => {
     return tenantFromAuthenticatedUser(req, res, next);
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ error: 'Token expired. Please login again.' });
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'INVALID_TOKEN',
+          message: 'Authentication token is invalid or expired.',
+        },
+        message: 'Token expired. Please login again.',
+      });
     }
     if (error.message.includes('JWT secret')) {
       return res.status(500).json({ error: 'Server authentication is misconfigured.' });
     }
-    return res.status(401).json({ error: 'Invalid token.' });
+    return res.status(401).json({
+      success: false,
+      error: {
+        code: 'INVALID_TOKEN',
+        message: 'Authentication token is invalid or expired.',
+      },
+      message: 'Invalid token.',
+    });
   }
 };
 

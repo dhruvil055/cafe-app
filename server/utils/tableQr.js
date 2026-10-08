@@ -50,4 +50,29 @@ export const verifyTableQrToken = (token, now = Date.now()) => {
   }
 };
 
+export const verifyTableQrTokenDetailed = (token, now = Date.now()) => {
+  if (typeof token !== 'string') return { valid: false, reason: 'INVALID' };
+  const [payload, suppliedSignature, extra] = token.split('.');
+  if (!payload || !suppliedSignature || extra !== undefined) return { valid: false, reason: 'INVALID' };
+  let expected;
+  try {
+    expected = sign(payload);
+  } catch {
+    return { valid: false, reason: 'INVALID' };
+  }
+  const supplied = Buffer.from(suppliedSignature);
+  const expectedBytes = Buffer.from(expected);
+  if (supplied.length !== expectedBytes.length || !crypto.timingSafeEqual(supplied, expectedBytes)) return { valid: false, reason: 'INVALID' };
+  try {
+    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (!mongoose.isValidObjectId(claims.tableId) || !mongoose.isValidObjectId(claims.tenantId) || !Number.isInteger(claims.exp)) return { valid: false, reason: 'INVALID' };
+    if (claims.exp <= Math.floor(now / 1000)) {
+      return { valid: false, reason: 'EXPIRED', tableId: claims.tableId, tenantId: claims.tenantId, expiresAt: new Date(claims.exp * 1000) };
+    }
+    return { valid: true, tableId: claims.tableId, tenantId: claims.tenantId, expiresAt: new Date(claims.exp * 1000) };
+  } catch {
+    return { valid: false, reason: 'INVALID' };
+  }
+};
+
 export const TABLE_QR_TTL_SECONDS = TOKEN_TTL_SECONDS;

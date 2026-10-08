@@ -62,32 +62,32 @@ export default function Footer() {
             <ul className="mt-4 space-y-2.5 text-sm">
               <li>
                 <Link to="/menu" className="hover:text-cream transition-colors">
-                  Gourmet Menu
+                  Menu
                 </Link>
               </li>
               <li>
                 <Link to="/about" className="hover:text-cream transition-colors">
-                  Our Story &amp; Craft
+                  About
                 </Link>
               </li>
               <li>
                 <Link to="/offers" className="hover:text-cream transition-colors">
-                  Daily Specials &amp; Offers
+                  Offers
                 </Link>
               </li>
               <li>
                 <Link to="/gallery" className="hover:text-cream transition-colors">
-                  Community Moments
+                  Gallery
                 </Link>
               </li>
               <li>
                 <Link to="/contact" className="hover:text-cream transition-colors">
-                  Contact Us
+                  Contact
                 </Link>
               </li>
               <li>
                 <Link to="/orders" className="hover:text-cream transition-colors">
-                  Live Order Status
+                  Orders
                 </Link>
               </li>
             </ul>

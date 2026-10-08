@@ -113,6 +113,9 @@ router.post('/', async (req, res) => {
     if (!table) {
       return res.status(400).json({ error: 'Invalid or inactive table.' });
     }
+    if (table.tenantId && String(table.tenantId) !== String(req.tenantId)) {
+      return res.status(403).json({ error: 'Table does not belong to this café.' });
+    }
     const normalizedTableNumber = table.tableNumber;
     if (tableNumber !== undefined && Number(tableNumber) !== normalizedTableNumber) {
       return res.status(400).json({ error: 'Table number does not match the signed table QR token.' });
@@ -164,8 +167,8 @@ router.post('/', async (req, res) => {
     const customerEmail = typeof customer.email === 'string' ? customer.email.trim().toLowerCase() : '';
     const explicitMarketingConsent = customer.marketingConsent === true;
 
-    // Validate and fetch all product prices from database
-    const validatedItems = await validateAndFetchProductPrices(items, Product);
+    // Validate and fetch all product prices from database (with strict tenant isolation)
+    const validatedItems = await validateAndFetchProductPrices(items, Product, req.tenantId);
 
     // Guard against rapid duplicate clicks (exact same name, phone, table, within 2 seconds)
     const recentDuplicate = await Order.findOne({

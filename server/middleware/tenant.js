@@ -2,33 +2,27 @@ import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import Tenant from '../models/Tenant.js';
 import { runWithTenant } from '../utils/tenantContext.js';
+import { verifyTableQrToken } from '../utils/tableQr.js';
 
 const cleanHost = (value) => String(value || '').split(',')[0].trim().split(':')[0].toLowerCase();
 
 const getSlugFromHost = (host) => {
-  const defaultSlug = String(process.env.TENANT_DEFAULT_SLUG || 'brewhaus').toLowerCase();
   const baseDomain = String(process.env.TENANT_BASE_DOMAIN || '').toLowerCase().replace(/^\.+|\.+$/g, '');
   if (baseDomain && host.endsWith(`.${baseDomain}`)) {
     const prefix = host.slice(0, -(baseDomain.length + 1));
-    if (prefix && !prefix.includes('.')) return prefix;
+    if (prefix && !prefix.includes('.') && prefix !== 'admin' && prefix !== 'www' && prefix !== 'cafe') return prefix;
   }
-  // Backward-compatible mapping for existing customer/admin domains and cloud deployment hosts.
-  if (
-    ['cafe.infinigrowsoftech.com', 'admin-cafe.infinigrowsoftech.com', 'localhost', '127.0.0.1'].includes(host) ||
-    host.includes('onrender.com') ||
-    host.includes('vercel.app')
-  ) {
-    return defaultSlug;
+  if (host.endsWith('.localhost')) {
+    const prefix = host.slice(0, -'.localhost'.length);
+    if (prefix && !prefix.includes('.') && prefix !== 'admin' && prefix !== 'www' && prefix !== 'cafe') return prefix;
   }
-  if (host.endsWith('.localhost')) return host.split('.')[0];
-  return defaultSlug;
+  return null;
 };
 
 const isCustomerTenantHost = (host) => {
-  if (host === 'cafe.infinigrowsoftech.com') return true;
   if (host.endsWith('.localhost')) {
     const prefix = host.slice(0, -'.localhost'.length);
-    return Boolean(prefix) && !prefix.includes('.') && prefix !== 'admin';
+    return Boolean(prefix) && !prefix.includes('.') && prefix !== 'admin' && prefix !== 'www' && prefix !== 'cafe';
   }
   const baseDomain = String(process.env.TENANT_BASE_DOMAIN || '').toLowerCase().replace(/^\.+|\.+$/g, '');
   return Boolean(baseDomain && host.endsWith(`.${baseDomain}`) && !host.slice(0, -(baseDomain.length + 1)).startsWith('admin.'));
@@ -41,7 +35,6 @@ export const tenantResolver = async (req, res, next) => {
     req.path === '/api/health' ||
     req.path.startsWith('/api/platform') ||
     req.path === '/api/billing/webhook' ||
-    req.path === '/api/tenant/public' ||
     req.path === '/api/auth/me' ||
     req.path === '/api/auth/refresh' ||
     req.path === '/api/auth/login' ||
@@ -52,25 +45,51 @@ export const tenantResolver = async (req, res, next) => {
     return next();
   }
   try {
-    const requestHost = cleanHost(req.get('x-forwarded-host') || req.get('host'));
-    let originHost = '';
-    try { originHost = cleanHost(new URL(req.get('origin')).hostname); } catch { originHost = ''; }
-    const explicitTenantSubdomain = (host) => {
-      if (host.endsWith('.localhost')) {
-        const prefix = host.slice(0, -'.localhost'.length);
-        return Boolean(prefix) && !prefix.includes('.') && prefix !== 'admin';
-      }
-      const baseDomain = String(process.env.TENANT_BASE_DOMAIN || '').toLowerCase().replace(/^\.+|\.+$/g, '');
-      if (!baseDomain || !host.endsWith(`.${baseDomain}`)) return false;
-      const prefix = host.slice(0, -(baseDomain.length + 1));
-      return Boolean(prefix) && !prefix.includes('.') && prefix !== 'admin';
-    };
-    // The API is hosted separately from the customer app; browser Origin carries its café subdomain.
-    const host = explicitTenantSubdomain(requestHost) ? requestHost
-      : (isCustomerTenantHost(originHost) ? originHost : requestHost);
-    let tenantId = null;
     let tenant = null;
-    if (req.path === '/api/payment/webhook') {
+    let tenantId = null;
+
+    // 1. Prioritize cryptographically signed tableToken (from query, header, or body)
+    const queryTableToken = req.query?.tableToken || req.headers['x-table-token'] || req.headers['x-qr-token'] || req.body?.tableToken || req.body?.qrToken;
+    if (queryTableToken) {
+      const claims = verifyTableQrToken(queryTableToken);
+      if (claims?.tenantId && mongoose.isValidObjectId(claims.tenantId)) {
+        tenant = await Tenant.findById(claims.tenantId).lean();
+        if (tenant) tenantId = tenant._id;
+      }
+    }
+
+    // 2. Direct cafe / tenant query parameters or headers
+    if (!tenant) {
+      const headerTenantId = req.headers['x-tenant-id'] || req.headers['x-cafe-id'];
+      const headerTenantSlug = req.headers['x-tenant-slug'];
+      const queryCafe = req.query?.cafe || req.query?.cafeId || req.query?.tenant || req.query?.slug || req.body?.cafeId || req.body?.tenantId;
+
+      if (queryCafe) {
+        const idOrSlug = String(queryCafe).trim();
+        if (mongoose.isValidObjectId(idOrSlug)) {
+          tenant = await Tenant.findById(idOrSlug).lean();
+        }
+        if (!tenant) {
+          tenant = await Tenant.findOne({ slug: idOrSlug.toLowerCase() }).lean();
+        }
+        if (tenant) tenantId = tenant._id;
+      } else if (headerTenantId && mongoose.isValidObjectId(headerTenantId)) {
+        tenant = await Tenant.findById(headerTenantId).lean();
+        if (tenant) tenantId = tenant._id;
+      } else if (headerTenantSlug) {
+        const rawSlug = String(headerTenantSlug).trim();
+        if (mongoose.isValidObjectId(rawSlug)) {
+          tenant = await Tenant.findById(rawSlug).lean();
+        }
+        if (!tenant) {
+          tenant = await Tenant.findOne({ slug: rawSlug.toLowerCase() }).lean();
+        }
+        if (tenant) tenantId = tenant._id;
+      }
+    }
+
+    // 3. Payment webhook lookup
+    if (!tenant && req.path === '/api/payment/webhook') {
       const payment = req.body?.payload?.payment?.entity;
       const refund = req.body?.payload?.refund?.entity;
       const collection = mongoose.connection.collection('payments');
@@ -81,25 +100,71 @@ export const tenantResolver = async (req, res, next) => {
       if (!tenant) return cleanTenantError(res, 404, 'Payment tenant not found.');
       tenantId = tenant._id;
     }
+
+    // 4. Authenticated staff/owner token
     const token = (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : req.cookies?.brewhaus_access_token) || '';
-    const customerHost = isCustomerTenantHost(host);
-    if (token && !customerHost) {
+    if (!tenant && token) {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || '');
         if (decoded.tokenUse === 'access' && decoded.tenantId) {
           tenant = await Tenant.findById(decoded.tenantId).lean();
           if (tenant) tenantId = tenant._id;
         }
-      } catch { /* The auth middleware returns the usual invalid-token response. */ }
+      } catch { /* Handled later by auth middleware */ }
     }
+
+    // 5. Hostname / Origin / Referer subdomain resolution
     if (!tenant) {
-      const slug = getSlugFromHost(host);
-      if (!slug) return cleanTenantError(res, 404, 'Café not found.');
-      tenant = await Tenant.findOne({ slug }).lean();
-      if (!tenant) return cleanTenantError(res, 404, 'Café not found.');
-      tenantId = tenant._id;
+      const requestHost = cleanHost(req.get('x-forwarded-host') || req.get('host'));
+      let originHost = '';
+      try { originHost = cleanHost(new URL(req.get('origin')).hostname); } catch { originHost = ''; }
+      let refererHost = '';
+      try { refererHost = cleanHost(new URL(req.get('referer')).hostname); } catch { refererHost = ''; }
+
+      const explicitTenantSubdomain = (h) => {
+        if (!h) return null;
+        if (h.endsWith('.localhost')) {
+          const prefix = h.slice(0, -'.localhost'.length);
+          return Boolean(prefix) && !prefix.includes('.') && prefix !== 'admin' ? prefix : null;
+        }
+        const baseDomain = String(process.env.TENANT_BASE_DOMAIN || '').toLowerCase().replace(/^\.+|\.+$/g, '');
+        if (!baseDomain || !h.endsWith(`.${baseDomain}`)) return null;
+        const prefix = h.slice(0, -(baseDomain.length + 1));
+        return Boolean(prefix) && !prefix.includes('.') && prefix !== 'admin' ? prefix : null;
+      };
+
+      const extractedSubdomain = explicitTenantSubdomain(requestHost) ||
+        explicitTenantSubdomain(originHost) ||
+        explicitTenantSubdomain(refererHost);
+
+      if (extractedSubdomain) {
+        tenant = await Tenant.findOne({ slug: extractedSubdomain }).lean();
+        if (tenant) tenantId = tenant._id;
+      }
+
+      if (!tenant) {
+        const host = explicitTenantSubdomain(requestHost) ? requestHost
+          : (isCustomerTenantHost(originHost) ? originHost : requestHost);
+        const slug = getSlugFromHost(host);
+        if (slug) {
+          tenant = await Tenant.findOne({ slug }).lean();
+          if (tenant) tenantId = tenant._id;
+        }
+      }
+    }
+
+    if (!tenant) {
+      if (
+        req.path.startsWith('/api/public') ||
+        req.path === '/api/cafes' ||
+        req.path.startsWith('/api/admin')
+      ) {
+        return next();
+      }
+      return cleanTenantError(res, 404, 'Café not found. Please scan a table QR code or specify a valid café.');
     }
     if (tenant.status !== 'active') return cleanTenantError(res, 423, 'This café account is suspended.');
+
     req.tenant = tenant;
     req.tenantId = tenantId;
     return runWithTenant(tenantId, next);

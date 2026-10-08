@@ -52,7 +52,7 @@ export const escapeRegex = (value) => {
  * Validate and fetch product prices from database.
  * Never trust client-supplied prices.
  */
-export const validateAndFetchProductPrices = async (items, Product) => {
+export const validateAndFetchProductPrices = async (items, Product, expectedTenantId = null) => {
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error('Order items are required.');
   }
@@ -88,6 +88,10 @@ export const validateAndFetchProductPrices = async (items, Product) => {
     const product = await Product.findById(productId);
     if (!product) {
       throw new Error(`Product not found: ${productId}`);
+    }
+
+    if (expectedTenantId && product.tenantId && String(product.tenantId) !== String(expectedTenantId)) {
+      throw new Error(`Product does not belong to this café: ${product.name}`);
     }
 
     if (!product.available) {

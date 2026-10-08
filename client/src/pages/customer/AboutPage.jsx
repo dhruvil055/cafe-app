@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import styles from './AboutPage.module.css';
 import { useTenant } from '../../context/TenantContext';
 import usePageMeta from '../../hooks/usePageMeta';
@@ -330,27 +330,6 @@ export default function AboutPage() {
 
   return (
     <div className={styles.pageWrapper}>
-      {/* Floating Top Navigation */}
-      <header className={styles.topNav} aria-label={`${tenant.name} navigation`}>
-        <Link to="/menu" className={styles.backBtn} aria-label="Back to Menu">
-          <ArrowLeft size={15} />
-          <span>Back to Menu</span>
-        </Link>
-        <Link to="/" className={styles.navBrand} aria-label={`${tenant.name} home`}>
-          {tenant.name.toUpperCase()}
-        </Link>
-        <nav className={styles.navLinks}>
-          <Link to="/menu" className={styles.navLink}>
-            Menu
-          </Link>
-          <Link to="/offers" className={styles.navLink}>
-            Offers
-          </Link>
-          <Link to="/contact" className={styles.navLink}>
-            Contact
-          </Link>
-        </nav>
-      </header>
 
       {/* Fixed Fullscreen Viewport */}
       <div className={styles.stickyViewport}>

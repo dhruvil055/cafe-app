@@ -14,6 +14,7 @@ export default function usePageMeta(titleOrOptions = {}, maybeDescription) {
   const tenant = useTenant();
   const brandName = tenant?.name || 'Café';
   const fullTitle = title ? `${title} | ${brandName}` : `${brandName} — Fine Coffee & Dining`;
+  const shareImage = tenant?.heroImageUrl || tenant?.logoUrl || '';
 
   useEffect(() => {
     document.title = fullTitle;
@@ -35,7 +36,11 @@ export default function usePageMeta(titleOrOptions = {}, maybeDescription) {
     }
     setMetaTag('property', 'og:title', fullTitle);
     setMetaTag('name', 'twitter:title', fullTitle);
-  }, [fullTitle, description]);
+    if (shareImage) {
+      setMetaTag('property', 'og:image', shareImage);
+      setMetaTag('name', 'twitter:image', shareImage);
+    }
+  }, [fullTitle, description, shareImage]);
 
   return (
     <Helmet>
@@ -45,6 +50,8 @@ export default function usePageMeta(titleOrOptions = {}, maybeDescription) {
       {description && <meta property="og:description" content={description} />}
       <meta name="twitter:title" content={fullTitle} />
       {description && <meta name="twitter:description" content={description} />}
+      {shareImage && <meta property="og:image" content={shareImage} />}
+      {shareImage && <meta name="twitter:image" content={shareImage} />}
     </Helmet>
   );
 }

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { getTenantSlug } from '../utils/tenantHelper';
 
 const useCartStore = create(
   persist(
@@ -97,7 +98,31 @@ const useCartStore = create(
       resetTable: () => set({ tableNumber: null, tableToken: null, diningSessionToken: null }),
     }),
     {
-      name: 'brewhaus-cart',
+      name: 'cafe-cart',
+      storage: {
+        getItem: (name) => {
+          try {
+            const slug = getTenantSlug() || 'default';
+            const tenantKey = `cafe_cart_${slug}`;
+            const raw = localStorage.getItem(tenantKey) || (slug === 'brewhaus' ? localStorage.getItem('brewhaus-cart') : null);
+            return raw ? JSON.parse(raw) : null;
+          } catch {
+            return null;
+          }
+        },
+        setItem: (name, value) => {
+          try {
+            const slug = getTenantSlug() || 'default';
+            localStorage.setItem(`cafe_cart_${slug}`, JSON.stringify(value));
+          } catch { /* Storage unavailable */ }
+        },
+        removeItem: (name) => {
+          try {
+            const slug = getTenantSlug() || 'default';
+            localStorage.removeItem(`cafe_cart_${slug}`);
+          } catch { /* Storage unavailable */ }
+        },
+      },
       partialize: (state) => ({
         items: state.items,
         tableNumber: state.tableNumber,

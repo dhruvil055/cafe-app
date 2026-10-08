@@ -350,7 +350,7 @@ router.post('/verify-email', async (req, res, next) => {
         for (let i = 1; i <= 3; i++) {
           const tableId = new mongoose.Types.ObjectId();
           const qrToken = createTableQrToken(tableId, tenant._id);
-          const qrUrl = `${clientUrl}/menu?tableToken=${encodeURIComponent(qrToken)}`;
+          const qrUrl = `${clientUrl}/menu?cafe=${encodeURIComponent(tenant.slug || tenant._id)}&table=${i}&tableToken=${encodeURIComponent(qrToken)}`;
           const qrCode = await QRCode.toDataURL(qrUrl, {
             width: 400,
             margin: 2,

@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev": "concurrently -n \"SERVER,CLIENT,ADMIN\" -c \"blue,green,magenta\" \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:admin\"",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
+    "dev:admin": "cd admin-app && npm run dev",
+    "dev:all": "concurrently -n \"SERVER,CLIENT,ADMIN\" -c \"blue,green,magenta\" \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:admin\"",
     "build": "npm run build:client",
     "build:client": "cd client && npm run build",
     "build:admin": "cd admin-app && npm run build",

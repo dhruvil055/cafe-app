@@ -171,9 +171,30 @@ router.post('/login', async (req, res) => {
     });
     recordLoginAttemptForIp(clientIp, true);
     const token = await issueSession(user, res);
+    const tenant = user.tenantId
+      ? await runWithSystemTenantAccess(async () => Tenant.findById(user.tenantId).lean())
+      : null;
+
+    const userRole = (user.role === 'owner' || user.role === 'admin') ? 'CAFE_ADMIN' : user.role.toUpperCase();
+    const cafes = tenant ? [{
+      id: String(tenant._id),
+      name: tenant.settings?.cafeName || tenant.name,
+      role: (user.role || 'owner').toUpperCase(),
+    }] : [];
 
     res.json({
+      success: true,
+      data: {
+        user: {
+          id: String(user._id),
+          email: user.email,
+          role: userRole,
+        },
+        cafes,
+        accessToken: token,
+      },
       token,
+      accessToken: token,
       user: {
         ...publicUser(user),
       },
