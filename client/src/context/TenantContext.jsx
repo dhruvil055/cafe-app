@@ -86,7 +86,9 @@ export function TenantProvider({ children }) {
             if (qrData?.token) {
               sessionStorage.setItem('cafe_table_token', String(qrData.token));
             }
-          } catch {}
+          } catch {
+            // Ignore sessionStorage access errors
+          }
         }
 
         setTenantState({ status: 'active', message: '' });

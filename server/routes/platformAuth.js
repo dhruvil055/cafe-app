@@ -197,6 +197,7 @@ router.post('/resend-code', async (req, res, next) => {
 
 // POST /api/platform/auth/verify-email
 router.post('/verify-email', async (req, res, next) => {
+  let createdTenantId = null;
   try {
     const { email, code } = req.body || {};
     const cleanEmail = String(email || '').trim().toLowerCase();
@@ -217,8 +218,6 @@ router.post('/verify-email', async (req, res, next) => {
     }
 
     const clientUrl = String(process.env.CUSTOMER_APP_URL || process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
-
-    let createdTenantId = null;
 
     const result = await runWithSystemTenantAccess(async () => {
         // Re-verify slug and email uniqueness
@@ -371,8 +370,6 @@ router.post('/verify-email', async (req, res, next) => {
         }
 
         // 6. Create Razorpay Subscription (if configured and valid)
-        let razorpaySubscription = null;
-        let razorpayCustomer = null;
         if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET && !process.env.RAZORPAY_KEY_ID.includes('xxxx')) {
           try {
             const razorpay = new Razorpay({
@@ -387,7 +384,7 @@ router.post('/verify-email', async (req, res, next) => {
                 tenant_id: tenant._id.toString(),
               },
             });
-            razorpayCustomer = customer.id;
+            const razorpayCustomer = customer.id;
 
             const subscription = await razorpay.subscriptions.create({
               plan_id: process.env.RAZORPAY_STARTER_PLAN_ID || 'plan_starter',
@@ -399,7 +396,7 @@ router.post('/verify-email', async (req, res, next) => {
                 tenant_id: tenant._id.toString(),
               },
             });
-            razorpaySubscription = subscription.id;
+            const razorpaySubscription = subscription.id;
 
             if (razorpaySubscription) {
               tenant.subscription.razorpaySubscriptionId = razorpaySubscription;

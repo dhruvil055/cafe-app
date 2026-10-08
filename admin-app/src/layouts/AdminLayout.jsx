@@ -1,21 +1,28 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { LayoutDashboard, LogOut, Menu, RefreshCw, ShoppingBag, Tag, UtensilsCrossed, BarChart2, Package, Users, Bell, BadgePercent, Settings, CreditCard } from 'lucide-react';
+import { LayoutDashboard, LogOut, Menu, RefreshCw, ShoppingBag, Tag, UtensilsCrossed, BarChart2, Package, Users, Bell, BadgePercent, Settings, CreditCard, Monitor, TrendingDown, Truck, PackageCheck, Star, Store, Sparkles } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { canManageMenu, canManageTeam, canViewOrders } from '../utils/roles';
+import { canAccessPos, canManageMenu, canManageTeam, canViewOrders } from '../utils/roles';
 import { useTenant } from '../context/TenantContext';
+import api from '../services/api';
+import AiAssistantModal from '../components/AiAssistantModal';
 
 const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/pos', icon: Monitor, label: 'POS Terminal' },
   { to: '/orders', icon: ShoppingBag, label: 'Orders' },
+  { to: '/tables', icon: 'T', label: 'Tables & Floor' },
   { to: '/customers', icon: Users, label: 'Customers' },
+  { to: '/reviews', icon: Star, label: 'Reviews' },
   { to: '/coupons', icon: BadgePercent, label: 'Coupons' },
   { to: '/notifications', icon: Bell, label: 'Notifications' },
   { to: '/products', icon: UtensilsCrossed, label: 'Products' },
-  { to: '/inventory', icon: Package, label: 'Inventory' },
   { to: '/categories', icon: Tag, label: 'Categories' },
-  { to: '/tables', icon: 'T', label: 'Tables' },
+  { to: '/inventory', icon: Package, label: 'Inventory' },
+  { to: '/purchases', icon: PackageCheck, label: 'Purchases / PO' },
+  { to: '/suppliers', icon: Truck, label: 'Suppliers' },
+  { to: '/expenses', icon: TrendingDown, label: 'Expenses' },
   { to: '/analytics', icon: BarChart2, label: 'Analytics' },
   { to: '/team', icon: Users, label: 'Team & Security', ownerOnly: true },
   { to: '/billing', icon: CreditCard, label: 'Plan & Billing', ownerOnly: true },
@@ -59,8 +66,9 @@ function Sidebar({ mobile = false, onClose }) {
       <nav className="flex-1 space-y-1 p-3 overflow-y-auto custom-sidebar-scroll min-h-0">
         {NAV.filter(({ to, ownerOnly }) => {
           if (ownerOnly) return canManageTeam(user?.role);
+          if (to === '/pos') return canAccessPos(user?.role);
           if (to === '/orders') return canViewOrders(user?.role);
-          if (['/products', '/categories', '/tables', '/customers', '/coupons', '/notifications', '/inventory', '/analytics', '/dashboard'].includes(to)) return canManageMenu(user?.role);
+          if (['/products', '/categories', '/tables', '/customers', '/coupons', '/notifications', '/inventory', '/purchases', '/suppliers', '/expenses', '/reviews', '/analytics', '/dashboard'].includes(to)) return canManageMenu(user?.role);
           return true;
         }).map(({ to, icon: Icon, label }) => (
           <NavLink
@@ -114,6 +122,33 @@ export default function AdminLayout({ children, title }) {
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState(() => localStorage.getItem('activeBranchId') || '');
+  const [showAiModal, setShowAiModal] = useState(false);
+
+  useEffect(() => {
+    api.get('/branches').then(res => {
+      const list = res.data?.branches || [];
+      setBranches(list);
+      if (!selectedBranchId && list.length > 0) {
+        const main = list.find(b => b.isMain) || list[0];
+        setSelectedBranchId(main._id);
+        localStorage.setItem('activeBranchId', main._id);
+        api.defaults.headers.common['X-Branch-Id'] = main._id;
+      } else if (selectedBranchId) {
+        api.defaults.headers.common['X-Branch-Id'] = selectedBranchId;
+      }
+    }).catch(() => {
+      // offline or error loading branches
+    });
+  }, []);
+
+  const handleBranchChange = (newBranchId) => {
+    setSelectedBranchId(newBranchId);
+    localStorage.setItem('activeBranchId', newBranchId);
+    api.defaults.headers.common['X-Branch-Id'] = newBranchId;
+    window.location.reload();
+  };
 
   const refreshAdmin = () => {
     setRefreshing(true);
@@ -160,6 +195,34 @@ export default function AdminLayout({ children, title }) {
             <h1 className="min-w-0 truncate font-display text-lg font-bold text-espresso-900 sm:text-2xl">{title}</h1>
           </div>
           <div className="flex items-center gap-2">
+            {branches.length > 0 && (
+              <div className="flex items-center gap-1.5 bg-stone-100 rounded-xl px-2.5 py-1.5 border border-stone-200">
+                <Store size={14} className="text-stone-500" />
+                <select
+                  value={selectedBranchId}
+                  onChange={e => handleBranchChange(e.target.value)}
+                  className="bg-transparent text-xs font-semibold text-stone-700 focus:outline-none cursor-pointer"
+                  title="Switch Branch Outlet"
+                >
+                  {branches.map(b => (
+                    <option key={b._id} value={b._id}>
+                      {b.name} ({b.code}){b.isMain ? ' ★' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowAiModal(true)}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-espresso-950 to-brew-900 px-3 text-xs font-semibold text-white shadow-sm hover:from-espresso-900 hover:to-brew-800 transition"
+              title="Ask InfiniGrow AI Business Advisor"
+            >
+              <Sparkles size={14} className="text-amber-300 animate-pulse" />
+              <span className="hidden sm:inline">Ask AI</span>
+            </button>
+
             <button
               type="button"
               onClick={refreshAdmin}
@@ -175,6 +238,7 @@ export default function AdminLayout({ children, title }) {
         </header>
 
         <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#f7f4ef]">{children}</main>
+        <AiAssistantModal isOpen={showAiModal} onClose={() => setShowAiModal(false)} />
       </div>
     </div>
   );

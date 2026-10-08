@@ -16,6 +16,13 @@ import categoryRoutes from './routes/categories.js';
 import orderRoutes from './routes/orders.js';
 import paymentRoutes from './routes/payment.js';
 import tableRoutes from './routes/tables.js';
+import branchRoutes from './routes/branches.js';
+import posRoutes from './routes/pos.js';
+import expenseRoutes from './routes/expenses.js';
+import supplierRoutes from './routes/suppliers.js';
+import purchaseRoutes from './routes/purchases.js';
+import reviewRoutes from './routes/reviews.js';
+import aiRoutes from './routes/aiAssistant.js';
 import uploadRoutes from './routes/upload.js';
 import galleryRoutes from './routes/gallery.js';
 import sessionRoutes from './routes/session.js';
@@ -73,7 +80,6 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
       },
     },
     frameguard: { action: 'deny' },
-    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     xssFilter: true,
     noSniff: true,
   }));
@@ -219,6 +225,13 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
   app.use('/api/orders', orderRoutes);
   app.use('/api/payment', paymentRoutes);
   app.use('/api/tables', tableRoutes);
+  app.use('/api/branches', branchRoutes);
+  app.use('/api/pos', posRoutes);
+  app.use('/api/expenses', expenseRoutes);
+  app.use('/api/suppliers', supplierRoutes);
+  app.use('/api/purchases', purchaseRoutes);
+  app.use('/api/reviews', reviewRoutes);
+  app.use('/api/ai', aiRoutes);
   app.use('/api/upload', uploadRoutes);
   app.use('/api/gallery', galleryRoutes);
   app.use('/api/session', sessionRoutes);

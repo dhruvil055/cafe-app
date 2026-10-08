@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { tenantIsolationPlugin } from '../utils/tenantContext.js';
 import Counter from './Counter.js';
@@ -23,13 +24,20 @@ const orderItemSchema = new mongoose.Schema({
 const orderSchema = new mongoose.Schema({
   // Payment verification must be idempotent: track verification state
   paymentVerifiedAt: { type: Date, default: null },
+  branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', default: null, index: true },
+  orderType: {
+    type: String,
+    enum: ['dine_in', 'takeaway', 'delivery', 'counter'],
+    default: 'dine_in',
+    index: true,
+  },
   orderNumber: { type: String, required: true },
-  tableNumber: { type: Number, required: true },
+  tableNumber: { type: Number, default: 0 },
   diningSessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'DiningSession', required: false, index: true },
   customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: false, index: true },
   customer: {
-    name: { type: String, required: true },
-    phone: { type: String, required: true },
+    name: { type: String, default: 'Walk-in Customer' },
+    phone: { type: String, default: '' },
     email: { type: String, default: '' },
     marketingConsent: { type: Boolean, default: false },
   },
@@ -40,12 +48,28 @@ const orderSchema = new mongoose.Schema({
   tax: { type: Number, required: true },
   total: { type: Number, required: true },
   taxRate: { type: Number, default: 5 }, // 5% GST
+  gstDetails: {
+    invoiceNumber: { type: String, default: '' },
+    invoiceDate: { type: Date, default: null },
+    customerGstin: { type: String, default: '', trim: true },
+    cgst: { type: Number, default: 0 },
+    sgst: { type: Number, default: 0 },
+    igst: { type: Number, default: 0 },
+    taxableAmount: { type: Number, default: 0 },
+    hsnSummary: [{ type: mongoose.Schema.Types.Mixed }],
+    taxBreakdown: { type: mongoose.Schema.Types.Mixed },
+  },
   currency: { type: String, uppercase: true, default: 'INR' },
   paymentMethod: {
     type: String,
-    enum: ['razorpay', 'cash'],
-    required: true,
+    enum: ['razorpay', 'cash', 'upi', 'card', 'split', 'pending'],
+    default: 'cash',
   },
+  splitPayments: [{
+    method: { type: String, enum: ['cash', 'upi', 'card', 'razorpay'] },
+    amount: { type: Number, required: true },
+    reference: { type: String, default: '' },
+  }],
   paymentStatus: {
     type: String,
     enum: ['pending', 'payment_created', 'payment_processing', 'paid', 'refund_pending', 'failed', 'cancelled', 'refunded'],
@@ -58,8 +82,16 @@ const orderSchema = new mongoose.Schema({
   },
   orderStatus: {
     type: String,
-    enum: ['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'],
+    enum: ['pending', 'confirmed', 'preparing', 'ready', 'served', 'completed', 'cancelled', 'held'],
     default: 'pending',
+  },
+  posMetadata: {
+    cashierId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    station: { type: String, default: '' },
+    offlineSynced: { type: Boolean, default: false },
+    offlineSyncId: { type: String, default: '' },
+    heldAt: { type: Date, default: null },
+    isHeld: { type: Boolean, default: false },
   },
   statusHistory: [{
     status: { type: String, required: true },
@@ -88,8 +120,13 @@ const orderSchema = new mongoose.Schema({
   accessTokenHash: { type: String, required: true },
 }, { timestamps: true });
 
-// Generate order number before required-field validation runs.
+// Generate accessTokenHash and order number before required-field validation runs.
 orderSchema.pre('validate', async function (next) {
+  if (!this.accessTokenHash) {
+    const raw = crypto.randomBytes(32).toString('hex');
+    this.accessTokenHash = crypto.createHash('sha256').update(raw).digest('hex');
+  }
+
   if (this.orderNumber) return next();
 
   try {

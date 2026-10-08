@@ -50,9 +50,9 @@ async function runTest() {
     }
 
     // Ensure Cafe 2 admin owner exists
-    let cafe2Owner = await User.findOne({ tenantId: cafe2._id, email: 'cafe2@example.com' });
+    const cafe2Owner = await User.findOne({ tenantId: cafe2._id, email: 'cafe2@example.com' });
     if (!cafe2Owner) {
-      cafe2Owner = await User.create({
+      await User.create({
         tenantId: cafe2._id,
         name: 'Cafe 2 Owner',
         email: 'cafe2@example.com',

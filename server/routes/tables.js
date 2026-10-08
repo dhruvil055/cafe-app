@@ -1,7 +1,9 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import QRCode from 'qrcode';
 import Table from '../models/Table.js';
 import Tenant from '../models/Tenant.js';
+import Order from '../models/Order.js';
 import { adminOnly, ownerOrManager, protect } from '../middleware/auth.js';
 import { checkTableLimit } from '../middleware/planLimits.js';
 import { createTableQrToken, verifyTableQrToken } from '../utils/tableQr.js';
@@ -106,6 +108,79 @@ router.get('/qr/validate', async (req, res) => {
   }
 });
 
+// GET /api/tables/floor-plan — admin/staff (Visual Floor Plan with live table metrics)
+router.get('/floor-plan', protect, ownerOrManager, async (req, res) => {
+  try {
+    const { branchId, floor } = req.query;
+    const filter = { active: true };
+    if (branchId) filter.branchId = branchId;
+    if (floor && floor !== 'ALL') filter.floor = floor;
+
+    const tables = await Table.find(filter)
+      .populate('assignedWaiter', 'name email')
+      .sort({ floor: 1, tableNumber: 1 })
+      .lean();
+
+    // Query active orders across these tables
+    const tableNumbers = tables.map(t => t.tableNumber);
+    const activeOrders = await Order.find({
+      tableNumber: { $in: tableNumbers },
+      orderStatus: { $in: ['pending', 'confirmed', 'preparing', 'ready', 'served'] },
+    }).sort({ createdAt: 1 }).lean();
+
+    // Group active orders by tableNumber
+    const ordersByTable = {};
+    for (const ord of activeOrders) {
+      if (!ordersByTable[ord.tableNumber]) {
+        ordersByTable[ord.tableNumber] = [];
+      }
+      ordersByTable[ord.tableNumber].push(ord);
+    }
+
+    const enrichedTables = tables.map(table => {
+      const openOrders = ordersByTable[table.tableNumber] || [];
+      const totalBill = openOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+      const totalItemsCount = openOrders.reduce((sum, o) => sum + (o.items ? o.items.length : 0), 0);
+      const earliestOrder = openOrders[0];
+
+      let effectiveStatus = table.status || 'AVAILABLE';
+      if (['CLEANING', 'DISABLED', 'RESERVED'].includes(table.status)) {
+        effectiveStatus = table.status;
+      } else if (openOrders.length > 0) {
+        effectiveStatus = table.status === 'WAITING_PAYMENT' ? 'WAITING_PAYMENT' : 'OCCUPIED';
+      }
+
+      return {
+        ...table,
+        effectiveStatus,
+        activeOrdersCount: openOrders.length,
+        currentBillAmount: Number(totalBill.toFixed(2)),
+        totalItemsCount,
+        occupiedSince: earliestOrder ? earliestOrder.createdAt : null,
+        activeOrders: openOrders.map(o => ({
+          _id: o._id,
+          orderNumber: o.orderNumber,
+          orderStatus: o.orderStatus,
+          paymentStatus: o.paymentStatus,
+          total: o.total,
+          itemsSummary: o.items?.map(i => `${i.name} (x${i.quantity})`).join(', ') || '',
+          createdAt: o.createdAt,
+        })),
+      };
+    });
+
+    const floors = [...new Set(tables.map(t => t.floor || 'Ground Floor'))];
+
+    res.json({
+      success: true,
+      tables: enrichedTables,
+      floors,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET all tables — admin/staff
 router.get('/all', protect, ownerOrManager, async (req, res) => {
   try {
@@ -142,7 +217,7 @@ router.get('/:number/validate', async (req, res) => {
 // POST /api/tables — admin/staff
 router.post('/', protect, ownerOrManager, checkTableLimit, async (req, res) => {
   try {
-    const { tableNumber, seats, label } = req.body;
+    const { tableNumber, seats, label, floor, shape, assignedWaiter, branchId } = req.body;
     const normalizedTableNumber = Number(tableNumber);
     const normalizedSeats = Number(seats ?? 4);
     if (!Number.isInteger(normalizedTableNumber) || normalizedTableNumber <= 0) {
@@ -154,9 +229,13 @@ router.post('/', protect, ownerOrManager, checkTableLimit, async (req, res) => {
 
     const table = new Table({
       tenantId: req.tenantId,
+      branchId: branchId || null,
       tableNumber: normalizedTableNumber,
       seats: normalizedSeats,
       label: String(label || '').trim().slice(0, 100),
+      floor: String(floor || 'Ground Floor').trim().slice(0, 100),
+      shape: ['square', 'round', 'rectangle'].includes(shape) ? shape : 'square',
+      assignedWaiter: assignedWaiter || null,
     });
     const { qrCode, qrUrl } = await generateQR(table, req.tenantId, req.tenant?.slug);
     table.qrCode = qrCode;
@@ -176,7 +255,7 @@ router.put('/:id', protect, ownerOrManager, async (req, res) => {
     if (!table) return res.status(404).json({ error: 'Table not found.' });
 
     // Only allow these fields to be updated
-    const allowedFields = ['tableNumber', 'seats', 'label', 'active'];
+    const allowedFields = ['tableNumber', 'seats', 'label', 'active', 'status', 'floor', 'shape', 'assignedWaiter', 'branchId'];
     const update = {};
     for (const field of allowedFields) {
       if (Object.prototype.hasOwnProperty.call(req.body, field)) {
@@ -209,6 +288,127 @@ router.put('/:id', protect, ownerOrManager, async (req, res) => {
 
     const updated = await Table.findByIdAndUpdate(req.params.id, update, { new: true });
     res.json({ table: updated });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// PATCH /api/tables/:id/status — admin/staff (Change table status)
+router.patch('/:id/status', protect, ownerOrManager, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const allowed = ['AVAILABLE', 'OCCUPIED', 'RESERVED', 'WAITING_PAYMENT', 'CLEANING', 'DISABLED'];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${allowed.join(', ')}` });
+    }
+
+    const table = await Table.findById(req.params.id);
+    if (!table) return res.status(404).json({ error: 'Table not found.' });
+
+    table.status = status;
+    await table.save();
+
+    res.json({ success: true, table });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// POST /api/tables/transfer — admin/staff (Transfer open orders between tables)
+router.post('/transfer', protect, ownerOrManager, async (req, res) => {
+  try {
+    const fromTableNumber = Number(req.body.fromTableNumber);
+    const toTableNumber = Number(req.body.toTableNumber);
+
+    if (!fromTableNumber || !toTableNumber) {
+      return res.status(400).json({ error: 'Both fromTableNumber and toTableNumber are required.' });
+    }
+    if (fromTableNumber === toTableNumber) {
+      return res.status(400).json({ error: 'Source and destination tables must be different.' });
+    }
+
+    const [fromTable, toTable] = await Promise.all([
+      Table.findOne({ tableNumber: fromTableNumber, active: true }),
+      Table.findOne({ tableNumber: toTableNumber, active: true }),
+    ]);
+
+    if (!fromTable) return res.status(404).json({ error: `Source Table ${fromTableNumber} not found.` });
+    if (!toTable) return res.status(404).json({ error: `Destination Table ${toTableNumber} not found.` });
+
+    const result = await Order.updateMany(
+      {
+        tableNumber: fromTableNumber,
+        orderStatus: { $in: ['pending', 'confirmed', 'preparing', 'ready', 'served'] },
+      },
+      {
+        $set: { tableNumber: toTableNumber },
+      }
+    );
+
+    fromTable.status = 'AVAILABLE';
+    toTable.status = 'OCCUPIED';
+    await Promise.all([fromTable.save(), toTable.save()]);
+
+    await writeAuditLog({
+      actor: req.user,
+      action: 'table.transferred',
+      targetType: 'Table',
+      targetId: toTable._id,
+      details: { fromTableNumber, toTableNumber, transferredCount: result.modifiedCount },
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully transferred ${result.modifiedCount} active order(s) from Table ${fromTableNumber} to Table ${toTableNumber}.`,
+      transferredCount: result.modifiedCount,
+      fromTable,
+      toTable,
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// POST /api/tables/merge — admin/staff (Merge open orders into target table)
+router.post('/merge', protect, ownerOrManager, async (req, res) => {
+  try {
+    const sourceTableNumber = Number(req.body.sourceTableNumber);
+    const targetTableNumber = Number(req.body.targetTableNumber);
+
+    if (!sourceTableNumber || !targetTableNumber) {
+      return res.status(400).json({ error: 'Both sourceTableNumber and targetTableNumber are required.' });
+    }
+    if (sourceTableNumber === targetTableNumber) {
+      return res.status(400).json({ error: 'Source and target tables must be different.' });
+    }
+
+    const [sourceTable, targetTable] = await Promise.all([
+      Table.findOne({ tableNumber: sourceTableNumber, active: true }),
+      Table.findOne({ tableNumber: targetTableNumber, active: true }),
+    ]);
+
+    if (!sourceTable) return res.status(404).json({ error: `Source Table ${sourceTableNumber} not found.` });
+    if (!targetTable) return res.status(404).json({ error: `Target Table ${targetTableNumber} not found.` });
+
+    const result = await Order.updateMany(
+      {
+        tableNumber: sourceTableNumber,
+        orderStatus: { $in: ['pending', 'confirmed', 'preparing', 'ready', 'served'] },
+      },
+      {
+        $set: { tableNumber: targetTableNumber },
+      }
+    );
+
+    sourceTable.status = 'AVAILABLE';
+    targetTable.status = 'OCCUPIED';
+    await Promise.all([sourceTable.save(), targetTable.save()]);
+
+    res.json({
+      success: true,
+      message: `Merged ${result.modifiedCount} order(s) into Table ${targetTableNumber}.`,
+      mergedCount: result.modifiedCount,
+    });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

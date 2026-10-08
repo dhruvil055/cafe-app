@@ -7,8 +7,14 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, lowercase: true, trim: true },
   password: { type: String, required: true, minlength: 6 },
   // `admin` and `staff` remain valid for existing accounts. Authorization maps
-  // them to owner and manager without rewriting existing user records.
-  role: { type: String, enum: ['owner', 'manager', 'cashier', 'kitchen', 'admin', 'staff', 'customer'], default: 'owner' },
+  role: {
+    type: String,
+    enum: ['owner', 'manager', 'cashier', 'kitchen', 'waiter', 'inventory_manager', 'super_admin', 'admin', 'staff', 'customer'],
+    default: 'owner',
+  },
+  branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', default: null, index: true },
+  permissions: [{ type: String, trim: true }],
+  active: { type: Boolean, default: true },
   failedLoginAttempts: { type: Number, default: 0, select: false },
   loginLockUntil: { type: Date, default: null, select: false },
   refreshTokenHash: { type: String, default: '', select: false },

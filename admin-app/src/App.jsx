@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext';
 import AdminLayout from './layouts/AdminLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import POSPage from './pages/POSPage';
 import OrdersPage from './pages/OrdersPage';
 import KitchenDisplayPage from './pages/KitchenDisplayPage';
 import ProductsPage from './pages/ProductsPage';
@@ -12,6 +13,10 @@ import ProfilePage from './pages/ProfilePage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import CustomersPage from './pages/CustomersPage';
 import NotificationsPage from './pages/NotificationsPage';
+import ExpensesPage from './pages/ExpensesPage';
+import SuppliersPage from './pages/SuppliersPage';
+import PurchasesPage from './pages/PurchasesPage';
+import ReviewsPage from './pages/ReviewsPage';
 import InventoryDashboardPage from './pages/inventory/InventoryDashboardPage';
 import InventoryItemsPage from './pages/inventory/InventoryItemsPage';
 import InventoryItemDetailPage from './pages/inventory/InventoryItemDetailPage';
@@ -57,6 +62,7 @@ export default function App() {
 
       <Route path="/" element={<ProtectedRoute><Navigate to="/dashboard" replace /></ProtectedRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Dashboard"><DashboardPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/pos" element={<ProtectedRoute allowedRoles={['owner', 'manager', 'cashier']}><AdminLayout title="POS Terminal"><POSPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/orders" element={<ProtectedRoute allowedRoles={['owner', 'manager', 'cashier', 'kitchen']}><AdminLayout title="Orders"><OrdersPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/orders/kitchen" element={<ProtectedRoute allowedRoles={['owner', 'manager', 'cashier', 'kitchen']}><AdminLayout title="Kitchen Display"><KitchenDisplayPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/customers" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Customers CRM"><CustomersPage /></AdminLayout></ProtectedRoute>} />
@@ -64,7 +70,11 @@ export default function App() {
       <Route path="/notifications" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Website Notifications"><NotificationsPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/products" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Products"><ProductsPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/categories" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Categories"><CategoriesPage /></AdminLayout></ProtectedRoute>} />
-      <Route path="/tables" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Tables"><TablesPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/tables" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Tables & Floor Plan"><TablesPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/expenses" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Operating Expenses"><ExpensesPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/suppliers" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Suppliers & Vendors"><SuppliersPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/purchases" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Purchase Orders"><PurchasesPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/reviews" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Customer Reviews"><ReviewsPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><AdminLayout title="My Profile"><ProfilePage /></AdminLayout></ProtectedRoute>} />
       <Route path="/analytics" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Analytics"><AnalyticsPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/team" element={<ProtectedRoute allowedRoles={['owner']}><AdminLayout title="Team & Security"><TeamPage /></AdminLayout></ProtectedRoute>} />

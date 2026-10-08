@@ -37,7 +37,9 @@ api.interceptors.request.use((config) => {
     if (tableToken && !config.headers['X-Table-Token'] && !config.headers['x-table-token']) {
       config.headers['X-Table-Token'] = tableToken;
     }
-  } catch {}
+  } catch {
+    // Ignore storage and URL query parsing errors
+  }
   return config;
 });
 

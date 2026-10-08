@@ -130,9 +130,9 @@ const seed = async () => {
         available: true,
       });
     }
-    let table = await Table.findOne({ tableNumber: 1 });
+    const table = await Table.findOne({ tableNumber: 1 });
     if (!table) {
-      table = await Table.create({ tableNumber: 1, label: 'Patio Corner', seats: 2 });
+      await Table.create({ tableNumber: 1, label: 'Patio Corner', seats: 2 });
     }
     console.log('Seeded menu and table for Brewhaus Café.');
   });
@@ -163,9 +163,9 @@ const seed = async () => {
         available: true,
       });
     }
-    let table = await Table.findOne({ tableNumber: 1 });
+    const table = await Table.findOne({ tableNumber: 1 });
     if (!table) {
-      table = await Table.create({ tableNumber: 1, label: 'Window Booth', seats: 4 });
+      await Table.create({ tableNumber: 1, label: 'Window Booth', seats: 4 });
     }
     console.log('Seeded menu and table for Velvet Roast.');
   });

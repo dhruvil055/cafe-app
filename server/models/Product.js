@@ -25,6 +25,15 @@ const productSchema = new mongoose.Schema({
   addons: [addonSchema],
   rating: { type: Number, default: 4.5, min: 0, max: 5 },
   prepTime: { type: Number, default: 10 }, // in minutes
+  hsnCode: { type: String, default: '2106', trim: true },
+  kitchenStation: {
+    type: String,
+    enum: ['BAR', 'KITCHEN', 'BAKERY', 'DESSERT'],
+    default: 'KITCHEN',
+    index: true,
+  },
+  isVeg: { type: Boolean, default: true },
+  sku: { type: String, default: '', trim: true },
 }, { timestamps: true });
 
 productSchema.index({ name: 'text', description: 'text' });

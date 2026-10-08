@@ -12,7 +12,9 @@ counterSchema.pre(/^find|count|update|delete|replace|distinct/, function counter
   let tenantId = null;
   try {
     tenantId = requireTenantId();
-  } catch {}
+  } catch {
+    // Ignore tenant context missing error
+  }
   if (!tenantId || context?.system) return;
 
   const tenantPrefix = `${tenantId}_`;

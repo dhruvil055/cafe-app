@@ -42,7 +42,7 @@ test('EXACT API CONTRACTS & ACCEPTANCE TESTS A-G', async (t) => {
     try {
       data = await res.json();
     } catch {
-      data = null;
+      // Keep data as null for non-JSON responses
     }
     return { status: res.status, data };
   };

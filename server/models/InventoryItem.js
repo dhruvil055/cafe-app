@@ -18,6 +18,8 @@ const inventoryItemSchema = new mongoose.Schema({
   reorderLevel: { type: Number, default: 0, min: 0 },
   costPerUnit: { type: Number, default: 0, min: 0 },
   supplier: { type: String, default: '', trim: true },
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', default: null },
+  branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', default: null, index: true },
   description: { type: String, default: '' },
   active: { type: Boolean, default: true },
 }, { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } });

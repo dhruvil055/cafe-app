@@ -72,7 +72,9 @@ export default function MenuPage() {
           sessionStorage.setItem('cafe_table_token', tableTokenParam);
           sessionStorage.setItem('cafe_table_number', String(resolvedTable.number));
           sessionStorage.setItem('cafe_table_id', String(resolvedTable.id));
-        } catch {}
+        } catch {
+          // Ignore sessionStorage access errors
+        }
         setTableConnectedAnim(true);
         setTimeout(() => setTableConnectedAnim(false), 3000);
       })
@@ -85,7 +87,9 @@ export default function MenuPage() {
             try {
               sessionStorage.setItem('cafe_table_token', tableTokenParam);
               sessionStorage.setItem('cafe_table_number', String(data.table.tableNumber));
-            } catch {}
+            } catch {
+              // Ignore sessionStorage access errors
+            }
             setTableConnectedAnim(true);
             setTimeout(() => setTableConnectedAnim(false), 3000);
           })
@@ -94,7 +98,9 @@ export default function MenuPage() {
               sessionStorage.removeItem('cafe_table_token');
               sessionStorage.removeItem('cafe_table_number');
               sessionStorage.removeItem('cafe_table_id');
-            } catch {}
+            } catch {
+              // Ignore sessionStorage access errors
+            }
             if (active) toast.error('This table QR code is invalid or expired. Ask staff for a new QR code.');
           });
       });
