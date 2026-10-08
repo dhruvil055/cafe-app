@@ -36,6 +36,9 @@ inventoryItemSchema.virtual('stockValue').get(function () {
 
 inventoryItemSchema.index({ active: 1, currentQuantity: 1 });
 inventoryItemSchema.index({ name: 'text' });
+inventoryItemSchema.index({ tenantId: 1, branchId: 1, active: 1 });
+inventoryItemSchema.index({ tenantId: 1, category: 1 });
+inventoryItemSchema.index({ tenantId: 1, currentQuantity: 1 });
 
 inventoryItemSchema.plugin(tenantIsolationPlugin);
 export default mongoose.model('InventoryItem', inventoryItemSchema);

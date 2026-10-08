@@ -1,10 +1,10 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import Branch from '../models/Branch.js';
-import Tenant from '../models/Tenant.js';
 import Table from '../models/Table.js';
+import Order from '../models/Order.js';
 import { protect, ownerOrManager } from '../middleware/auth.js';
-import { getPlan } from '../config/plans.js';
+import { enforceUsageLimit } from '../services/usageLimitService.js';
 
 const router = express.Router();
 
@@ -40,8 +40,31 @@ router.get('/', protect, async (req, res, next) => {
   }
 });
 
-// POST /api/branches - Create branch
-router.post('/', protect, ownerOrManager, async (req, res, next) => {
+// GET /api/branches/:id - Get branch details with metrics
+router.get('/:id', protect, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid branch ID.' });
+    }
+
+    const branch = await Branch.findById(req.params.id).lean();
+    if (!branch) {
+      return res.status(404).json({ error: 'Branch not found.' });
+    }
+
+    const [tableCount, activeOrders] = await Promise.all([
+      Table.countDocuments({ branchId: branch._id }),
+      Order.countDocuments({ branchId: branch._id, orderStatus: { $in: ['pending', 'confirmed', 'preparing', 'ready', 'served'] } }),
+    ]);
+
+    return res.json({ success: true, branch: { ...branch, tableCount, activeOrders } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/branches - Create branch (enforces SaaS plan limits)
+router.post('/', protect, ownerOrManager, enforceUsageLimit('branches'), async (req, res, next) => {
   try {
     const { name, code, address, city, state, phone, email, gstin, isMain } = req.body || {};
     if (!name?.trim()) {
@@ -49,16 +72,6 @@ router.post('/', protect, ownerOrManager, async (req, res, next) => {
     }
 
     const currentCount = await Branch.countDocuments();
-    const plan = getPlan(req.tenant?.plan || 'starter');
-    const maxOutlets = plan.limits?.outlets || 1;
-
-    if (currentCount >= maxOutlets) {
-      return res.status(403).json({
-        error: `Your current ${plan.name} allows up to ${maxOutlets} branch(es). Please upgrade your subscription to add more.`,
-        code: 'BRANCH_LIMIT_EXCEEDED',
-      });
-    }
-
     const cleanCode = String(code || `BR-${currentCount + 1}`).trim().toUpperCase();
     const existingCode = await Branch.findOne({ code: cleanCode });
     if (existingCode) {
@@ -89,7 +102,7 @@ router.post('/', protect, ownerOrManager, async (req, res, next) => {
   }
 });
 
-// PUT /api/branches/:id - Update branch
+// PUT /api/branches/:id - Update branch details
 router.put('/:id', protect, ownerOrManager, async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -132,7 +145,44 @@ router.put('/:id', protect, ownerOrManager, async (req, res, next) => {
   }
 });
 
-// DELETE /api/branches/:id - Delete branch
+// PATCH /api/branches/:id/toggle-status - Activate/Deactivate
+router.patch('/:id/toggle-status', protect, ownerOrManager, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid branch ID.' });
+    const branch = await Branch.findById(req.params.id);
+    if (!branch) return res.status(404).json({ error: 'Branch not found.' });
+
+    if (branch.isMain && branch.active) {
+      return res.status(400).json({ error: 'Cannot deactivate the main branch of a café.' });
+    }
+
+    branch.active = !branch.active;
+    await branch.save();
+    return res.json({ success: true, branch, message: `Branch is now ${branch.active ? 'active' : 'inactive'}.` });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PATCH /api/branches/:id/set-main - Set as Main Branch
+router.patch('/:id/set-main', protect, ownerOrManager, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid branch ID.' });
+    const branch = await Branch.findById(req.params.id);
+    if (!branch) return res.status(404).json({ error: 'Branch not found.' });
+
+    await Branch.updateMany({ _id: { $ne: branch._id } }, { isMain: false });
+    branch.isMain = true;
+    branch.active = true;
+    await branch.save();
+
+    return res.json({ success: true, branch, message: `${branch.name} is now the primary branch.` });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/branches/:id - Delete branch (Safe deletion verification)
 router.delete('/:id', protect, ownerOrManager, async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -149,11 +199,26 @@ router.delete('/:id', protect, ownerOrManager, async (req, res, next) => {
       return res.status(400).json({ error: 'Cannot delete the only branch of a café.' });
     }
 
-    // Check if tables are assigned to this branch
+    if (branch.isMain) {
+      return res.status(400).json({ error: 'Cannot delete the main branch. Reassign main branch status first.' });
+    }
+
+    // Safe deletion: verify no assigned tables
     const tableCount = await Table.countDocuments({ branchId: branch._id });
     if (tableCount > 0) {
       return res.status(400).json({
         error: `Cannot delete branch because it has ${tableCount} assigned table(s). Reassign or delete tables first.`,
+      });
+    }
+
+    // Safe deletion: verify no active orders
+    const activeOrders = await Order.countDocuments({
+      branchId: branch._id,
+      orderStatus: { $in: ['pending', 'confirmed', 'preparing', 'ready', 'served'] },
+    });
+    if (activeOrders > 0) {
+      return res.status(400).json({
+        error: `Cannot delete branch with ${activeOrders} in-flight order(s). Settle or cancel active orders first.`,
       });
     }
 
@@ -165,3 +230,4 @@ router.delete('/:id', protect, ownerOrManager, async (req, res, next) => {
 });
 
 export default router;
+

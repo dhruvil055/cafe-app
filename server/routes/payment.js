@@ -4,6 +4,7 @@ import Razorpay from 'razorpay';
 import mongoose from 'mongoose';
 import Order from '../models/Order.js';
 import Payment from '../models/Payment.js';
+import PaymentLedger from '../models/PaymentLedger.js';
 import Tenant from '../models/Tenant.js';
 import { decryptTenantCredentials } from '../utils/tenantSecrets.js';
 import DiningBill from '../models/DiningBill.js';
@@ -32,8 +33,6 @@ const getTenantPaymentConfig = async (req) => {
 };
 
 const getRazorpay = async (req) => {
-  // Test-only dependency seam. Production constructs the official Razorpay
-  // client from server-side credentials.
   if (typeof req.app.locals.razorpayFactory === 'function') {
     return { client: req.app.locals.razorpayFactory(), ...(await getTenantPaymentConfig(req)) };
   }
@@ -46,6 +45,60 @@ const minorUnits = (amount, currency) => Math.round(Number(amount) * (10 ** new 
 const getOrderId = (value) => {
   if (!value || !mongoose.isValidObjectId(value)) return null;
   return value;
+};
+
+const recordLedgerEntry = async ({
+  payment,
+  orderId,
+  diningBillId,
+  eventType,
+  amount,
+  currency = 'INR',
+  gatewayTransactionId = '',
+  gatewayOrderId = '',
+  reason = '',
+  metadata = {},
+  session = null,
+}) => {
+  try {
+    const entry = {
+      eventType,
+      amount: amount !== undefined ? amount : (payment?.amount || 0),
+      currency: currency || payment?.currency || 'INR',
+      gatewayTransactionId: gatewayTransactionId || '',
+      metadata,
+      timestamp: new Date(),
+    };
+    if (payment?._id) {
+      await Payment.updateOne(
+        { _id: payment._id },
+        { $push: { ledger: entry } },
+        session ? { session } : {}
+      );
+    }
+    const tenantId = payment?.tenantId || metadata?.tenantId;
+    if (tenantId) {
+      await PaymentLedger.create(
+        [{
+          tenantId,
+          paymentId: payment?._id || new mongoose.Types.ObjectId(),
+          orderId: orderId || payment?.orderId || null,
+          diningBillId: diningBillId || payment?.diningBillId || null,
+          eventType,
+          amount: entry.amount,
+          currency: entry.currency,
+          gatewayTransactionId,
+          gatewayOrderId: gatewayOrderId || payment?.razorpayOrderId || '',
+          reason,
+          metadata,
+          recordedAt: new Date(),
+        }],
+        session ? { session } : {}
+      );
+    }
+  } catch (err) {
+    console.error('[Payment Ledger Recording Error]', err.message);
+  }
 };
 
 const requireOrderAccess = async (req, res, orderId, accessToken) => {
@@ -147,19 +200,30 @@ router.post('/create-order', async (req, res) => {
     // races with this request, it reuses whichever provider order won.
     let updated;
     const persistGatewayOrder = async (session) => {
-        updated = await Order.findOneAndUpdate(
-          { _id: order._id, paymentStatus: { $in: ['pending', 'payment_created'] }, razorpayOrderId: '' },
-          { $set: { razorpayOrderId: razorpayOrder.id, paymentStatus: 'payment_created' } },
+      updated = await Order.findOneAndUpdate(
+        { _id: order._id, paymentStatus: { $in: ['pending', 'payment_created'] }, razorpayOrderId: '' },
+        { $set: { razorpayOrderId: razorpayOrder.id, paymentStatus: 'payment_created' } },
+        { new: true, runValidators: true, session }
+      );
+      if (updated) {
+        const updatedPayment = await Payment.findOneAndUpdate(
+          { orderId: order._id, status: 'pending' },
+          { $set: { razorpayOrderId: razorpayOrder.id, status: 'created' } },
           { new: true, runValidators: true, session }
         );
-        if (updated) {
-          const updatedPayment = await Payment.findOneAndUpdate(
-            { orderId: order._id, status: 'pending' },
-            { $set: { razorpayOrderId: razorpayOrder.id, status: 'created' } },
-            { new: true, runValidators: true, session }
-          );
-          if (!updatedPayment) throw new Error('Payment intent record is missing. Apply the Phase 1 database migration.');
-        }
+        if (!updatedPayment) throw new Error('Payment intent record is missing. Apply the Phase 1 database migration.');
+
+        await recordLedgerEntry({
+          payment: updatedPayment,
+          orderId: order._id,
+          eventType: 'payment_created',
+          amount: order.total,
+          currency,
+          gatewayOrderId: razorpayOrder.id,
+          metadata: { receipt: order.orderNumber },
+          session,
+        });
+      }
     };
     await withMongoTransaction(persistGatewayOrder, async () => {
       try {
@@ -214,8 +278,6 @@ router.post('/cancel', async (req, res) => {
       return res.status(400).json({ error: 'Order has already been paid.' });
     }
 
-    // A browser dismiss event is not authoritative: a payment may still be
-    // captured by the gateway. Leave server payment state for the webhook.
     return res.status(202).json({ success: true, verified: false, message: 'Payment state awaits the provider webhook.', order: publicPaymentState(order) });
   } catch (error) {
     console.error('Payment cancel error:', error.message);
@@ -223,8 +285,7 @@ router.post('/cancel', async (req, res) => {
   }
 });
 
-// POST /api/payment/webhook — only this signed server-to-server event can
-// mark a Razorpay order paid.
+// POST /api/payment/webhook — only this signed server-to-server event can mark a Razorpay order paid.
 router.post('/webhook', async (req, res) => {
   try {
     const config = await getTenantPaymentConfig(req);
@@ -250,10 +311,70 @@ router.post('/webhook', async (req, res) => {
         if (order) publishOrderUpdate(order);
         await writeAuditLog({ actor: { email: 'razorpay-webhook', role: 'system' }, action: successful ? 'order.refunded' : 'order.refund_failed', targetType: 'Order', targetId: paymentRecord.orderId, details: { refundId: refund.id, amount: paymentRecord.amount } });
       }
+
+      await recordLedgerEntry({
+        payment: paymentRecord,
+        orderId: paymentRecord.orderId,
+        diningBillId: paymentRecord.diningBillId,
+        eventType: successful ? 'refund_processed' : 'refund_failed',
+        amount: paymentRecord.amount,
+        currency: paymentRecord.currency,
+        gatewayTransactionId: refund.id,
+        metadata: { refundId: refund.id, eventId: req.get('x-razorpay-event-id') },
+      });
+
       return res.json({ received: true, refundStatus: successful ? 'refunded' : 'failed' });
     }
 
+    // Handle payment.authorized
     const payment = req.body?.payload?.payment?.entity;
+    if (event === 'payment.authorized' && payment?.order_id) {
+      const paymentRecord = await Payment.findOne({ razorpayOrderId: payment.order_id });
+      if (paymentRecord) {
+        await recordLedgerEntry({
+          payment: paymentRecord,
+          orderId: paymentRecord.orderId,
+          diningBillId: paymentRecord.diningBillId,
+          eventType: 'payment_authorized',
+          amount: paymentRecord.amount,
+          currency: paymentRecord.currency,
+          gatewayTransactionId: payment.id,
+          gatewayOrderId: payment.order_id,
+          metadata: { eventId: req.get('x-razorpay-event-id') },
+        });
+      }
+      return res.json({ received: true });
+    }
+
+    // Handle payment.failed
+    if (event === 'payment.failed' && payment?.order_id) {
+      const paymentRecord = await Payment.findOne({ razorpayOrderId: payment.order_id });
+      if (paymentRecord) {
+        await Payment.updateOne(
+          { _id: paymentRecord._id, status: { $in: ['pending', 'created'] } },
+          { $set: { status: 'failed' } }
+        );
+        await recordLedgerEntry({
+          payment: paymentRecord,
+          orderId: paymentRecord.orderId,
+          diningBillId: paymentRecord.diningBillId,
+          eventType: 'payment_failed',
+          amount: paymentRecord.amount,
+          currency: paymentRecord.currency,
+          gatewayTransactionId: payment.id,
+          gatewayOrderId: payment.order_id,
+          metadata: { error: payment.error_description, eventId: req.get('x-razorpay-event-id') },
+        });
+        if (paymentRecord.orderId) {
+          await Order.updateOne(
+            { _id: paymentRecord.orderId, paymentStatus: { $in: ['pending', 'payment_created'] } },
+            { $set: { paymentStatus: 'failed' } }
+          );
+        }
+      }
+      return res.json({ received: true });
+    }
+
     if (event !== 'payment.captured' || !payment?.order_id || !payment?.id) {
       return res.json({ received: true, ignored: true });
     }
@@ -304,6 +425,18 @@ router.post('/webhook', async (req, res) => {
         await session.endSession();
       }
       if (!updatedBill) return res.json({ received: true, duplicate: true });
+
+      await recordLedgerEntry({
+        payment: paymentRecord,
+        diningBillId: bill._id,
+        eventType: 'payment_captured',
+        amount: paymentRecord.amount,
+        currency: paymentRecord.currency,
+        gatewayTransactionId: payment.id,
+        gatewayOrderId: payment.order_id,
+        metadata: { billId: bill._id, method: payment.method },
+      });
+
       const settledOrders = await Order.find({ diningSessionId: bill.diningSessionId }).lean();
       for (const settledOrder of settledOrders) {
         await awardLoyaltyPoints(settledOrder._id);
@@ -332,6 +465,18 @@ router.post('/webhook', async (req, res) => {
       { $set: { status: 'captured', razorpayPaymentId: payment.id, webhookEventId: eventId, capturedAt: new Date() } },
       { new: true, runValidators: true }
     );
+
+    await recordLedgerEntry({
+      payment: paymentRecord,
+      orderId: order._id,
+      eventType: 'payment_captured',
+      amount: paymentRecord.amount,
+      currency: paymentRecord.currency,
+      gatewayTransactionId: payment.id,
+      gatewayOrderId: payment.order_id,
+      metadata: { eventId, method: payment.method },
+    });
+
     return res.json({ received: true, order: publicPaymentState(result.order) });
   } catch (error) {
     console.error('Razorpay webhook error:', error.message);
@@ -340,9 +485,43 @@ router.post('/webhook', async (req, res) => {
   }
 });
 
+// POST /api/payment/reconcile — Admin refund and payment reconciliation
+router.post('/reconcile', async (req, res) => {
+  try {
+    const { orderId, diningBillId } = req.body || {};
+    let paymentRecord;
+    if (orderId && mongoose.isValidObjectId(orderId)) {
+      paymentRecord = await Payment.findOne({ orderId });
+    } else if (diningBillId && mongoose.isValidObjectId(diningBillId)) {
+      paymentRecord = await Payment.findOne({ diningBillId });
+    }
+
+    if (!paymentRecord) {
+      return res.status(404).json({ error: 'Payment record not found for reconciliation.' });
+    }
+
+    const ledger = await PaymentLedger.find({ paymentId: paymentRecord._id }).sort({ recordedAt: 1 }).lean();
+
+    return res.json({
+      reconciled: true,
+      paymentId: paymentRecord._id,
+      status: paymentRecord.status,
+      amount: paymentRecord.amount,
+      currency: paymentRecord.currency,
+      provider: paymentRecord.provider,
+      razorpayOrderId: paymentRecord.razorpayOrderId,
+      razorpayPaymentId: paymentRecord.razorpayPaymentId,
+      refundId: paymentRecord.refundId,
+      capturedAt: paymentRecord.capturedAt,
+      ledger: ledger.length > 0 ? ledger : paymentRecord.ledger,
+    });
+  } catch (error) {
+    console.error('Payment reconciliation error:', error.message);
+    return res.status(500).json({ error: 'Failed to reconcile payment.' });
+  }
+});
+
 // POST /api/payment/verify
-// Compatibility endpoint for older customer bundles. A browser callback is
-// never a payment authority; completion is handled exclusively by /webhook.
 router.post('/verify', async (req, res) => {
   try {
     const validOrderId = getOrderId(req.body?.orderId);

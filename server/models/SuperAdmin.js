@@ -6,6 +6,14 @@ const superAdminSchema = new mongoose.Schema({
   password: { type: String, required: true, minlength: 8 },
   name: { type: String, required: true, trim: true },
   role: { type: String, default: 'super_admin', immutable: true },
+  failedLoginAttempts: { type: Number, default: 0, select: false },
+  loginLockUntil: { type: Date, default: null, select: false },
+  twoFactorEnabled: { type: Boolean, default: false },
+  twoFactorSecretEncrypted: { type: String, default: '', select: false },
+  backupCodes: [{
+    codeHash: { type: String, required: true },
+    used: { type: Boolean, default: false },
+  }],
   refreshTokenHash: { type: String, default: '', select: false },
   refreshTokenExpiresAt: { type: Date, default: null, select: false },
 }, { timestamps: true });
@@ -25,6 +33,8 @@ superAdminSchema.methods.toJSON = function () {
   delete obj.password;
   delete obj.refreshTokenHash;
   delete obj.refreshTokenExpiresAt;
+  delete obj.twoFactorSecretEncrypted;
+  delete obj.backupCodes;
   return obj;
 };
 

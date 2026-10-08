@@ -90,8 +90,8 @@ const customerSchema = new mongoose.Schema({
 
 customerSchema.index({ createdAt: -1 });
 customerSchema.index({ marketingConsent: 1, status: 1 });
-customerSchema.index({ totalOrders: -1, totalSpent: -1 });
 customerSchema.index({ tenantId: 1, phone: 1 }, { unique: true });
+customerSchema.index({ tenantId: 1, loyaltyPoints: -1 });
 
 customerSchema.plugin(tenantIsolationPlugin);
 export default mongoose.model('Customer', customerSchema);

@@ -9,6 +9,13 @@ const auditEventSchema = new mongoose.Schema({
   targetType: { type: String, required: true },
   targetId: { type: String, default: '' },
   details: { type: mongoose.Schema.Types.Mixed, default: {} },
+  ip: { type: String, default: '' },
+  userAgent: { type: String, default: '' },
+  impersonation: {
+    isImpersonated: { type: Boolean, default: false },
+    impersonatedBy: { type: String, default: '' },
+    originalSuperAdminId: { type: String, default: '' },
+  },
 }, { timestamps: { createdAt: true, updatedAt: false } });
 
 auditEventSchema.index({ createdAt: -1 });

@@ -21,4 +21,7 @@ const tableSchema = new mongoose.Schema({
 
 tableSchema.plugin(tenantIsolationPlugin);
 tableSchema.index({ tenantId: 1, tableNumber: 1 }, { unique: true });
+tableSchema.index({ tenantId: 1, branchId: 1, tableNumber: 1 });
+tableSchema.index({ tenantId: 1, status: 1 });
+tableSchema.index({ tenantId: 1, active: 1 });
 export default mongoose.model('Table', tableSchema);

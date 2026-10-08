@@ -7,13 +7,20 @@ import User from '../models/User.js';
 import Table from '../models/Table.js';
 import Product from '../models/Product.js';
 import Order from '../models/Order.js';
+import Category from '../models/Category.js';
+import Customer from '../models/Customer.js';
 import PlatformAuditEvent from '../models/PlatformAuditEvent.js';
+import PlatformSettings from '../models/PlatformSettings.js';
 import { runWithSystemTenantAccess } from '../utils/tenantContext.js';
 import {
   createAccessToken,
   createRefreshToken,
   hashRefreshToken,
   REFRESH_TOKEN_TTL_MS,
+  encryptTwoFactorSecret,
+  decryptTwoFactorSecret,
+  generateTotpSecret,
+  verifyTotpCode,
 } from '../utils/authTokens.js';
 import { setSessionCookies } from './auth.js';
 
@@ -27,7 +34,7 @@ const getJwtSecret = () => {
   return secret;
 };
 
-const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+const hashToken = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
 
 // Middleware: Verify platform super admin token
 export const superAdminProtect = async (req, res, next) => {
@@ -45,6 +52,16 @@ export const superAdminProtect = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, getJwtSecret());
+
+    // PHASE 6: CRITICAL PRIVILEGE ESCALATION PREVENTION
+    // Impersonated tokens MUST NEVER access platform super-admin APIs
+    if (decoded.isImpersonated) {
+      return res.status(403).json({
+        error: 'Impersonated session cannot access platform administration endpoints.',
+        code: 'FORBIDDEN_IMPERSONATED_ACCESS',
+      });
+    }
+
     if (decoded.role !== 'super_admin' || !decoded.id) {
       return res.status(403).json({ error: 'Super-admin privilege required.' });
     }
@@ -67,7 +84,7 @@ export const superAdminProtect = async (req, res, next) => {
 // POST /api/platform/admin/login
 router.post('/login', async (req, res, next) => {
   try {
-    const { email, password } = req.body || {};
+    const { email, password, twoFactorCode } = req.body || {};
     const cleanEmail = String(email || '').trim().toLowerCase();
     const rawPassword = String(password || '');
 
@@ -90,15 +107,90 @@ router.post('/login', async (req, res, next) => {
       }
     }
 
-    const admin = await SuperAdmin.findOne({ email: cleanEmail });
+    const admin = await SuperAdmin.findOne({ email: cleanEmail }).select(
+      '+password +failedLoginAttempts +loginLockUntil +twoFactorSecretEncrypted +backupCodes'
+    );
     if (!admin) {
       return res.status(401).json({ error: 'Invalid platform credentials.' });
     }
 
+    // Check account lockout
+    if (admin.loginLockUntil && admin.loginLockUntil > new Date()) {
+      const waitMinutes = Math.ceil((admin.loginLockUntil.getTime() - Date.now()) / (60 * 1000));
+      return res.status(423).json({
+        error: `Account locked due to excessive failed attempts. Please retry in ${waitMinutes} minute(s).`,
+        code: 'ACCOUNT_LOCKED',
+      });
+    }
+
     const isMatch = await admin.comparePassword(rawPassword);
     if (!isMatch) {
+      admin.failedLoginAttempts = (admin.failedLoginAttempts || 0) + 1;
+      if (admin.failedLoginAttempts >= 5) {
+        admin.loginLockUntil = new Date(Date.now() + 15 * 60 * 1000); // 15-minute lock
+        await PlatformAuditEvent.create({
+          actorId: admin._id,
+          actorEmail: admin.email,
+          action: 'auth.account_locked',
+          ip: req.ip,
+          details: { failedAttempts: admin.failedLoginAttempts },
+        });
+      }
+      await admin.save();
+      await PlatformAuditEvent.create({
+        actorEmail: cleanEmail,
+        action: 'auth.login_failed',
+        ip: req.ip,
+        details: { reason: 'bad_password', attempts: admin.failedLoginAttempts },
+      });
       return res.status(401).json({ error: 'Invalid platform credentials.' });
     }
+
+    // Verify 2FA if enabled
+    if (admin.twoFactorEnabled) {
+      if (!twoFactorCode) {
+        return res.status(200).json({
+          require2fa: true,
+          message: 'Two-factor authentication code required.',
+        });
+      }
+
+      let codeValid = false;
+      if (admin.twoFactorSecretEncrypted) {
+        try {
+          const secret = decryptTwoFactorSecret(admin.twoFactorSecretEncrypted);
+          codeValid = verifyTotpCode(secret, twoFactorCode);
+        } catch (_) {
+          // Ignore 2FA verification failure
+        }
+      }
+
+      // Check backup codes
+      if (!codeValid && admin.backupCodes && admin.backupCodes.length > 0) {
+        const hashedAttempt = hashToken(twoFactorCode.trim());
+        const matchedBackup = admin.backupCodes.find((b) => b.codeHash === hashedAttempt && !b.used);
+        if (matchedBackup) {
+          matchedBackup.used = true;
+          codeValid = true;
+        }
+      }
+
+      if (!codeValid) {
+        admin.failedLoginAttempts = (admin.failedLoginAttempts || 0) + 1;
+        await admin.save();
+        await PlatformAuditEvent.create({
+          actorEmail: cleanEmail,
+          action: 'auth.login_failed_2fa',
+          ip: req.ip,
+          details: { attempts: admin.failedLoginAttempts },
+        });
+        return res.status(401).json({ error: 'Invalid two-factor authentication code or backup code.' });
+      }
+    }
+
+    // Reset login lock & failed attempts on successful login
+    admin.failedLoginAttempts = 0;
+    admin.loginLockUntil = null;
 
     // Create short-lived access token (15min) and long-lived refresh token
     const accessToken = jwt.sign(
@@ -111,13 +203,21 @@ router.post('/login', async (req, res, next) => {
     admin.refreshTokenExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
     await admin.save();
 
+    await PlatformAuditEvent.create({
+      actorId: admin._id,
+      actorEmail: admin.email,
+      action: 'auth.login',
+      ip: req.ip,
+      details: { userAgent: req.headers['user-agent'] },
+    });
+
     const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('brewhaus_superadmin_token', accessToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? 'none' : 'lax',
       path: '/',
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      maxAge: 15 * 60 * 1000,
     });
     res.cookie('brewhaus_superadmin_refresh', refreshToken, {
       httpOnly: true,
@@ -134,6 +234,7 @@ router.post('/login', async (req, res, next) => {
         name: admin.name,
         email: admin.email,
         role: 'super_admin',
+        twoFactorEnabled: Boolean(admin.twoFactorEnabled),
       },
     });
   } catch (error) {
@@ -149,12 +250,44 @@ router.get('/me', superAdminProtect, (req, res) => {
       name: req.superAdmin.name,
       email: req.superAdmin.email,
       role: 'super_admin',
+      twoFactorEnabled: Boolean(req.superAdmin.twoFactorEnabled),
     },
   });
 });
 
 // POST /api/platform/admin/logout
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    let token = '';
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (req.cookies && req.cookies.brewhaus_superadmin_token) {
+      token = req.cookies.brewhaus_superadmin_token;
+    }
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, getJwtSecret());
+        if (decoded.id) {
+          await SuperAdmin.updateOne(
+            { _id: decoded.id },
+            { $set: { refreshTokenHash: '', refreshTokenExpiresAt: null } }
+          );
+          await PlatformAuditEvent.create({
+            actorId: decoded.id,
+            actorEmail: decoded.email || '',
+            action: 'auth.logout',
+            ip: req.ip,
+          });
+        }
+      } catch (_) {
+        // Ignore token decode error on logout audit
+      }
+    }
+  } catch (_) {
+    // Ignore outer token decode error on logout
+  }
+
   const isProduction = process.env.NODE_ENV === 'production';
   res.clearCookie('brewhaus_superadmin_token', {
     httpOnly: true,
@@ -178,31 +311,17 @@ router.post('/refresh', async (req, res) => {
     if (!refreshToken) return res.status(401).json({ error: 'Refresh session missing.' });
 
     const providedHash = hashToken(refreshToken);
-    const admin = await SuperAdmin.findOne({ refreshTokenHash: providedHash, refreshTokenExpiresAt: { $gt: new Date() } });
+    const admin = await SuperAdmin.findOne({
+      refreshTokenHash: providedHash,
+      refreshTokenExpiresAt: { $gt: new Date() },
+    });
     if (!admin) {
       res.clearCookie('brewhaus_superadmin_token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
       res.clearCookie('brewhaus_superadmin_refresh', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
       return res.status(401).json({ error: 'Refresh session expired.' });
     }
 
-    // Token reuse detection
-    if (admin.refreshTokenHash !== providedHash) {
-      // Token reuse detected — revoke all sessions
-      await SuperAdmin.updateOne({ _id: admin._id }, { $set: { refreshTokenHash: '', refreshTokenExpiresAt: null } });
-      res.clearCookie('brewhaus_superadmin_token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
-      res.clearCookie('brewhaus_superadmin_refresh', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
-      await PlatformAuditEvent.create({
-        actorId: admin._id,
-        actorEmail: admin.email,
-        action: 'auth.token_reuse_detected',
-        targetType: 'SuperAdmin',
-        targetId: admin._id,
-        details: { ip: req.ip },
-      });
-      return res.status(401).json({ error: 'Session invalidated due to token reuse. Please log in again.' });
-    }
-
-    // Rotate: generate new refresh token, invalidate old
+    // Token rotation
     const newRefreshToken = createRefreshToken();
     admin.refreshTokenHash = hashToken(newRefreshToken);
     admin.refreshTokenExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
@@ -237,6 +356,7 @@ router.post('/refresh', async (req, res) => {
         name: admin.name,
         email: admin.email,
         role: 'super_admin',
+        twoFactorEnabled: Boolean(admin.twoFactorEnabled),
       },
     });
   } catch (error) {
@@ -244,27 +364,135 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
-// GET /api/platform/admin/metrics
+// 2FA Endpoints for Super Admin
+// POST /api/platform/admin/2fa/setup
+router.post('/2fa/setup', superAdminProtect, async (req, res, next) => {
+  try {
+    const admin = await SuperAdmin.findById(req.superAdmin._id).select('+twoFactorSecretEncrypted');
+    if (admin.twoFactorEnabled) {
+      return res.status(400).json({ error: '2FA is already enabled.' });
+    }
+    const secret = generateTotpSecret();
+    admin.twoFactorSecretEncrypted = encryptTwoFactorSecret(secret);
+    await admin.save();
+    const otpauthUrl = `otpauth://totp/Brewhaus:${encodeURIComponent(admin.email)}?secret=${secret}&issuer=Brewhaus%20SaaS`;
+    res.json({ secret, otpauthUrl });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/platform/admin/2fa/verify
+router.post('/2fa/verify', superAdminProtect, async (req, res, next) => {
+  try {
+    const { code } = req.body || {};
+    const admin = await SuperAdmin.findById(req.superAdmin._id).select('+twoFactorSecretEncrypted');
+    if (!admin.twoFactorSecretEncrypted) {
+      return res.status(400).json({ error: '2FA has not been initiated. Please run setup first.' });
+    }
+    const secret = decryptTwoFactorSecret(admin.twoFactorSecretEncrypted);
+    if (!verifyTotpCode(secret, code)) {
+      return res.status(400).json({ error: 'Invalid verification code.' });
+    }
+    admin.twoFactorEnabled = true;
+
+    // Generate 8 backup codes
+    const plainBackupCodes = [];
+    admin.backupCodes = [];
+    for (let i = 0; i < 8; i++) {
+      const plainCode = crypto.randomBytes(4).toString('hex').toUpperCase();
+      plainBackupCodes.push(plainCode);
+      admin.backupCodes.push({ codeHash: hashToken(plainCode), used: false });
+    }
+    await admin.save();
+
+    await PlatformAuditEvent.create({
+      actorId: admin._id,
+      actorEmail: admin.email,
+      action: 'auth.2fa_enabled',
+      ip: req.ip,
+    });
+
+    res.json({ success: true, backupCodes: plainBackupCodes });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/platform/admin/2fa/disable
+router.post('/2fa/disable', superAdminProtect, async (req, res, next) => {
+  try {
+    const { password, code } = req.body || {};
+    const admin = await SuperAdmin.findById(req.superAdmin._id).select('+password +twoFactorSecretEncrypted');
+    const isMatch = await admin.comparePassword(String(password || ''));
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Password required to disable 2FA.' });
+    }
+    if (admin.twoFactorSecretEncrypted && code) {
+      const secret = decryptTwoFactorSecret(admin.twoFactorSecretEncrypted);
+      if (!verifyTotpCode(secret, code)) {
+        return res.status(400).json({ error: 'Invalid 2FA code.' });
+      }
+    }
+    admin.twoFactorEnabled = false;
+    admin.twoFactorSecretEncrypted = '';
+    admin.backupCodes = [];
+    await admin.save();
+
+    await PlatformAuditEvent.create({
+      actorId: admin._id,
+      actorEmail: admin.email,
+      action: 'auth.2fa_disabled',
+      ip: req.ip,
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/platform/admin/metrics — Expanded SaaS Platform Analytics
 router.get('/metrics', superAdminProtect, async (req, res, next) => {
   try {
+    const { from, to } = req.query || {};
+    const dateMatch = {};
+    if (from || to) {
+      dateMatch.createdAt = {};
+      if (from) dateMatch.createdAt.$gte = new Date(from);
+      if (to) dateMatch.createdAt.$lte = new Date(`${to}T23:59:59.999`);
+    }
+
     const data = await runWithSystemTenantAccess(async () => {
       const [
         totalTenants,
         activeTenants,
+        trialTenants,
         suspendedTenants,
+        cancelledTenants,
         planBreakdownRaw,
+        activeUsers,
         totalOrders,
         gmvAgg,
+        recentOrdersCount,
+        paymentFailuresCount,
       ] = await Promise.all([
         Tenant.countDocuments(),
         Tenant.countDocuments({ status: 'active' }),
+        Tenant.countDocuments({ $or: [{ 'subscription.status': 'trialing' }, { status: 'trial' }] }),
         Tenant.countDocuments({ status: 'suspended' }),
+        Tenant.countDocuments({ 'subscription.status': 'cancelled' }),
         Tenant.aggregate([{ $group: { _id: '$plan', count: { $sum: 1 } } }]),
-        Order.countDocuments(),
+        User.countDocuments({ active: true }),
+        Order.countDocuments(dateMatch),
         Order.aggregate([
-          { $match: { 'payment.status': 'completed' } },
-          { $group: { _id: null, total: { $sum: '$pricing.finalTotal' } } },
+          { $match: { ...dateMatch, paymentStatus: 'paid' } },
+          { $group: { _id: null, total: { $sum: '$total' } } },
         ]),
+        Order.countDocuments({
+          createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+        }),
+        PlatformAuditEvent.countDocuments({ action: { $regex: 'fail|lock|error', $options: 'i' } }),
       ]);
 
       const planBreakdown = {};
@@ -272,13 +500,37 @@ router.get('/metrics', superAdminProtect, async (req, res, next) => {
         planBreakdown[item._id || 'starter'] = item.count;
       }
 
+      // Plan pricing for MRR estimation
+      const PLAN_RATES = { starter: 999, pro: 2499, enterprise: 4999 };
+      let mrr = 0;
+      for (const [planName, count] of Object.entries(planBreakdown)) {
+        mrr += (PLAN_RATES[planName.toLowerCase()] || 999) * count;
+      }
+      const arr = mrr * 12;
+
+      const totalGmv = Math.round((gmvAgg[0]?.total || 0) * 100) / 100;
+      const avgOrderValue = totalOrders > 0 ? Math.round(totalGmv / totalOrders) : 0;
+      const ordersPerDay = Math.round((recentOrdersCount / 30) * 10) / 10;
+      const churnRate = totalTenants > 0 ? Number(((cancelledTenants / totalTenants) * 100).toFixed(1)) : 0;
+      const trialConversion = totalTenants > 0 ? Number(((activeTenants / totalTenants) * 100).toFixed(1)) : 0;
+
       return {
         totalTenants,
         activeTenants,
+        trialTenants,
         suspendedTenants,
+        cancelledTenants,
+        activeUsers,
         planBreakdown,
+        mrr,
+        arr,
+        churnRate,
+        trialConversion,
         totalOrders,
-        totalGmv: Math.round((gmvAgg[0]?.total || 0) * 100) / 100,
+        ordersPerDay,
+        totalGmv,
+        avgOrderValue,
+        paymentFailures: paymentFailuresCount,
       };
     });
 
@@ -325,6 +577,50 @@ router.get('/tenants', superAdminProtect, async (req, res, next) => {
   }
 });
 
+// POST /api/platform/admin/tenants
+router.post('/tenants', superAdminProtect, async (req, res, next) => {
+  try {
+    const { name, slug, email, password, plan = 'starter' } = req.body || {};
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Name, email, and password are required.' });
+    }
+    const cleanSlug = (slug || name.toLowerCase().replace(/[^a-z0-9]/g, '-')).trim();
+    const existing = await Tenant.findOne({ slug: cleanSlug });
+    if (existing) {
+      return res.status(409).json({ error: 'Tenant with this slug already exists.' });
+    }
+
+    const tenant = await Tenant.create({
+      name,
+      slug: cleanSlug,
+      plan,
+      status: 'active',
+    });
+
+    const user = await User.create({
+      name: `${name} Owner`,
+      email: email.toLowerCase().trim(),
+      password,
+      role: 'owner',
+      tenantId: tenant._id,
+    });
+
+    await PlatformAuditEvent.create({
+      actorId: req.superAdmin._id,
+      actorEmail: req.superAdmin.email,
+      action: 'tenant.create',
+      targetTenantId: tenant._id,
+      targetTenantSlug: tenant.slug,
+      details: { ownerEmail: user.email, plan },
+      ip: req.ip,
+    });
+
+    res.status(201).json({ success: true, tenant, owner: { id: user._id, email: user.email } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PUT /api/platform/admin/tenants/:id/status
 router.put('/tenants/:id/status', superAdminProtect, async (req, res, next) => {
   try {
@@ -340,17 +636,21 @@ router.put('/tenants/:id/status', superAdminProtect, async (req, res, next) => {
       const previousStatus = existing.status;
       existing.status = status;
       if (status === 'suspended') {
+        if (!existing.subscription) existing.subscription = {};
         existing.subscription.status = 'suspended';
+      } else if (status === 'active' && existing.subscription?.status === 'suspended') {
+        existing.subscription.status = 'active';
       }
       await existing.save();
 
+      const actionName = status === 'active' ? 'tenant.reactivate' : 'tenant.suspend';
       await PlatformAuditEvent.create({
         actorId: req.superAdmin._id,
         actorEmail: req.superAdmin.email,
-        action: 'tenant.status_change',
+        action: actionName,
         targetTenantId: existing._id,
         targetTenantSlug: existing.slug,
-        details: { previousStatus, newStatus: status, reason: reason || 'Manual admin change' },
+        details: { previousStatus, newStatus: status, reason: reason || 'Manual super-admin change' },
         ip: req.ip,
       });
 
@@ -409,9 +709,68 @@ router.put('/tenants/:id/plan', superAdminProtect, async (req, res, next) => {
   }
 });
 
+// DELETE /api/platform/admin/tenants/:id
+router.delete('/tenants/:id', superAdminProtect, async (req, res, next) => {
+  try {
+    const tenant = await Tenant.findById(req.params.id);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found.' });
+
+    // Safe suspension / archive
+    tenant.status = 'suspended';
+    await tenant.save();
+
+    await PlatformAuditEvent.create({
+      actorId: req.superAdmin._id,
+      actorEmail: req.superAdmin.email,
+      action: 'tenant.delete',
+      targetTenantId: tenant._id,
+      targetTenantSlug: tenant.slug,
+      details: { actionType: 'archived_suspended' },
+      ip: req.ip,
+    });
+
+    res.json({ success: true, message: 'Tenant archived and suspended.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/platform/admin/tenants/:id/export
+router.get('/tenants/:id/export', superAdminProtect, async (req, res, next) => {
+  try {
+    const data = await runWithSystemTenantAccess(async () => {
+      const tenant = await Tenant.findById(req.params.id).lean();
+      if (!tenant) return null;
+      const [products, orders, tables, customers, categories] = await Promise.all([
+        Product.find({ tenantId: tenant._id }).lean(),
+        Order.find({ tenantId: tenant._id }).limit(500).sort({ createdAt: -1 }).lean(),
+        Table.find({ tenantId: tenant._id }).lean(),
+        Customer.find({ tenantId: tenant._id }).lean(),
+        Category.find({ tenantId: tenant._id }).lean(),
+      ]);
+      return { tenant, products, orders, tables, customers, categories };
+    });
+
+    if (!data) return res.status(404).json({ error: 'Tenant not found.' });
+
+    await PlatformAuditEvent.create({
+      actorId: req.superAdmin._id,
+      actorEmail: req.superAdmin.email,
+      action: 'tenant.export_data',
+      targetTenantId: req.params.id,
+      ip: req.ip,
+    });
+
+    res.json({ success: true, export: data });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/platform/admin/tenants/:id/impersonate
 router.post('/tenants/:id/impersonate', superAdminProtect, async (req, res, next) => {
   try {
+    const { reason = 'Support and troubleshooting' } = req.body || {};
     const result = await runWithSystemTenantAccess(async () => {
       const tenant = await Tenant.findById(req.params.id);
       if (!tenant) return null;
@@ -423,7 +782,6 @@ router.post('/tenants/:id/impersonate', superAdminProtect, async (req, res, next
       }
 
       if (!owner) {
-        // Create an owner placeholder user if none exists
         owner = await User.create({
           tenantId: tenant._id,
           name: `${tenant.name} Owner`,
@@ -433,9 +791,15 @@ router.post('/tenants/:id/impersonate', superAdminProtect, async (req, res, next
         });
       }
 
+      const impersonationSessionId = crypto.randomUUID();
       const accessToken = createAccessToken(owner._id, tenant._id, {
+        role: owner.role,
+        isImpersonated: true,
+        originalSuperAdminId: String(req.superAdmin._id),
         impersonatedBy: req.superAdmin.email,
+        impersonationSessionId,
       });
+
       const refreshToken = createRefreshToken();
       owner.refreshTokenHash = hashRefreshToken(refreshToken);
       owner.refreshTokenExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
@@ -444,10 +808,15 @@ router.post('/tenants/:id/impersonate', superAdminProtect, async (req, res, next
       await PlatformAuditEvent.create({
         actorId: req.superAdmin._id,
         actorEmail: req.superAdmin.email,
-        action: 'tenant.impersonate',
+        action: 'tenant.impersonate_start',
         targetTenantId: tenant._id,
         targetTenantSlug: tenant.slug,
-        details: { targetUserId: owner._id, targetEmail: owner.email },
+        details: {
+          reason,
+          targetUserId: owner._id,
+          targetEmail: owner.email,
+          impersonationSessionId,
+        },
         ip: req.ip,
       });
 
@@ -460,6 +829,7 @@ router.post('/tenants/:id/impersonate', superAdminProtect, async (req, res, next
           email: owner.email,
           role: owner.role,
           tenantId: tenant._id,
+          isImpersonated: true,
           impersonatedBy: req.superAdmin.email,
         },
         tenant: {
@@ -487,11 +857,106 @@ router.post('/tenants/:id/impersonate', superAdminProtect, async (req, res, next
   }
 });
 
+// POST /api/platform/admin/exit-impersonation
+router.post('/exit-impersonation', async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    let token = '';
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (req.cookies && req.cookies.brewhaus_token) {
+      token = req.cookies.brewhaus_token;
+    }
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, getJwtSecret());
+        if (decoded.isImpersonated) {
+          await PlatformAuditEvent.create({
+            actorEmail: decoded.impersonatedBy || 'SuperAdmin',
+            action: 'tenant.impersonate_exit',
+            targetTenantId: decoded.tenantId,
+            details: {
+              impersonationSessionId: decoded.impersonationSessionId,
+              targetUserId: decoded.id,
+            },
+            ip: req.ip,
+          });
+        }
+      } catch (_) {
+        // Ignore token decode error on exit impersonation
+      }
+    }
+
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.clearCookie('brewhaus_token', { httpOnly: true, secure: isProduction, sameSite: isProduction ? 'none' : 'lax', path: '/' });
+    res.clearCookie('brewhaus_refresh_token', { httpOnly: true, secure: isProduction, sameSite: isProduction ? 'none' : 'lax', path: '/' });
+
+    res.json({ success: true, message: 'Impersonation ended.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Platform Settings
+// GET /api/platform/admin/settings
+router.get('/settings', superAdminProtect, async (req, res, next) => {
+  try {
+    let settings = await PlatformSettings.findOne({ key: 'global' });
+    if (!settings) {
+      settings = await PlatformSettings.create({ key: 'global' });
+    }
+    res.json({ settings });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/platform/admin/settings
+router.put('/settings', superAdminProtect, async (req, res, next) => {
+  try {
+    const { platformName, supportEmail, trialDaysDefault, maintenanceMode, registrationOpen, bannerMessage } = req.body || {};
+    let settings = await PlatformSettings.findOne({ key: 'global' });
+    if (!settings) {
+      settings = new PlatformSettings({ key: 'global' });
+    }
+    const previous = settings.toObject();
+    if (platformName !== undefined) settings.platformName = platformName;
+    if (supportEmail !== undefined) settings.supportEmail = supportEmail;
+    if (trialDaysDefault !== undefined) settings.trialDaysDefault = Number(trialDaysDefault);
+    if (maintenanceMode !== undefined) settings.maintenanceMode = Boolean(maintenanceMode);
+    if (registrationOpen !== undefined) settings.registrationOpen = Boolean(registrationOpen);
+    if (bannerMessage !== undefined) settings.bannerMessage = bannerMessage;
+    settings.updatedBy = req.superAdmin._id;
+    await settings.save();
+
+    await PlatformAuditEvent.create({
+      actorId: req.superAdmin._id,
+      actorEmail: req.superAdmin.email,
+      action: 'platform.settings_change',
+      details: { previous, updated: settings.toObject() },
+      ip: req.ip,
+    });
+
+    res.json({ success: true, settings });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/platform/admin/audit-logs
 router.get('/audit-logs', superAdminProtect, async (req, res, next) => {
   try {
-    const logs = await PlatformAuditEvent.find().sort({ createdAt: -1 }).limit(50).lean();
-    res.json({ logs });
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    const skip = (page - 1) * limit;
+
+    const [logs, total] = await Promise.all([
+      PlatformAuditEvent.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      PlatformAuditEvent.countDocuments(),
+    ]);
+
+    res.json({ logs, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (error) {
     next(error);
   }

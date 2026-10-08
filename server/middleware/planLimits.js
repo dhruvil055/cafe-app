@@ -1,7 +1,5 @@
 import { getPlan } from '../config/plans.js';
-import Table from '../models/Table.js';
-import Product from '../models/Product.js';
-import User from '../models/User.js';
+import { checkLimit } from '../services/usageLimitService.js';
 
 export const getTenantPlanConfig = (tenant) => {
   const planId = tenant?.plan || tenant?.subscription?.plan || 'starter';
@@ -10,57 +8,54 @@ export const getTenantPlanConfig = (tenant) => {
 
 export const checkTableLimit = async (req, res, next) => {
   try {
-    const plan = getTenantPlanConfig(req.tenant);
-    const count = await Table.countDocuments();
-    if (count >= plan.limits.tables) {
-      return res.status(403).json({
-        error: `Table limit of ${plan.limits.tables} reached for your ${plan.name}. Please upgrade your subscription to add more tables.`,
-        code: 'PLAN_LIMIT_EXCEEDED',
-        resource: 'tables',
-        limit: plan.limits.tables,
-        current: count,
-      });
-    }
+    await checkLimit(req.tenantId, req.tenant?.plan, 'tables');
     next();
   } catch (error) {
+    if (error.code === 'PLAN_LIMIT_REACHED') {
+      return res.status(403).json({
+        error: 'Plan limit reached.',
+        code: 'PLAN_LIMIT_REACHED',
+        feature: 'tables',
+        limit: error.limit,
+        current: error.current,
+      });
+    }
     next(error);
   }
 };
 
 export const checkMenuItemLimit = async (req, res, next) => {
   try {
-    const plan = getTenantPlanConfig(req.tenant);
-    const count = await Product.countDocuments();
-    if (count >= plan.limits.menuItems) {
-      return res.status(403).json({
-        error: `Menu item limit of ${plan.limits.menuItems} reached for your ${plan.name}. Please upgrade your subscription to add more items.`,
-        code: 'PLAN_LIMIT_EXCEEDED',
-        resource: 'menuItems',
-        limit: plan.limits.menuItems,
-        current: count,
-      });
-    }
+    await checkLimit(req.tenantId, req.tenant?.plan, 'menuItems');
     next();
   } catch (error) {
+    if (error.code === 'PLAN_LIMIT_REACHED') {
+      return res.status(403).json({
+        error: 'Plan limit reached.',
+        code: 'PLAN_LIMIT_REACHED',
+        feature: 'menuItems',
+        limit: error.limit,
+        current: error.current,
+      });
+    }
     next(error);
   }
 };
 
 export const checkStaffUserLimit = async (req, res, next) => {
   try {
-    const plan = getTenantPlanConfig(req.tenant);
-    const count = await User.countDocuments();
-    if (count >= plan.limits.staffUsers) {
-      return res.status(403).json({
-        error: `Team member limit of ${plan.limits.staffUsers} reached for your ${plan.name}. Please upgrade your subscription to add more team members.`,
-        code: 'PLAN_LIMIT_EXCEEDED',
-        resource: 'staffUsers',
-        limit: plan.limits.staffUsers,
-        current: count,
-      });
-    }
+    await checkLimit(req.tenantId, req.tenant?.plan, 'staffUsers');
     next();
   } catch (error) {
+    if (error.code === 'PLAN_LIMIT_REACHED') {
+      return res.status(403).json({
+        error: 'Plan limit reached.',
+        code: 'PLAN_LIMIT_REACHED',
+        feature: 'staffUsers',
+        limit: error.limit,
+        current: error.current,
+      });
+    }
     next(error);
   }
 };

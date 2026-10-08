@@ -12,8 +12,27 @@ const paymentSchema = new mongoose.Schema({
   razorpayOrderId: { type: String, default: '' },
   razorpayPaymentId: { type: String, default: '' },
   refundId: { type: String, default: '' },
-  webhookEventId: { type: String, default: '' },
   capturedAt: { type: Date, default: null },
+  ledger: [{
+    eventType: {
+      type: String,
+      enum: [
+        'payment_created',
+        'payment_authorized',
+        'payment_captured',
+        'payment_failed',
+        'refund_requested',
+        'refund_processed',
+        'refund_failed',
+      ],
+      required: true,
+    },
+    amount: { type: Number, required: true },
+    currency: { type: String, default: 'INR' },
+    gatewayTransactionId: { type: String, default: '' },
+    metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+    timestamp: { type: Date, default: Date.now },
+  }],
 }, { timestamps: true });
 
 paymentSchema.index({ razorpayOrderId: 1 }, { sparse: true });

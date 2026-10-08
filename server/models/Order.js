@@ -155,6 +155,10 @@ orderSchema.index({ tenantId: 1, idempotencyKey: 1 }, { unique: true, partialFil
 orderSchema.index({ tenantId: 1, accessTokenHash: 1 }, { unique: true });
 orderSchema.index({ diningSessionId: 1, createdAt: -1 });
 orderSchema.index({ tenantId: 1, orderStatus: 1, createdAt: -1 });
+orderSchema.index({ tenantId: 1, paymentStatus: 1, createdAt: -1 });
+orderSchema.index({ tenantId: 1, branchId: 1, createdAt: -1 });
+orderSchema.index({ tenantId: 1, branchId: 1, orderStatus: 1 });
+orderSchema.index({ tenantId: 1, 'customer.phone': 1 });
 orderSchema.index({ tenantId: 1, createdAt: -1 });
 orderSchema.index({ tableNumber: 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1, createdAt: -1 });

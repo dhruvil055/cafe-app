@@ -65,10 +65,10 @@ export default function POSPage() {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [processingOrder, setProcessingOrder] = useState(false);
 
-  // Connectivity & Offline
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [syncingOffline, setSyncingOffline] = useState(false);
+  const [syncFailed, setSyncFailed] = useState(false);
 
   const receiptPrintRef = useRef(null);
 
@@ -108,6 +108,7 @@ export default function POSPage() {
   const syncPendingOfflineOrders = async () => {
     if (!navigator.onLine || syncingOffline) return;
     setSyncingOffline(true);
+    setSyncFailed(false);
     try {
       const pending = await getPendingOfflineOrders();
       if (pending.length === 0) {
@@ -122,9 +123,15 @@ export default function POSPage() {
         }
         toast.success(`Successfully synced ${data.synced.length} offline order(s)!`);
       }
+      if (data.failed && data.failed.length > 0) {
+        setSyncFailed(true);
+        toast.error(`${data.failed.length} offline order(s) failed to sync.`);
+      }
       await checkPendingOfflineQueue();
     } catch (err) {
       console.warn('[POS Sync Error]:', err.message);
+      setSyncFailed(true);
+      toast.error('Sync failed: ' + (err.response?.data?.error || err.message));
     } finally {
       setSyncingOffline(false);
     }
@@ -535,17 +542,32 @@ export default function POSPage() {
             </button>
           )}
 
-          {/* Online/Offline Badge */}
-          <div
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium border ${
-              isOnline
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                : 'bg-red-500/10 text-red-400 border-red-500/30 animate-pulse'
-            }`}
-          >
-            {isOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
-            <span className="hidden sm:inline">{isOnline ? 'Online' : 'Offline Mode'}</span>
-          </div>
+          {/* Explicit 4-State Network & Sync Status */}
+          {syncingOffline ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
+              <RefreshCw size={13} className="animate-spin" />
+              <span>SYNCING</span>
+            </div>
+          ) : syncFailed ? (
+            <button
+              onClick={syncPendingOfflineOrders}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/30 transition"
+              title="Click to retry failed sync"
+            >
+              <AlertCircle size={13} />
+              <span>SYNC FAILED (Retry)</span>
+            </button>
+          ) : !isOnline ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/30 animate-pulse">
+              <WifiOff size={13} />
+              <span>OFFLINE</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+              <Wifi size={13} />
+              <span>ONLINE</span>
+            </div>
+          )}
         </div>
       </div>
 

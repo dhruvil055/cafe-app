@@ -32,7 +32,11 @@ const cleanTenantError = (res, status, message) => res.status(status).json({ err
 
 export const tenantResolver = async (req, res, next) => {
   if (
+    req.path === '/health' ||
     req.path === '/api/health' ||
+    req.path === '/ready' ||
+    req.path === '/api/ready' ||
+    req.path === '/api/tenant/public' ||
     req.path.startsWith('/api/platform') ||
     req.path === '/api/billing/webhook' ||
     req.path === '/api/auth/me' ||

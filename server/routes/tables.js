@@ -98,13 +98,13 @@ router.get('/', async (req, res) => {
 router.get('/qr/validate', async (req, res) => {
   try {
     const claims = verifyTableQrToken(req.query.token);
-    if (!claims) return res.status(400).json({ valid: false, error: 'Invalid or expired table QR code.' });
-    if (String(claims.tenantId) !== String(req.tenantId)) return res.status(404).json({ valid: false, error: 'Invalid table QR code.' });
+    if (!claims) return res.status(400).json({ valid: false, error: 'Invalid or expired table QR code.', code: 'INVALID_TABLE_QR' });
+    if (String(claims.tenantId) !== String(req.tenantId)) return res.status(404).json({ valid: false, error: 'Invalid or expired table QR code.', code: 'INVALID_TABLE_QR' });
     const table = await Table.findOne({ _id: claims.tableId, active: true }).select('tableNumber label').lean();
-    if (!table) return res.status(404).json({ valid: false, error: 'Invalid or inactive table.' });
+    if (!table) return res.status(404).json({ valid: false, error: 'Invalid or expired table QR code.', code: 'INVALID_TABLE_QR' });
     return res.json({ valid: true, table: { tableNumber: table.tableNumber, label: table.label }, expiresAt: claims.expiresAt });
   } catch (error) {
-    return res.status(400).json({ valid: false, error: 'Unable to validate table QR code.' });
+    return res.status(400).json({ valid: false, error: 'Invalid or expired table QR code.', code: 'INVALID_TABLE_QR' });
   }
 });
 

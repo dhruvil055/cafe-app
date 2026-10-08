@@ -162,16 +162,22 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
   });
 
   // ── Rate limiting ──────────────────────────────────────────────────────────
-  // Enforced in production and test suites; disabled in local development
-  // so hot-reloads and multiple browser tabs are not throttled.
   if (!['development', 'test'].includes(process.env.NODE_ENV)) {
+    const rateLimitHandler = (windowMs) => (req, res) => {
+      res.status(429).json({
+        error: 'Too many requests.',
+        code: 'RATE_LIMITED',
+        retryAfter: Math.ceil(windowMs / 1000),
+      });
+    };
+
     // General baseline — covers all /api/ routes (200 req/15min)
     const apiLimiter = rateLimit({
       windowMs: 15 * 60 * 1000,
       max: 200,
       standardHeaders: true,
       legacyHeaders: false,
-      message: { error: 'Too many requests. Please try again later.' },
+      handler: rateLimitHandler(15 * 60 * 1000),
     });
 
     // Relaxed limiter for read-heavy public endpoints
@@ -180,7 +186,7 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
       max: 500,
       standardHeaders: true,
       legacyHeaders: false,
-      message: { error: 'Too many requests. Please try again later.' },
+      handler: rateLimitHandler(15 * 60 * 1000),
     });
 
     // Strict limiter for sensitive mutation endpoints
@@ -189,7 +195,7 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
       max: 30,
       standardHeaders: true,
       legacyHeaders: false,
-      message: { error: 'Too many requests. Please try again later.' },
+      handler: rateLimitHandler(15 * 60 * 1000),
     });
 
     app.use('/api/', apiLimiter);
@@ -206,6 +212,8 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
     app.use('/api/auth', strictLimiter);
     app.use('/api/payment', strictLimiter);
     app.use('/api/contact', strictLimiter);
+    app.use('/api/ai', strictLimiter);
+    app.use('/api/platform/auth', strictLimiter);
   }
 
   app.use(express.json({
@@ -266,10 +274,12 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
     });
   });
 
-  app.get('/api/health', (req, res) => {
+  app.get(['/health', '/api/health'], (req, res) => {
     const ready = mongoose.connection.readyState === 1;
     res.status(ready ? 200 : 503).json({
       status: ready ? 'ok' : 'unavailable',
+      database: ready ? 'connected' : 'disconnected',
+      version: '1.0.0',
       timestamp: new Date().toISOString(),
       email: {
         configured: isEmailConfigured(),
@@ -278,6 +288,15 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
         hasResendApiKey: Boolean(process.env.RESEND_API_KEY),
         hasSmtpCreds: Boolean((process.env.SMTP_USER || process.env.EMAIL_USER) && (process.env.SMTP_PASS || process.env.EMAIL_PASS)),
       },
+    });
+  });
+
+  app.get(['/ready', '/api/ready'], (req, res) => {
+    const ready = mongoose.connection.readyState === 1;
+    res.status(ready ? 200 : 503).json({
+      status: ready ? 'ok' : 'not_ready',
+      database: ready ? 'connected' : 'disconnected',
+      version: '1.0.0',
     });
   });
 
