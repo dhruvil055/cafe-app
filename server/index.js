@@ -141,12 +141,14 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
       return callback(error);
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
       'Content-Type', 'Authorization', 'Idempotency-Key', 'idempotency-key',
-      'X-Requested-With', 'X-Order-Access-Token',
-      'X-Tenant-Slug', 'x-tenant-slug', 'X-Tenant-Id', 'x-tenant-id', 'X-Table-Token', 'x-table-token',
-      'X-Cafe-ID', 'x-cafe-id', 'X-QR-TOKEN', 'x-qr-token'
+      'X-Requested-With', 'x-requested-with', 'X-Order-Access-Token', 'x-order-access-token',
+      'X-Tenant-Slug', 'x-tenant-slug', 'X-Tenant-Id', 'x-tenant-id',
+      'X-Branch-Id', 'x-branch-id', 'X-Branch-ID',
+      'X-Table-Token', 'x-table-token', 'X-Cafe-ID', 'x-cafe-id',
+      'X-QR-TOKEN', 'x-qr-token', 'Accept', 'accept', 'Origin', 'origin'
     ],
     maxAge: 86400,
   }));
