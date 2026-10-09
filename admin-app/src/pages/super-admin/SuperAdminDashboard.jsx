@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 
 import api from '../../services/api';
 import { setAccessToken } from '../../services/accessToken';
-import { useSuperAdminTheme } from '../../components/super-admin/theme';
+import { useTheme } from '../../context/ThemeContext';
 
 import Sidebar from '../../components/super-admin/Sidebar';
 import TopBar from '../../components/super-admin/TopBar';
@@ -29,15 +29,13 @@ import UserPanelModal from '../../components/UserPanelModal';
 export default function SuperAdminDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { isDark, toggleTheme, mounted } = useTheme();
 
   // Navigation tab state: 'overview' | 'tenants' | 'plans' | 'audit' | 'impersonation' | 'settings'
   const activeTab = searchParams.get('tab') || 'overview';
   const setActiveTab = (tab) => {
     setSearchParams({ tab });
   };
-
-  // Theme system
-  const { theme, toggleTheme, isDark } = useSuperAdminTheme();
 
   // Sidebar responsive collapse state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -241,8 +239,17 @@ export default function SuperAdminDashboard() {
     }
   };
 
+  // Don't render until theme is mounted to prevent flash
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
-    <div className={`min-h-screen ${isDark ? 'dark bg-stone-950 text-stone-100' : 'sa-light bg-slate-50 text-slate-900'} font-body flex`}>
+    <div className="min-h-screen font-body flex bg-[var(--bg-canvas)] text-[var(--text-primary)]">
       {/* ── Left Sidebar Navigation ────────────────────────────── */}
       <Sidebar
         activeTab={activeTab}

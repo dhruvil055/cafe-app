@@ -5,6 +5,7 @@ import {
   UserCheck, Settings, Eye, ArrowUpRight, LogOut, Sun, Moon,
   RefreshCw, Smartphone, X, CornerDownLeft
 } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function CommandPalette({
   isOpen,
@@ -16,8 +17,8 @@ export default function CommandPalette({
   onRefresh,
   onLogout,
   onOpenUserPanels,
-  isDark,
 }) {
+  const { isDark } = useTheme();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef(null);
@@ -112,7 +113,8 @@ export default function CommandPalette({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-black/60 backdrop-blur-md"
+          className="fixed inset-0"
+          style={{ backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(8px)' }}
         />
 
         {/* Modal */}
@@ -120,10 +122,14 @@ export default function CommandPalette({
           initial={{ opacity: 0, scale: 0.95, y: -10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: -10 }}
-          className="relative w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900 shadow-2xl text-slate-800 dark:text-stone-100 overflow-hidden z-10"
+          className="relative w-full max-w-2xl rounded-2xl border shadow-2xl text-[var(--text-primary)] overflow-hidden z-10 custom-scrollbar"
+          style={{
+            backgroundColor: 'var(--bg-card)',
+            borderColor: 'var(--border-primary)',
+          }}
         >
           {/* Search bar */}
-          <div className="flex items-center gap-3 border-b border-slate-200 dark:border-stone-800 px-4 py-3.5 bg-slate-50 dark:bg-stone-950/70">
+          <div className="flex items-center gap-3 border-b border-[var(--border-primary)] px-4 py-3.5 bg-[var(--hover-bg)]/70">
             <Search size={18} className="text-amber-500 shrink-0" />
             <input
               ref={inputRef}
@@ -134,11 +140,11 @@ export default function CommandPalette({
                 setSelectedIndex(0);
               }}
               placeholder="Search anything... (type a café name, view, or command)"
-              className="w-full bg-transparent text-sm text-slate-900 dark:text-stone-100 placeholder-slate-400 dark:placeholder-stone-500 focus:outline-none"
+              className="w-full bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
             />
             <button
               onClick={onClose}
-              className="rounded-lg p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
+              className="rounded-lg p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition"
             >
               <X size={16} />
             </button>
@@ -147,7 +153,7 @@ export default function CommandPalette({
           {/* Results list */}
           <div className="max-h-96 overflow-y-auto p-2 space-y-1">
             {filteredItems.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-400 dark:text-stone-500">
+              <div className="py-8 text-center text-xs text-[var(--text-muted)]">
                 No matching café, navigation, or action found for "{query}".
               </div>
             ) : (
@@ -165,8 +171,8 @@ export default function CommandPalette({
                     onMouseEnter={() => setSelectedIndex(idx)}
                     className={`flex items-center justify-between rounded-xl px-3.5 py-2.5 cursor-pointer text-xs transition ${
                       isSelected
-                        ? 'bg-amber-50 dark:bg-amber-500/15 border border-amber-300 dark:border-amber-500/30 text-amber-950 dark:text-white font-semibold'
-                        : 'hover:bg-slate-100 dark:hover:bg-stone-800/60 text-slate-700 dark:text-stone-300'
+                        ? 'bg-[var(--brand-primary-subtle)] border border-amber-300 dark:border-amber-500/30 text-[var(--text-primary)] font-semibold'
+                        : 'hover:bg-[var(--hover-bg)] text-[var(--text-secondary)]'
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -174,33 +180,33 @@ export default function CommandPalette({
                         className={`flex h-7 w-7 items-center justify-center rounded-lg border ${
                           isSelected
                             ? 'border-amber-400/50 bg-amber-100 dark:bg-amber-400/20 text-amber-700 dark:text-amber-300'
-                            : 'border-slate-200 dark:border-stone-800 bg-slate-100 dark:bg-stone-950 text-slate-500 dark:text-stone-400'
+                            : 'border-[var(--border-primary)] bg-[var(--hover-bg)] text-[var(--text-muted)]'
                         }`}
                       >
                         <Icon size={14} />
                       </div>
 
                       <div>
-                        <div className="font-semibold text-slate-900 dark:text-stone-100 flex items-center gap-2">
+                        <div className="font-semibold text-[var(--text-primary)] flex items-center gap-2">
                           <span>{item.title}</span>
                           {item.badge && (
                             <span
-                              className={`rounded-full px-1.5 py-0.2 text-[9px] font-bold uppercase ${
+                              className={`rounded-full px-1.5 py-0.2 text-[9px] font-bold uppercase border ${
                                 item.badge === 'active'
-                                  ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20'
-                                  : 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-500/20'
+                                  ? 'bg-[var(--status-active-bg)] text-[var(--status-active-text)] border-[var(--status-active-border)]'
+                                  : 'bg-[var(--status-suspended-bg)] text-[var(--status-suspended-text)] border-[var(--status-suspended-border)]'
                               }`}
                             >
                               {item.badge}
                             </span>
                           )}
                         </div>
-                        <div className="text-[11px] text-slate-400 dark:text-stone-500">{item.subtitle}</div>
+                        <div className="text-[11px] text-[var(--text-muted)]">{item.subtitle}</div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="rounded bg-slate-100 dark:bg-stone-800 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:text-stone-400">
+                      <span className="rounded bg-[var(--hover-bg)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-muted)]">
                         {item.type}
                       </span>
                       {isSelected && <CornerDownLeft size={13} className="text-amber-500" />}
@@ -212,25 +218,25 @@ export default function CommandPalette({
           </div>
 
           {/* Footer tips */}
-          <div className="flex items-center justify-between border-t border-slate-200 dark:border-stone-800 bg-slate-50 dark:bg-stone-950/90 px-4 py-2.5 text-[11px] text-slate-500 dark:text-stone-500">
+          <div className="flex items-center justify-between border-t border-[var(--border-primary)] bg-[var(--hover-bg)] px-4 py-2.5 text-[11px] text-[var(--text-muted)]">
             <div className="flex items-center gap-3">
               <span>
-                <kbd className="rounded border border-slate-300 dark:border-stone-800 bg-white dark:bg-stone-900 px-1 py-0.5 text-[10px] text-slate-600 dark:text-stone-400">
+                <kbd className="rounded border border-[var(--border-primary)] bg-[var(--bg-surface)] px-1 py-0.5 text-[10px] text-[var(--text-secondary)] font-mono font-bold">
                   ↑
                 </kbd>{' '}
-                <kbd className="rounded border border-slate-300 dark:border-stone-800 bg-white dark:bg-stone-900 px-1 py-0.5 text-[10px] text-slate-600 dark:text-stone-400">
+                <kbd className="rounded border border-[var(--border-primary)] bg-[var(--bg-surface)] px-1 py-0.5 text-[10px] text-[var(--text-secondary)] font-mono font-bold">
                   ↓
                 </kbd>{' '}
                 to navigate
               </span>
               <span>
-                <kbd className="rounded border border-slate-300 dark:border-stone-800 bg-white dark:bg-stone-900 px-1.5 py-0.5 text-[10px] text-slate-600 dark:text-stone-400">
+                <kbd className="rounded border border-[var(--border-primary)] bg-[var(--bg-surface)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)] font-mono font-bold">
                   ↵
                 </kbd>{' '}
                 to select
               </span>
               <span>
-                <kbd className="rounded border border-slate-300 dark:border-stone-800 bg-white dark:bg-stone-900 px-1.5 py-0.5 text-[10px] text-slate-600 dark:text-stone-400">
+                <kbd className="rounded border border-[var(--border-primary)] bg-[var(--bg-surface)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)] font-mono font-bold">
                   esc
                 </kbd>{' '}
                 to close

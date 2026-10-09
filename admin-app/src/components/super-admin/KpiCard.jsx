@@ -15,13 +15,13 @@ export default function KpiCard({
 }) {
   if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900/60 p-5 shadow-xs">
+      <div className="kpi-card">
         <div className="flex items-center justify-between mb-3">
-          <div className="h-3 w-20 bg-slate-200 dark:bg-stone-800 rounded animate-pulse" />
-          <div className="h-7 w-7 bg-slate-200 dark:bg-stone-800 rounded-lg animate-pulse" />
+          <div className="h-3 w-20 bg-[var(--border-primary)] rounded animate-pulse" />
+          <div className="h-7 w-7 bg-[var(--border-primary)] rounded-lg animate-pulse" />
         </div>
-        <div className="h-7 w-28 bg-slate-200 dark:bg-stone-800 rounded mb-2 animate-pulse" />
-        <div className="h-3 w-36 bg-slate-100 dark:bg-stone-800/60 rounded animate-pulse" />
+        <div className="h-7 w-28 bg-[var(--border-primary)] rounded mb-2 animate-pulse" />
+        <div className="h-3 w-36 bg-[var(--hover-bg)] rounded animate-pulse" />
       </div>
     );
   }
@@ -43,20 +43,20 @@ export default function KpiCard({
   const getSemanticColor = () => {
     if (semantic === 'healthy') {
       return {
-        badge: 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20',
-        stroke: 'stroke-emerald-600 dark:stroke-emerald-400',
-        icon: 'text-emerald-600 dark:text-emerald-400',
+        badge: 'bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success-border)]',
+        stroke: 'stroke-[var(--success)]',
+        icon: 'text-[var(--success)]',
       };
     }
     if (semantic === 'problem') {
       return {
-        badge: 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20',
-        stroke: 'stroke-red-600 dark:stroke-red-400',
-        icon: 'text-red-600 dark:text-red-400',
+        badge: 'bg-[var(--danger-bg)] text-[var(--danger-text)] border-[var(--danger-border)]',
+        stroke: 'stroke-[var(--danger)]',
+        icon: 'text-[var(--danger)]',
       };
     }
     return {
-      badge: 'text-amber-800 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20',
+      badge: 'bg-[var(--warning-bg)] text-[var(--warning-text)] border-[var(--warning-border)]',
       stroke: 'stroke-amber-600 dark:stroke-amber-400',
       icon: 'text-amber-600 dark:text-amber-400',
     };
@@ -68,10 +68,10 @@ export default function KpiCard({
     <motion.div
       whileHover={{ y: -2 }}
       transition={{ duration: 0.15 }}
-      className="rounded-2xl border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900/70 p-5 shadow-xs hover:border-slate-300 dark:hover:border-stone-700/80 transition"
+      className="kpi-card hover:border-[var(--border-primary)]"
     >
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-stone-400">
+        <span className="text-xs font-semibold tracking-wide uppercase text-[var(--text-muted)]">
           {title}
         </span>
         {Icon && (
@@ -82,7 +82,7 @@ export default function KpiCard({
       </div>
 
       <div className="flex items-baseline justify-between gap-2 mt-1">
-        <div className="text-2xl font-black tracking-tight text-slate-900 dark:text-white tabular-nums">
+        <div className="text-2xl font-black tracking-tight text-[var(--text-primary)] tabular-nums">
           {value}
         </div>
 
@@ -112,14 +112,14 @@ export default function KpiCard({
               {trend === 'neutral' && <Minus size={10} />}
               {changePercent > 0 ? `+${changePercent}%` : `${changePercent}%`}
             </span>
-            <span className="text-slate-400 dark:text-stone-500">vs prev period</span>
+            <span className="text-[var(--text-muted)]">vs prev period</span>
           </div>
         ) : (
-          <span className="text-slate-400 dark:text-stone-500">{subtitle || 'Platform telemetry'}</span>
+          <span className="text-[var(--text-muted)]">{subtitle || 'Platform telemetry'}</span>
         )}
 
         {subtitle && changePercent !== undefined && (
-          <span className="text-slate-400 dark:text-stone-500 truncate max-w-[140px]">{subtitle}</span>
+          <span className="text-[var(--text-muted)] truncate max-w-[140px]">{subtitle}</span>
         )}
       </div>
     </motion.div>

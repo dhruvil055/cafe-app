@@ -83,11 +83,21 @@ export default function CommandPaletteModal({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="w-full max-w-xl rounded-3xl bg-white shadow-2xl border border-stone-200 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4"
+      style={{ backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(4px)' }}
+    >
+      <div className="w-full max-w-xl rounded-3xl border shadow-2xl overflow-hidden custom-scrollbar"
+        style={{
+          backgroundColor: 'var(--bg-card)',
+          borderColor: 'var(--border-primary)',
+          color: 'var(--text-primary)',
+        }}
+      >
         {/* Search Input Bar */}
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-stone-100 bg-stone-50/50">
-          <Search size={18} className="text-stone-400 shrink-0" />
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b"
+          style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--hover-bg)/50' }}
+        >
+          <Search size={18} className="text-amber-500 shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -97,17 +107,19 @@ export default function CommandPaletteModal({ isOpen, onClose }) {
               setQuery(e.target.value);
               setSelectedIndex(0);
             }}
-            className="w-full bg-transparent text-sm font-medium text-stone-900 placeholder:text-stone-400 focus:outline-none"
+            className="w-full bg-transparent text-sm font-medium text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
           />
-          <kbd className="hidden sm:inline-block rounded-md bg-stone-200/80 px-2 py-0.5 text-[10px] font-bold text-stone-600">
+          <kbd className="hidden sm:inline-block rounded-md px-2 py-0.5 text-[10px] font-bold text-[var(--text-muted)]"
+            style={{ backgroundColor: 'var(--border-primary)/80' }}
+          >
             ESC
           </kbd>
         </div>
 
         {/* Results List */}
-        <div className="max-h-[360px] overflow-y-auto p-2 space-y-1 custom-sidebar-scroll">
+        <div className="max-h-[360px] overflow-y-auto p-2 space-y-1 custom-scrollbar">
           {filtered.length === 0 ? (
-            <div className="py-12 text-center text-xs text-stone-400">
+            <div className="py-12 text-center text-xs text-[var(--text-muted)]">
               No matching pages or actions found for "{query}".
             </div>
           ) : (
@@ -121,27 +133,29 @@ export default function CommandPaletteModal({ isOpen, onClose }) {
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-2xl text-left transition ${
                     isSelected
-                      ? 'bg-brew-500/15 text-brew-900 shadow-2xs font-semibold'
-                      : 'hover:bg-stone-50 text-stone-700'
+                      ? 'bg-[var(--brand-primary-subtle)] text-amber-900 dark:text-white shadow-2xs font-semibold'
+                      : 'hover:bg-[var(--hover-bg)] text-[var(--text-secondary)]'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-                      isSelected ? 'bg-brew-500 text-white shadow-sm' : 'bg-stone-100 text-stone-600'
+                      isSelected ? 'bg-amber-500 text-white shadow-sm' : 'bg-[var(--hover-bg)] text-[var(--text-muted)]'
                     }`}>
                       <Icon size={16} />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs font-semibold text-stone-900 truncate">{action.title}</div>
-                      <div className="text-[11px] text-stone-500 truncate">{action.subtitle}</div>
+                      <div className="text-xs font-semibold text-[var(--text-primary)] truncate">{action.title}</div>
+                      <div className="text-[11px] text-[var(--text-muted)] truncate">{action.subtitle}</div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: 'var(--hover-bg)' }}
+                    >
                       {action.category}
                     </span>
-                    <ArrowRight size={13} className={`transition ${isSelected ? 'text-brew-600 translate-x-0.5' : 'text-stone-300'}`} />
+                    <ArrowRight size={13} className={`transition ${isSelected ? 'text-amber-500 translate-x-0.5' : 'text-[var(--text-muted)]'}`} />
                   </div>
                 </button>
               );
@@ -150,12 +164,14 @@ export default function CommandPaletteModal({ isOpen, onClose }) {
         </div>
 
         {/* Footer Hints */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-t border-stone-100 bg-stone-50 text-[11px] text-stone-400">
+        <div className="flex items-center justify-between px-4 py-2.5 border-t text-[11px] text-[var(--text-muted)]"
+          style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--hover-bg)' }}
+        >
           <div className="flex items-center gap-3">
-            <span><kbd className="font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-stone-200">↑↓</kbd> Navigate</span>
-            <span><kbd className="font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-stone-200">↵</kbd> Select</span>
+            <span><kbd className="font-mono font-bold px-1.5 py-0.5 rounded border text-[10px]" style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>↑↓</kbd> Navigate</span>
+            <span><kbd className="font-mono font-bold px-1.5 py-0.5 rounded border text-[10px]" style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>↵</kbd> Select</span>
           </div>
-          <span>Brewhaus Navigator</span>
+          <span className="text-amber-600 dark:text-amber-500/80 font-mono font-bold">⌘K / Ctrl+K</span>
         </div>
       </div>
     </div>

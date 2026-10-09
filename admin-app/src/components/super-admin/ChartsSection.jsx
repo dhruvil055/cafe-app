@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -11,6 +11,7 @@ import {
   Cell,
 } from 'recharts';
 import { AlertTriangle, Store, ArrowUpRight, ShieldAlert, CheckCircle2, CreditCard } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 
 const PLAN_COLORS = {
   starter: '#9a6f46',
@@ -24,10 +25,8 @@ export default function ChartsSection({
   onOpenTenant,
   onNavigateTab,
 }) {
+  const { isDark } = useTheme();
   const [timeRange, setTimeRange] = useState('30d'); // '7d' | '30d'
-
-  // Detect if current theme is dark via html class
-  const isDark = typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') : true;
 
   // Realistic mock trend data for Orders + GMV over time (TODO: replace with /platform/admin/metrics/trends endpoint once available)
   const trendData30d = [
@@ -69,28 +68,23 @@ export default function ChartsSection({
   const emptySetupCafes = tenants.filter((t) => t.status === 'active' && (t.tableCount === 0 || t.productCount === 0));
   const failedPayments = metrics?.paymentFailures ?? 0;
 
-  const tooltipBg = isDark ? '#1c1917' : '#ffffff';
-  const tooltipBorder = isDark ? '#292524' : '#e2e8f0';
-  const tooltipText = isDark ? '#fafaf9' : '#0f172a';
-  const axisColor = isDark ? '#78716c' : '#94a3b8';
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Chart 1: Orders & GMV Trend */}
-      <div className="lg:col-span-2 rounded-3xl border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900/60 p-6 flex flex-col justify-between shadow-xs transition-colors">
+      <div className="lg:col-span-2 kpi-card flex flex-col justify-between">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Platform Volume & Orders</h3>
-            <p className="text-xs text-slate-500 dark:text-stone-400 mt-0.5">Aggregate GMV (₹) and transaction throughput</p>
+            <h3 className="text-base font-bold text-[var(--text-primary)] tracking-tight">Platform Volume & Orders</h3>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">Aggregate GMV (₹) and transaction throughput</p>
           </div>
 
-          <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-stone-800 bg-slate-100 dark:bg-stone-950 p-1">
+          <div className="flex items-center gap-1.5 rounded-xl border border-[var(--border-primary)] bg-[var(--hover-bg)] p-1">
             <button
               onClick={() => setTimeRange('7d')}
               className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                 timeRange === '7d'
                   ? 'bg-amber-500 text-stone-950 font-bold shadow'
-                  : 'text-slate-600 dark:text-stone-400 hover:text-slate-900 dark:hover:text-white'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
               Last 7d
@@ -100,7 +94,7 @@ export default function ChartsSection({
               className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                 timeRange === '30d'
                   ? 'bg-amber-500 text-stone-950 font-bold shadow'
-                  : 'text-slate-600 dark:text-stone-400 hover:text-slate-900 dark:hover:text-white'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
               Last 30d
@@ -121,16 +115,16 @@ export default function ChartsSection({
                   <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="date" stroke={axisColor} fontSize={11} tickLine={false} axisLine={false} />
-              <YAxis stroke={axisColor} fontSize={11} tickLine={false} axisLine={false} />
+              <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: tooltipBg,
-                  border: `1px solid ${tooltipBorder}`,
+                  backgroundColor: 'var(--popover-bg)',
+                  border: '1px solid var(--popover-border)',
                   borderRadius: '12px',
-                  color: tooltipText,
+                  color: 'var(--text-primary)',
                   fontSize: '12px',
-                  boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
+                  boxShadow: 'var(--popover-shadow)',
                 }}
               />
               <Area type="monotone" dataKey="gmv" stroke="#f59e0b" strokeWidth={2.5} fillOpacity={1} fill="url(#gmvGradient)" name="GMV (₹)" />
@@ -139,29 +133,29 @@ export default function ChartsSection({
           </ResponsiveContainer>
         </div>
 
-        <div className="mt-4 flex items-center justify-between border-t border-slate-200 dark:border-stone-800/80 pt-3 text-xs text-slate-500 dark:text-stone-400">
+        <div className="mt-4 flex items-center justify-between border-t border-[var(--border-primary)]/80 pt-3 text-xs text-[var(--text-muted)]">
           <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-stone-300">
+            <span className="flex items-center gap-1.5 font-medium text-[var(--text-secondary)]">
               <span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Gross Volume (GMV)
             </span>
-            <span className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-stone-300">
+            <span className="flex items-center gap-1.5 font-medium text-[var(--text-secondary)]">
               <span className="h-2.5 w-2.5 rounded-full bg-cyan-500" /> Completed Orders
             </span>
           </div>
-          <span className="text-[11px] text-slate-400 dark:text-stone-500">Live platform aggregate</span>
+          <span className="text-[11px] text-[var(--text-muted)]">Live platform aggregate</span>
         </div>
       </div>
 
       {/* Chart 2: Plan Distribution */}
-      <div className="rounded-3xl border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900/60 p-6 flex flex-col justify-between shadow-xs transition-colors">
+      <div className="kpi-card flex flex-col justify-between">
         <div>
-          <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Plan Distribution</h3>
-          <p className="text-xs text-slate-500 dark:text-stone-400 mt-0.5">SaaS tier allocation across cafés</p>
+          <h3 className="text-base font-bold text-[var(--text-primary)] tracking-tight">Plan Distribution</h3>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">SaaS tier allocation across cafés</p>
         </div>
 
         <div className="h-52 w-full flex items-center justify-center my-2">
           {planData.length === 0 ? (
-            <div className="text-xs text-slate-400 dark:text-stone-500">No subscription plan data available</div>
+            <div className="text-xs text-[var(--text-muted)]">No subscription plan data available</div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -175,17 +169,17 @@ export default function ChartsSection({
                   dataKey="value"
                 >
                   {planData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} stroke={isDark ? '#1c1917' : '#ffffff'} strokeWidth={2} />
+                    <Cell key={entry.name} fill={entry.color} stroke="var(--bg-card)" strokeWidth={2} />
                   ))}
                 </Pie>
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: tooltipBg,
-                    border: `1px solid ${tooltipBorder}`,
+                    backgroundColor: 'var(--popover-bg)',
+                    border: '1px solid var(--popover-border)',
                     borderRadius: '12px',
-                    color: tooltipText,
+                    color: 'var(--text-primary)',
                     fontSize: '12px',
-                    boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
+                    boxShadow: 'var(--popover-shadow)',
                   }}
                 />
               </PieChart>
@@ -193,49 +187,49 @@ export default function ChartsSection({
           )}
         </div>
 
-        <div className="space-y-2 border-t border-slate-200 dark:border-stone-800/80 pt-3 text-xs">
-          <div className="flex items-center justify-between text-slate-700 dark:text-stone-300">
+        <div className="space-y-2 border-t border-[var(--border-primary)]/80 pt-3 text-xs">
+          <div className="flex items-center justify-between text-[var(--text-secondary)]">
             <span className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-[#9a6f46]" /> Starter Tier
             </span>
-            <span className="font-bold text-slate-900 dark:text-white">{starterCount} cafés</span>
+            <span className="font-bold text-[var(--text-primary)]">{starterCount} cafés</span>
           </div>
-          <div className="flex items-center justify-between text-slate-700 dark:text-stone-300">
+          <div className="flex items-center justify-between text-[var(--text-secondary)]">
             <span className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Pro Tier
             </span>
-            <span className="font-bold text-slate-900 dark:text-white">{proCount} cafés</span>
+            <span className="font-bold text-[var(--text-primary)]">{proCount} cafés</span>
           </div>
-          <div className="flex items-center justify-between text-slate-700 dark:text-stone-300">
+          <div className="flex items-center justify-between text-[var(--text-secondary)]">
             <span className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-cyan-500" /> Enterprise Tier
             </span>
-            <span className="font-bold text-slate-900 dark:text-white">{enterpriseCount} cafés</span>
+            <span className="font-bold text-[var(--text-primary)]">{enterpriseCount} cafés</span>
           </div>
         </div>
       </div>
 
       {/* Needs Attention Panel (Span 3) */}
-      <div className="lg:col-span-3 rounded-3xl border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900/60 p-6 shadow-xs transition-colors">
+      <div className="lg:col-span-3 kpi-card">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500">
               <AlertTriangle size={16} />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Needs Attention</h3>
-              <p className="text-xs text-slate-500 dark:text-stone-400">Operational alerts, setup bottlenecks & risk mitigation</p>
+              <h3 className="text-sm font-bold text-[var(--text-primary)]">Needs Attention</h3>
+              <p className="text-xs text-[var(--text-muted)]">Operational alerts, setup bottlenecks & risk mitigation</p>
             </div>
           </div>
 
-          <span className="rounded-full bg-slate-100 dark:bg-stone-800 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700 dark:text-stone-300 border border-slate-200 dark:border-stone-700">
+          <span className="rounded-full bg-[var(--hover-bg)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--text-secondary)] border border-[var(--border-primary)]">
             {suspendedCafes.length + emptySetupCafes.length + (failedPayments > 0 ? 1 : 0)} Active Alerts
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {/* Alert 1: Suspended Cafés */}
-          <div className="rounded-2xl border border-slate-200 dark:border-stone-800/80 bg-slate-50/80 dark:bg-stone-950/60 p-4">
+          <div className="kpi-card">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-red-600 dark:text-red-400 flex items-center gap-1.5">
                 <ShieldAlert size={14} /> Suspended Cafés ({suspendedCafes.length})
@@ -249,14 +243,14 @@ export default function ChartsSection({
                 </button>
               )}
             </div>
-            <p className="mt-1 text-xs text-slate-500 dark:text-stone-400">
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
               {suspendedCafes.length > 0
                 ? `${suspendedCafes.length} café(s) have been halted and are not serving diners.`
                 : 'All registered cafés are currently in good standing.'}
             </p>
             {suspendedCafes.slice(0, 2).map((c) => (
-              <div key={c.id} className="mt-2 flex items-center justify-between text-[11px] bg-white dark:bg-stone-900 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-stone-800">
-                <span className="text-slate-800 dark:text-stone-300 font-medium truncate max-w-[140px]">{c.name}</span>
+              <div key={c.id} className="mt-2 flex items-center justify-between text-[11px] bg-[var(--bg-surface)] px-2.5 py-1.5 rounded-lg border border-[var(--border-primary)]">
+                <span className="text-[var(--text-primary)] font-medium truncate max-w-[140px]">{c.name}</span>
                 <button
                   onClick={() => onOpenTenant && onOpenTenant(c)}
                   className="text-amber-600 dark:text-amber-400 font-semibold hover:underline"
@@ -268,7 +262,7 @@ export default function ChartsSection({
           </div>
 
           {/* Alert 2: Incomplete Onboarding / 0 items or tables */}
-          <div className="rounded-2xl border border-slate-200 dark:border-stone-800/80 bg-slate-50/80 dark:bg-stone-950/60 p-4">
+          <div className="kpi-card">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
                 <Store size={14} /> Incomplete Setup ({emptySetupCafes.length})
@@ -282,14 +276,14 @@ export default function ChartsSection({
                 </button>
               )}
             </div>
-            <p className="mt-1 text-xs text-slate-500 dark:text-stone-400">
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
               {emptySetupCafes.length > 0
                 ? `${emptySetupCafes.length} café(s) have 0 tables or empty menus.`
                 : 'All active cafés have configured menu products and active tables.'}
             </p>
             {emptySetupCafes.slice(0, 2).map((c) => (
-              <div key={c.id} className="mt-2 flex items-center justify-between text-[11px] bg-white dark:bg-stone-900 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-stone-800">
-                <span className="text-slate-800 dark:text-stone-300 font-medium truncate max-w-[140px]">{c.name}</span>
+              <div key={c.id} className="mt-2 flex items-center justify-between text-[11px] bg-[var(--bg-surface)] px-2.5 py-1.5 rounded-lg border border-[var(--border-primary)]">
+                <span className="text-[var(--text-primary)] font-medium truncate max-w-[140px]">{c.name}</span>
                 <button
                   onClick={() => onOpenTenant && onOpenTenant(c)}
                   className="text-amber-600 dark:text-amber-400 font-semibold hover:underline"
@@ -301,7 +295,7 @@ export default function ChartsSection({
           </div>
 
           {/* Alert 3: Platform Security & Billing Checks */}
-          <div className="rounded-2xl border border-slate-200 dark:border-stone-800/80 bg-slate-50/80 dark:bg-stone-950/60 p-4">
+          <div className="kpi-card">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-cyan-700 dark:text-cyan-400 flex items-center gap-1.5">
                 <CreditCard size={14} /> Security & Audits
@@ -313,12 +307,12 @@ export default function ChartsSection({
                 Audit Log <ArrowUpRight size={11} />
               </button>
             </div>
-            <p className="mt-1 text-xs text-slate-500 dark:text-stone-400">
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
               {failedPayments > 0
                 ? `${failedPayments} security or audit warning event(s) detected in the last cycle.`
                 : 'Zero security lockouts or anomaly alerts recorded in active trail.'}
             </p>
-            <div className="mt-3 flex items-center gap-2 text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-500/20 px-2.5 py-1.5 rounded-lg">
+            <div className="mt-3 flex items-center gap-2 text-[11px] text-emerald-700 dark:text-emerald-400 bg-[var(--success-bg)] border border-[var(--success-border)] px-2.5 py-1.5 rounded-lg">
               <CheckCircle2 size={13} className="shrink-0" />
               <span>Multi-tenant database isolation: 100% verified</span>
             </div>

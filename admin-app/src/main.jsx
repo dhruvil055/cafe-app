@@ -4,8 +4,9 @@ import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import App from './App';
 import { AuthProvider } from './context/AuthContext';
-import './index.css';
 import { TenantProvider } from './context/TenantContext';
+import { ThemeProvider } from './context/ThemeContext';
+import './index.css';
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -16,23 +17,26 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <TenantProvider><App /></TenantProvider>
-        <Toaster
-          position="top-center"
-          toastOptions={{
-            duration: 3000,
-            style: {
-              background: '#1a0f08',
-              color: '#FAF6F0',
-              borderRadius: '12px',
-              fontSize: '14px',
-            },
-            success: { iconTheme: { primary: '#c96b18', secondary: '#FAF6F0' } },
-            error: { iconTheme: { primary: '#ef4444', secondary: '#FAF6F0' } },
-          }}
-        />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <TenantProvider><App /></TenantProvider>
+          <Toaster
+            position="top-center"
+            toastOptions={{
+              duration: 3000,
+              style: {
+                background: 'var(--popover-bg)',
+                color: 'var(--text-primary)',
+                borderRadius: '12px',
+                fontSize: '14px',
+                border: '1px solid var(--border-primary)',
+              },
+              success: { iconTheme: { primary: 'var(--success)', secondary: 'var(--text-inverse)' } },
+              error: { iconTheme: { primary: 'var(--danger)', secondary: 'var(--text-inverse)' } },
+            }}
+          />
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

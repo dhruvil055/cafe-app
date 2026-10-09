@@ -7,7 +7,7 @@ import {
   TrendingDown, BarChart2, Settings, CreditCard, LogOut, ChevronLeft,
   ChevronRight, Menu, RefreshCw, Store, Sparkles, Smartphone, Wifi,
   WifiOff, Search, Clock, Shield, AlertTriangle, CheckCircle2, ChevronDown,
-  Layers, ExternalLink
+  Layers, ExternalLink, Sun, Moon
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -17,6 +17,7 @@ import { canAccessPos, canManageMenu, canManageTeam, canViewOrders } from '../ut
 import api from '../services/api';
 import AiAssistantModal from '../components/AiAssistantModal';
 import CommandPaletteModal from '../components/common/CommandPaletteModal';
+import { useTheme } from '../context/ThemeContext';
 
 // 5 Grouped Navigation Modules
 const NAV_GROUPS = [
@@ -72,6 +73,7 @@ export default function AdminLayout({ children, title }) {
   const tenant = useTenant();
   const navigate = useNavigate();
   const location = useLocation();
+  const { isDark, toggleTheme, mounted } = useTheme();
 
   // Layout states
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -191,18 +193,42 @@ export default function AdminLayout({ children, title }) {
   const isTrialActive = billingSummary?.subscription?.status === 'trial';
   const trialDaysRemaining = billingSummary?.subscription?.trialDaysRemaining;
 
+  // Don't render until theme is mounted to prevent flash
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-canvas)] flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  const sidebarBg = isDark ? 'var(--sidebar-bg)' : 'var(--sidebar-bg)';
+  const sidebarBorder = isDark ? 'var(--sidebar-border)' : 'var(--sidebar-border)';
+  const sidebarText = isDark ? 'var(--sidebar-text)' : 'var(--sidebar-text)';
+  const sidebarTextMuted = isDark ? 'var(--sidebar-text-muted)' : 'var(--sidebar-text-muted)';
+  const sidebarHoverBg = isDark ? 'var(--sidebar-hover-bg)' : 'var(--sidebar-hover-bg)';
+
   return (
-    <div className="flex h-screen bg-[#f7f4ef] text-stone-800 overflow-hidden font-body select-none">
+    <div className="flex h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] overflow-hidden font-body select-none">
       {/* ── Left Sidebar ────────────────────────────────────────── */}
       <aside
-        className={`hidden md:flex flex-col h-screen shrink-0 border-r border-espresso-950 bg-espresso-900 text-white transition-all duration-300 z-30 ${
+        className={`hidden md:flex flex-col h-screen shrink-0 border-r transition-all duration-300 z-30 custom-scrollbar ${
           isCollapsed ? 'w-20' : 'w-64'
         }`}
+        style={{
+          backgroundColor: sidebarBg,
+          borderColor: sidebarBorder,
+          color: sidebarText,
+        }}
       >
         {/* 1. Tenant Brand Header */}
-        <div className="h-16 shrink-0 flex items-center justify-between px-4 border-b border-espresso-800/80 bg-espresso-950/60">
+        <div className="h-16 shrink-0 flex items-center justify-between px-4 border-b"
+          style={{ borderColor: 'rgba(46, 42, 37, 0.5)' }}
+        >
           <div className="flex items-center gap-3 min-w-0 overflow-hidden">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brew-500 font-display text-base font-bold text-white shadow-sm overflow-hidden border border-brew-400/30">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl font-display text-base font-bold text-white shadow-sm overflow-hidden border"
+              style={{ backgroundColor: 'var(--brand-primary)', borderColor: 'var(--brand-primary-border)' }}
+            >
               {tenant.logoUrl ? (
                 <img src={tenant.logoUrl} alt="" className="h-full w-full object-cover" />
               ) : (
@@ -212,7 +238,7 @@ export default function AdminLayout({ children, title }) {
 
             {!isCollapsed && (
               <div className="min-w-0 truncate">
-                <div className="truncate font-display text-sm font-bold text-white tracking-wide">
+                <div className="truncate font-display text-sm font-bold text-[var(--sidebar-text)] tracking-wide">
                   {tenant.name || 'Brewhaus Café'}
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-300/80">
@@ -225,7 +251,7 @@ export default function AdminLayout({ children, title }) {
 
           <button
             onClick={toggleCollapse}
-            className="p-1 rounded-lg text-espresso-300 hover:text-white hover:bg-espresso-800 transition"
+            className="p-1 rounded-lg text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)] transition"
             title={isCollapsed ? 'Expand sidebar' : 'Collapse to icon rail'}
           >
             {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -233,7 +259,7 @@ export default function AdminLayout({ children, title }) {
         </div>
 
         {/* 2. Grouped Navigation Modules (Scrollable independently) */}
-        <nav className="flex-1 overflow-y-auto p-3 space-y-4 custom-sidebar-scroll min-h-0">
+        <nav className="flex-1 overflow-y-auto p-3 space-y-4 custom-scrollbar min-h-0">
           {NAV_GROUPS.map((group) => {
             const visibleItems = group.items.filter(item => canAccessItem(item.access));
             if (visibleItems.length === 0) return null;
@@ -257,15 +283,15 @@ export default function AdminLayout({ children, title }) {
                         const active = directActive || isActive;
                         return `w-full flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold transition group ${
                           active
-                            ? 'bg-brew-500/25 text-white font-bold border-l-3 border-brew-400 shadow-2xs'
-                            : 'text-espresso-200 hover:bg-espresso-800 hover:text-white border-l-3 border-transparent'
+                            ? 'bg-[var(--brand-primary-subtle)] text-white font-bold border-l-3 border-amber-400 shadow-2xs'
+                            : `text-[var(--sidebar-text-muted)] hover:bg-[var(--sidebar-hover-bg)] hover:text-[var(--sidebar-text)] border-l-3 border-transparent`
                         } ${isCollapsed ? 'justify-center' : ''}`;
                       }}
                     >
                       <Icon
                         size={17}
                         className={`shrink-0 transition ${
-                          isActive ? 'text-amber-300' : 'text-espresso-400 group-hover:text-espresso-200'
+                          isActive ? 'text-amber-300' : `text-[var(--sidebar-text-muted)] group-hover:text-[var(--sidebar-text)]`
                         }`}
                       />
                       {!isCollapsed && <span className="truncate">{label}</span>}
@@ -278,26 +304,32 @@ export default function AdminLayout({ children, title }) {
         </nav>
 
         {/* 3. Sticky User Profile & Sign Out Footer */}
-        <div className="border-t border-espresso-800/80 p-3 bg-espresso-950/80 shrink-0 space-y-2">
+        <div className="border-t p-3 bg-[var(--sidebar-hover-bg)]/80 shrink-0 space-y-2"
+          style={{ borderColor: 'rgba(46, 42, 37, 0.5)' }}
+        >
           <NavLink
             to="/profile"
             title={isCollapsed ? `${user?.name} (${user?.role})` : undefined}
-            className={`flex items-center gap-3 rounded-xl p-2 transition hover:bg-espresso-800 ${
+            className={`flex items-center gap-3 rounded-xl p-2 transition hover:bg-[var(--sidebar-hover-bg)] ${
               isCollapsed ? 'justify-center' : ''
             }`}
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brew-500/25 border border-brew-400/30 text-amber-200 font-bold text-xs">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-amber-200 font-bold text-xs"
+              style={{ backgroundColor: 'var(--brand-primary-subtle)', borderColor: 'var(--brand-primary-border)' }}
+            >
               {user?.name?.charAt(0)?.toUpperCase() || 'A'}
             </div>
             {!isCollapsed && (
               <div className="min-w-0 flex-1 truncate">
-                <div className="truncate text-xs font-bold text-white flex items-center gap-1.5">
+                <div className="truncate text-xs font-bold text-[var(--sidebar-text)] flex items-center gap-1.5">
                   <span className="truncate">{user?.name || 'Staff Member'}</span>
-                  <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-espresso-800 text-amber-300 font-mono">
+                  <span className="text-[9px] uppercase px-1.5 py-0.2 rounded font-mono"
+                    style={{ backgroundColor: 'var(--sidebar-hover-bg)', color: 'var(--sidebar-text-muted)' }}
+                  >
                     {user?.role || 'staff'}
                   </span>
                 </div>
-                <div className="truncate text-[10px] text-espresso-400 font-mono">
+                <div className="truncate text-[10px] text-[var(--sidebar-text-muted)] font-mono">
                   {user?.email || ''}
                 </div>
               </div>
@@ -307,9 +339,10 @@ export default function AdminLayout({ children, title }) {
           <button
             onClick={handleLogout}
             title={isCollapsed ? 'Sign out' : undefined}
-            className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-espresso-300 transition hover:bg-red-500/20 hover:text-red-200 border border-espresso-800/80 hover:border-red-500/30 ${
+            className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition hover:bg-red-500/20 hover:text-red-200 border ${
               isCollapsed ? 'justify-center' : ''
             }`}
+            style={{ borderColor: 'rgba(46, 42, 37, 0.5)', color: sidebarTextMuted }}
           >
             <LogOut size={14} className="shrink-0" />
             {!isCollapsed && <span>Sign out</span>}
@@ -326,19 +359,29 @@ export default function AdminLayout({ children, title }) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSidebarOpen(false)}
-              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs md:hidden"
+              className="fixed inset-0 z-40 md:hidden"
+              style={{ backgroundColor: 'var(--drawer-backdrop)', backdropFilter: 'blur(4px)' }}
             />
             <motion.div
               initial={{ x: -280 }}
               animate={{ x: 0 }}
               exit={{ x: -280 }}
               transition={{ type: 'spring', stiffness: 260, damping: 28 }}
-              className="fixed inset-y-0 left-0 z-50 w-64 md:hidden bg-espresso-900 flex flex-col border-r border-espresso-950 text-white"
+              className="fixed inset-y-0 left-0 z-50 w-64 md:hidden flex flex-col custom-scrollbar"
+              style={{
+                backgroundColor: 'var(--sidebar-bg)',
+                borderColor: 'var(--sidebar-border)',
+                color: 'var(--sidebar-text)',
+              }}
             >
               {/* Mobile Header */}
-              <div className="h-16 shrink-0 flex items-center justify-between px-4 border-b border-espresso-800 bg-espresso-950/60">
+              <div className="h-16 shrink-0 flex items-center justify-between px-4 border-b"
+                style={{ borderColor: 'rgba(46, 42, 37, 0.5)' }}
+              >
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-brew-500 flex items-center justify-center font-bold text-white">
+                  <div className="h-9 w-9 rounded-xl bg-[var(--brand-primary)] flex items-center justify-center font-bold text-white"
+                    style={{ backgroundColor: 'var(--brand-primary)' }}
+                  >
                     {tenant.logoUrl ? (
                       <img src={tenant.logoUrl} alt="" className="h-full w-full object-cover" />
                     ) : (
@@ -346,13 +389,13 @@ export default function AdminLayout({ children, title }) {
                     )}
                   </div>
                   <div>
-                    <div className="font-bold text-sm text-white">{tenant.name || 'Brewhaus Café'}</div>
+                    <div className="font-bold text-sm text-[var(--sidebar-text)]">{tenant.name || 'Brewhaus Café'}</div>
                     <div className="text-[10px] text-amber-300">Admin Console</div>
                   </div>
                 </div>
                 <button
                   onClick={() => setSidebarOpen(false)}
-                  className="p-1 rounded-lg text-espresso-300 hover:text-white"
+                  className="p-1 rounded-lg text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text)]"
                 >
                   <ChevronLeft size={18} />
                 </button>
@@ -373,8 +416,8 @@ export default function AdminLayout({ children, title }) {
                         className={({ isActive }) =>
                           `flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-semibold transition ${
                             isActive
-                              ? 'bg-brew-500/25 text-white font-bold border-l-3 border-brew-400'
-                              : 'text-espresso-200 hover:bg-espresso-800 hover:text-white'
+                              ? 'bg-[var(--brand-primary-subtle)] text-white font-bold border-l-3 border-amber-400'
+                              : 'text-[var(--sidebar-text-muted)] hover:bg-[var(--sidebar-hover-bg)] hover:text-[var(--sidebar-text)]'
                           }`
                         }
                       >
@@ -387,7 +430,9 @@ export default function AdminLayout({ children, title }) {
               </nav>
 
               {/* Mobile Footer */}
-              <div className="border-t border-espresso-800 p-3 bg-espresso-950/80">
+              <div className="border-t p-3 bg-[var(--sidebar-hover-bg)]/80"
+                style={{ borderColor: 'rgba(46, 42, 37, 0.5)' }}
+              >
                 <button
                   onClick={handleLogout}
                   className="flex w-full items-center justify-center gap-2 rounded-xl p-2 text-xs font-semibold text-red-300 hover:bg-red-500/20"
@@ -447,24 +492,31 @@ export default function AdminLayout({ children, title }) {
         )}
 
         {/* Top Header */}
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200/90 bg-white px-4 shadow-2xs md:px-6">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b px-4 shadow-2xs md:px-6"
+          style={{
+            backgroundColor: 'var(--header-bg)',
+            borderColor: 'var(--header-border)',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
           {/* Left: Mobile Toggle & Page Title */}
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-stone-200 text-stone-600 md:hidden hover:bg-stone-50"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border p-2 md:hidden hover:bg-[var(--hover-bg)]"
+              style={{ borderColor: 'var(--border-primary)', color: 'var(--header-text-muted)' }}
               aria-label="Open sidebar"
             >
               <Menu size={18} />
             </button>
 
             <div className="min-w-0">
-              <div className="flex items-center gap-2 text-[11px] font-semibold text-stone-400 uppercase tracking-wider">
+              <div className="flex items-center gap-2 text-[11px] font-semibold text-[var(--header-text-muted)] uppercase tracking-wider">
                 <span>{tenant.name || 'Café'}</span>
                 <span>/</span>
-                <span className="text-stone-600">{title}</span>
+                <span className="text-[var(--header-text)]">{title}</span>
               </div>
-              <h1 className="min-w-0 truncate font-display text-lg font-bold text-espresso-900 sm:text-xl leading-tight">
+              <h1 className="min-w-0 truncate font-display text-lg font-bold text-[var(--header-text)] sm:text-xl leading-tight">
                 {title}
               </h1>
             </div>
@@ -476,25 +528,37 @@ export default function AdminLayout({ children, title }) {
             <button
               type="button"
               onClick={() => setShowCommandPalette(true)}
-              className="hidden lg:flex items-center gap-2 h-9 px-3 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-500 text-xs font-medium transition"
+              className="hidden lg:flex items-center gap-2 h-9 px-3 rounded-xl border px-3 py-1.5 text-xs font-medium transition"
               title="Global quick navigation (⌘K)"
+              style={{
+                borderColor: 'var(--border-primary)',
+                backgroundColor: 'var(--hover-bg)',
+                color: 'var(--header-text-muted)',
+              }}
             >
               <Search size={14} />
               <span>Search or jump...</span>
-              <kbd className="ml-1 rounded bg-stone-200/80 px-1.5 py-0.5 text-[10px] font-bold text-stone-600 font-mono">
+              <kbd className="ml-1 rounded px-1.5 py-0.5 text-[10px] font-bold text-[var(--header-text-muted)] font-mono"
+                style={{ backgroundColor: 'var(--border-primary)' }}
+              >
                 ⌘K
               </kbd>
             </button>
 
             {/* Branch Switcher */}
             {branches.length > 0 && (
-              <div className="flex items-center gap-1.5 bg-stone-100 rounded-xl px-2.5 py-1.5 border border-stone-200">
+              <div className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 border"
+                style={{
+                  backgroundColor: 'var(--hover-bg)',
+                  borderColor: 'var(--border-primary)',
+                }}
+              >
                 <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                <Store size={13} className="text-stone-500 shrink-0" />
+                <Store size={13} className="text-[var(--header-text-muted)] shrink-0" />
                 <select
                   value={selectedBranchId}
                   onChange={e => handleBranchChange(e.target.value)}
-                  className="bg-transparent text-xs font-semibold text-stone-700 focus:outline-none cursor-pointer max-w-[140px] truncate"
+                  className="bg-transparent text-xs font-semibold text-[var(--header-text)] focus:outline-none cursor-pointer max-w-[140px] truncate"
                   title="Switch Branch Outlet"
                 >
                   {branches.map(b => (
@@ -510,8 +574,8 @@ export default function AdminLayout({ children, title }) {
             <div
               className={`hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold border ${
                 isOnline
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : 'bg-red-50 text-red-700 border-red-200 animate-pulse'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
+                  : 'bg-red-50 text-red-700 border-red-200 animate-pulse dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20'
               }`}
               title={isOnline ? 'Online: System synced in real-time' : 'Offline mode'}
             >
@@ -522,8 +586,9 @@ export default function AdminLayout({ children, title }) {
             {/* Live Orders Notification Bell */}
             <NavLink
               to="/orders"
-              className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600 hover:bg-stone-50 hover:text-stone-900 transition shadow-2xs"
+              className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border bg-[var(--bg-surface)] text-[var(--header-text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--header-text)] transition shadow-2xs"
               title={`${pendingOrdersCount} pending orders`}
+              style={{ borderColor: 'var(--border-primary)' }}
             >
               <Bell size={16} />
               {pendingOrdersCount > 0 && (
@@ -537,8 +602,9 @@ export default function AdminLayout({ children, title }) {
             {canAccessPos(user?.role) && (
               <NavLink
                 to="/pos"
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-brew-600 px-3.5 text-xs font-bold text-white shadow-xs hover:bg-brew-700 active:scale-98 transition"
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3.5 text-xs font-bold text-white shadow-xs hover:opacity-90 active:scale-98 transition"
                 title="Launch Fast POS Terminal"
+                style={{ backgroundColor: 'var(--brand-primary)' }}
               >
                 <Monitor size={14} />
                 <span className="hidden sm:inline">Open POS</span>
@@ -549,11 +615,23 @@ export default function AdminLayout({ children, title }) {
             <button
               type="button"
               onClick={() => setShowAiModal(true)}
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-espresso-950 to-brew-900 px-3 text-xs font-semibold text-white shadow-xs hover:from-espresso-900 hover:to-brew-800 transition"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold text-white shadow-xs transition"
               title="Ask InfiniGrow AI Business Advisor"
+              style={{ background: 'linear-gradient(to right, var(--brand-primary), var(--brand-primary-hover))' }}
             >
               <Sparkles size={13} className="text-amber-300 animate-pulse" />
               <span className="hidden md:inline">AI Advisor</span>
+            </button>
+
+            {/* Theme Toggle */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border bg-[var(--hover-bg)] text-[var(--header-text-muted)] hover:text-amber-600 dark:hover:text-amber-400 hover:bg-[var(--hover-bg)] transition shadow-2xs"
+              title={`Switch to ${isDark ? 'Light' : 'Dark'} theme`}
+              style={{ borderColor: 'var(--border-primary)' }}
+            >
+              {isDark ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-slate-700" />}
             </button>
 
             {/* Refresh Button */}
@@ -562,7 +640,8 @@ export default function AdminLayout({ children, title }) {
               onClick={handleRefresh}
               disabled={refreshing}
               title="Refresh all admin data"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-stone-200 text-stone-600 hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 disabled:cursor-wait transition shadow-2xs"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border bg-[var(--bg-surface)] text-[var(--header-text-muted)] hover:border-amber-500/40 hover:bg-[var(--hover-bg)] hover:text-[var(--header-text)] disabled:cursor-wait transition shadow-2xs"
+              style={{ borderColor: 'var(--border-primary)' }}
             >
               <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
             </button>
@@ -570,7 +649,7 @@ export default function AdminLayout({ children, title }) {
         </header>
 
         {/* Main Body */}
-        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#f7f4ef]">
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-6 lg:p-8" style={{ backgroundColor: 'var(--bg-canvas)' }}>
           {children}
         </main>
 

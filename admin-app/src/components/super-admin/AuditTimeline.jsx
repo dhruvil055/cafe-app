@@ -54,15 +54,15 @@ function getEventCategory(action = '') {
 function getEventBadge(category) {
   switch (category) {
     case 'status':
-      return { label: 'Tenant Status', color: 'border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400', icon: ShieldAlert };
+      return { label: 'Tenant Status', color: 'border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger-text)]', icon: ShieldAlert };
     case 'impersonation':
-      return { label: 'Impersonation', color: 'border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400', icon: ArrowUpRight };
+      return { label: 'Impersonation', color: 'border-[var(--warning-border)] bg-[var(--warning-bg)] text-[var(--warning-text)]', icon: ArrowUpRight };
     case 'billing':
-      return { label: 'Subscription', color: 'border-cyan-200 dark:border-cyan-500/30 bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400', icon: Key };
+      return { label: 'Subscription', color: 'border-[var(--info-border)] bg-[var(--info-bg)] text-[var(--info-text)]', icon: Key };
     case 'settings':
       return { label: 'Config', color: 'border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400', icon: Settings };
     default:
-      return { label: 'Security', color: 'border-slate-200 dark:border-stone-700 bg-slate-100 dark:bg-stone-800 text-slate-700 dark:text-stone-300', icon: Store };
+      return { label: 'Security', color: 'border-[var(--border-primary)] bg-[var(--hover-bg)] text-[var(--text-secondary)]', icon: Store };
   }
 }
 
@@ -121,9 +121,9 @@ export default function AuditTimeline({ logs = [], loading = false }) {
   return (
     <div className="space-y-4">
       {/* Filter bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900/60 p-4 shadow-xs transition-colors">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 kpi-card">
         <div className="relative flex-1 max-w-md">
-          <Search size={15} className="absolute left-3.5 top-3 text-slate-400 dark:text-stone-500" />
+          <Search size={15} className="absolute left-3.5 top-3 text-[var(--text-muted)]" />
           <input
             type="text"
             value={search}
@@ -132,7 +132,7 @@ export default function AuditTimeline({ logs = [], loading = false }) {
               setPage(1);
             }}
             placeholder="Search audit trail by actor, action, café or reason..."
-            className="w-full rounded-xl border border-slate-200 dark:border-stone-800 bg-slate-50 dark:bg-stone-950 pl-10 pr-4 py-2 text-xs text-slate-900 dark:text-stone-100 placeholder-slate-400 dark:placeholder-stone-500 focus:border-amber-500 focus:outline-none transition-colors"
+            className="input-field pl-10"
           />
         </div>
 
@@ -143,7 +143,7 @@ export default function AuditTimeline({ logs = [], loading = false }) {
               setCategoryFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-xl border border-slate-200 dark:border-stone-800 bg-slate-50 dark:bg-stone-950 px-3 py-2 text-xs text-slate-700 dark:text-stone-300 focus:border-amber-500 focus:outline-none transition-colors"
+            className="input-field"
           >
             <option value="all">All Event Categories</option>
             <option value="status">Status & Suspension</option>
@@ -155,7 +155,7 @@ export default function AuditTimeline({ logs = [], loading = false }) {
 
           <button
             onClick={handleExportAudit}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-stone-800 bg-slate-50 dark:bg-stone-950 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-stone-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-stone-800 transition"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-primary)] bg-[var(--hover-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)] transition"
           >
             <Download size={13} /> Export CSV
           </button>
@@ -163,17 +163,17 @@ export default function AuditTimeline({ logs = [], loading = false }) {
       </div>
 
       {/* Timeline List Card */}
-      <div className="rounded-3xl border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900/60 p-6 shadow-xs transition-colors">
+      <div className="kpi-card p-6">
         {loading ? (
-          <div className="py-12 text-center text-slate-400 dark:text-stone-500 text-xs">
+          <div className="py-12 text-center text-[var(--text-muted)] text-xs">
             Loading platform audit entries...
           </div>
         ) : filteredLogs.length === 0 ? (
-          <div className="py-12 text-center text-slate-400 dark:text-stone-500 text-xs">
+          <div className="py-12 text-center text-[var(--text-muted)] text-xs">
             No audit records found matching your filters.
           </div>
         ) : (
-          <div className="relative pl-6 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200 dark:before:bg-stone-800 space-y-6">
+          <div className="relative pl-6 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-[var(--border-primary)] space-y-6">
             {paginatedLogs.map((log) => {
               const cat = getEventCategory(log.action);
               const badge = getEventBadge(cat);
@@ -183,11 +183,11 @@ export default function AuditTimeline({ logs = [], loading = false }) {
               return (
                 <div key={log._id || Math.random()} className="relative group">
                   {/* Timeline dot */}
-                  <div className="absolute -left-6 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 dark:bg-stone-900 border border-slate-300 dark:border-stone-700 text-slate-500 dark:text-stone-400 group-hover:border-amber-500 group-hover:text-amber-500 transition">
+                  <div className="absolute -left-6 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--bg-surface)] border border-[var(--border-primary)] text-[var(--text-muted)] group-hover:border-amber-500 group-hover:text-amber-500 transition">
                     <div className="h-1.5 w-1.5 rounded-full bg-current" />
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 dark:border-stone-800/80 bg-slate-50/70 dark:bg-stone-950/70 p-4 hover:border-slate-300 dark:hover:border-stone-700 transition">
+                  <div className="rounded-2xl border border-[var(--border-primary)]/80 bg-[var(--hover-bg)]/70 p-4 hover:border-[var(--border-primary)] transition">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span
@@ -196,11 +196,11 @@ export default function AuditTimeline({ logs = [], loading = false }) {
                           <BadgeIcon size={10} /> {badge.label}
                         </span>
 
-                        <span className="font-mono text-[11px] text-slate-500 dark:text-stone-400">{log.action}</span>
+                        <span className="font-mono text-[11px] text-[var(--text-muted)]">{log.action}</span>
                       </div>
 
                       <div
-                        className="text-[11px] text-slate-400 dark:text-stone-500 flex items-center gap-1"
+                        className="text-[11px] text-[var(--text-muted)] flex items-center gap-1"
                         title={new Date(log.createdAt).toLocaleString()}
                       >
                         <Clock size={11} />
@@ -209,32 +209,32 @@ export default function AuditTimeline({ logs = [], loading = false }) {
                     </div>
 
                     {/* Human readable sentence */}
-                    <div className="mt-2 text-sm font-semibold text-slate-900 dark:text-white tracking-tight">
+                    <div className="mt-2 text-sm font-semibold text-[var(--text-primary)] tracking-tight">
                       {sentence}
                     </div>
 
                     {/* Details row: actor, target, IP */}
-                    <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-stone-400 border-t border-slate-200/80 dark:border-stone-900 pt-2.5">
+                    <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-[var(--text-muted)] border-t border-[var(--border-primary)]/80 pt-2.5">
                       <span className="flex items-center gap-1.5">
-                        <User size={12} className="text-slate-400 dark:text-stone-500" />
-                        Actor: <strong className="text-slate-800 dark:text-stone-200">{log.actorEmail || 'System'}</strong>
+                        <User size={12} className="text-[var(--text-muted)]" />
+                        Actor: <strong className="text-[var(--text-secondary)]">{log.actorEmail || 'System'}</strong>
                       </span>
 
                       {log.targetTenantSlug && (
                         <span className="flex items-center gap-1.5">
-                          <Store size={12} className="text-slate-400 dark:text-stone-500" />
+                          <Store size={12} className="text-[var(--text-muted)]" />
                           Target: <strong className="text-amber-600 dark:text-amber-400">{log.targetTenantSlug}</strong>
                         </span>
                       )}
 
                       {log.ip && (
-                        <span className="flex items-center gap-1.5 font-mono text-[11px] text-slate-400 dark:text-stone-500">
+                        <span className="flex items-center gap-1.5 font-mono text-[11px] text-[var(--text-muted)]">
                           <Globe size={11} /> {log.ip}
                         </span>
                       )}
 
                       {log.details?.reason && (
-                        <span className="w-full text-[11px] text-slate-600 dark:text-stone-300 italic bg-amber-50/60 dark:bg-stone-900/80 px-2.5 py-1.5 rounded-lg border border-amber-200/60 dark:border-stone-800/60 mt-1">
+                        <span className="w-full text-[11px] text-[var(--text-secondary)] italic bg-[var(--warning-bg)] border border-[var(--warning-border)] px-2.5 py-1.5 rounded-lg">
                           Reason: "{log.details.reason}"
                         </span>
                       )}
@@ -248,24 +248,24 @@ export default function AuditTimeline({ logs = [], loading = false }) {
 
         {/* Pagination */}
         {filteredLogs.length > pageSize && (
-          <div className="flex items-center justify-between border-t border-slate-200 dark:border-stone-800 pt-4 mt-6 text-xs text-slate-500 dark:text-stone-400">
+          <div className="flex items-center justify-between border-t border-[var(--border-primary)] pt-4 mt-6 text-xs text-[var(--text-muted)]">
             <span>
-              Showing Page <strong className="text-slate-900 dark:text-white">{page}</strong> of{' '}
-              <strong className="text-slate-900 dark:text-white">{totalPages}</strong>
+              Showing Page <strong className="text-[var(--text-primary)]">{page}</strong> of{' '}
+              <strong className="text-[var(--text-primary)]">{totalPages}</strong>
             </span>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="rounded-xl border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-950 px-3 py-1.5 font-semibold text-slate-700 dark:text-stone-300 hover:bg-slate-100 dark:hover:text-white disabled:opacity-30 transition"
+                className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-surface)] px-3 py-1.5 font-semibold text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] disabled:opacity-30 transition"
               >
                 Previous
               </button>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="rounded-xl border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-950 px-3 py-1.5 font-semibold text-slate-700 dark:text-stone-300 hover:bg-slate-100 dark:hover:text-white disabled:opacity-30 transition"
+                className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-surface)] px-3 py-1.5 font-semibold text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] disabled:opacity-30 transition"
               >
                 Next
               </button>

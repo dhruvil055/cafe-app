@@ -41,18 +41,23 @@ export default function InviteOwnerModal({ isOpen, onClose, tenant, onInviteSucc
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0"
+          style={{ backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(4px)' }}
         />
 
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative w-full max-w-md rounded-2xl border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-6 shadow-2xl text-slate-800 dark:text-stone-100 z-10"
+          className="relative w-full max-w-md rounded-2xl border p-6 shadow-2xl text-[var(--text-primary)] z-10"
+          style={{
+            backgroundColor: 'var(--bg-card)',
+            borderColor: 'var(--border-primary)',
+          }}
         >
           <button
             onClick={onClose}
-            className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-stone-800 hover:text-slate-900 dark:hover:text-white transition"
+            className="absolute right-4 top-4 rounded-lg p-1.5 text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] transition"
           >
             <X size={16} />
           </button>
@@ -62,14 +67,14 @@ export default function InviteOwnerModal({ isOpen, onClose, tenant, onInviteSucc
               <UserPlus size={20} />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Assign & Invite Owner</h3>
-              <p className="text-xs text-slate-500 dark:text-stone-400">Café: {tenant.name}</p>
+              <h3 className="text-sm font-bold text-[var(--text-primary)]">Assign & Invite Owner</h3>
+              <p className="text-xs text-[var(--text-muted)]">Café: {tenant.name}</p>
             </div>
           </div>
 
           <form onSubmit={handleInvite} className="space-y-3.5 mt-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-stone-400 mb-1">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
                 Owner Full Name
               </label>
               <input
@@ -77,36 +82,36 @@ export default function InviteOwnerModal({ isOpen, onClose, tenant, onInviteSucc
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. John Doe"
-                className="w-full rounded-xl border border-slate-200 dark:border-stone-800 bg-slate-50 dark:bg-stone-950 px-3.5 py-2.5 text-xs text-slate-900 dark:text-stone-100 placeholder-slate-400 dark:placeholder-stone-600 focus:border-amber-500 focus:outline-none transition-colors"
+                className="input-field"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-stone-400 mb-1">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
                 Owner Work Email <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <Mail size={15} className="absolute left-3.5 top-3 text-slate-400 dark:text-stone-500" />
+                <Mail size={15} className="absolute left-3.5 top-3 text-[var(--text-muted)]" />
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="owner@domain.com"
-                  className="w-full rounded-xl border border-slate-200 dark:border-stone-800 bg-slate-50 dark:bg-stone-950 pl-10 pr-3.5 py-2.5 text-xs text-slate-900 dark:text-stone-100 placeholder-slate-400 dark:placeholder-stone-600 focus:border-amber-500 focus:outline-none transition-colors"
+                  className="input-field pl-10"
                 />
               </div>
             </div>
 
-            <p className="text-[11px] text-slate-500 dark:text-stone-400 leading-normal pt-1">
+            <p className="text-[11px] text-[var(--text-muted)] leading-normal pt-1">
               An onboarding email with a one-time secure activation link will be dispatched to this address.
             </p>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-stone-800 mt-4">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--border-primary)] mt-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-stone-300 hover:bg-slate-100 dark:hover:bg-stone-800 transition"
+                className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-surface)] px-4 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] transition"
               >
                 Cancel
               </button>

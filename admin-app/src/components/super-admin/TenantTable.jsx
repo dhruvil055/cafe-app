@@ -171,13 +171,30 @@ export default function TenantTable({
     return (words[0][0] + words[1][0]).toUpperCase();
   };
 
+  const getStatusStyles = (status) => {
+    if (status === 'active') {
+      return {
+        bg: 'var(--status-active-bg)',
+        text: 'var(--status-active-text)',
+        border: 'var(--status-active-border)',
+        dot: 'var(--status-active-dot)',
+      };
+    }
+    return {
+      bg: 'var(--status-suspended-bg)',
+      text: 'var(--status-suspended-text)',
+      border: 'var(--status-suspended-border)',
+      dot: 'var(--status-suspended-dot)',
+    };
+  };
+
   return (
     <div className="space-y-4">
       {/* ── Toolbar ─────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900/60 p-4 shadow-xs md:flex-row md:items-center md:justify-between transition-colors">
+      <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-card)] p-4 shadow-xs md:flex-row md:items-center md:justify-between transition-colors">
         {/* Left: Search input */}
         <div className="relative flex-1 max-w-md">
-          <Search size={15} className="absolute left-3.5 top-3 text-slate-400 dark:text-stone-500" />
+          <Search size={15} className="absolute left-3.5 top-3 text-[var(--text-muted)]" />
           <input
             type="text"
             value={search}
@@ -186,7 +203,7 @@ export default function TenantTable({
               setPage(1);
             }}
             placeholder="Search cafés by name, slug, or owner email..."
-            className="w-full rounded-xl border border-slate-200 dark:border-stone-800 bg-slate-50 dark:bg-stone-950 pl-10 pr-4 py-2 text-xs text-slate-900 dark:text-stone-100 placeholder-slate-400 dark:placeholder-stone-500 focus:border-amber-500 focus:outline-none transition-colors"
+            className="input-field pl-10"
           />
         </div>
 
@@ -199,7 +216,7 @@ export default function TenantTable({
               setStatusFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-xl border border-slate-200 dark:border-stone-800 bg-slate-50 dark:bg-stone-950 px-3 py-2 text-xs text-slate-700 dark:text-stone-300 focus:border-amber-500 focus:outline-none transition-colors"
+            className="input-field min-w-[150px]"
           >
             <option value="all">Status: All</option>
             <option value="active">Active Only</option>
@@ -213,7 +230,7 @@ export default function TenantTable({
               setPlanFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-xl border border-slate-200 dark:border-stone-800 bg-slate-50 dark:bg-stone-950 px-3 py-2 text-xs text-slate-700 dark:text-stone-300 focus:border-amber-500 focus:outline-none transition-colors"
+            className="input-field min-w-[140px]"
           >
             <option value="all">Plan: All Tiers</option>
             <option value="starter">Starter</option>
@@ -225,7 +242,7 @@ export default function TenantTable({
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="rounded-xl border border-slate-200 dark:border-stone-800 bg-slate-50 dark:bg-stone-950 px-3 py-2 text-xs text-slate-700 dark:text-stone-300 focus:border-amber-500 focus:outline-none transition-colors"
+            className="input-field min-w-[150px]"
           >
             <option value="newest">Sort: Newest</option>
             <option value="oldest">Sort: Oldest</option>
@@ -236,7 +253,7 @@ export default function TenantTable({
           {/* Density Toggle */}
           <button
             onClick={() => setDensity((d) => (d === 'normal' ? 'compact' : 'normal'))}
-            className="rounded-xl border border-slate-200 dark:border-stone-800 bg-slate-50 dark:bg-stone-950 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-stone-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-stone-800 transition"
+            className="rounded-xl border border-[var(--border-primary)] bg-[var(--hover-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)] transition"
             title="Toggle Row Density"
           >
             {density === 'normal' ? 'Comfortable' : 'Compact'}
@@ -245,7 +262,7 @@ export default function TenantTable({
           {/* Export CSV */}
           <button
             onClick={handleExportCSV}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-stone-800 bg-slate-50 dark:bg-stone-950 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-stone-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-stone-800 transition"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-primary)] bg-[var(--hover-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)] transition"
           >
             <Download size={13} /> Export CSV
           </button>
@@ -254,28 +271,28 @@ export default function TenantTable({
 
       {/* ── Bulk Actions Floating Bar ────────────────────────────── */}
       {selectedIds.size > 0 && (
-        <div className="flex items-center justify-between rounded-2xl border border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-4 py-2.5 text-xs text-amber-900 dark:text-amber-200 shadow-md animate-in fade-in duration-150">
+        <div className="flex items-center justify-between rounded-2xl border border-amber-500/40 bg-[var(--warning-bg)] px-4 py-2.5 text-xs text-[var(--warning-text)] shadow-md animate-in fade-in duration-150">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-amber-950 dark:text-white">{selectedIds.size}</span>
+            <span className="font-bold text-[var(--warning-text)]">{selectedIds.size}</span>
             <span>café(s) selected across current filter</span>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => handleBulkStatusChange('active')}
-              className="rounded-lg border border-emerald-500/30 bg-emerald-500/20 px-3 py-1 font-semibold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/30 transition"
+              className="rounded-lg border border-emerald-500/30 bg-[var(--success-bg)] px-3 py-1 font-semibold text-[var(--success-text)] hover:bg-[var(--success-bg)] transition"
             >
               Reactivate Selected
             </button>
             <button
               onClick={() => handleBulkStatusChange('suspended')}
-              className="rounded-lg border border-red-500/30 bg-red-500/20 px-3 py-1 font-semibold text-red-800 dark:text-red-300 hover:bg-red-500/30 transition"
+              className="rounded-lg border border-red-500/30 bg-[var(--danger-bg)] px-3 py-1 font-semibold text-[var(--danger-text)] hover:bg-[var(--danger-bg)] transition"
             >
               Suspend Selected
             </button>
             <button
               onClick={() => setSelectedIds(new Set())}
-              className="rounded-lg bg-slate-200 dark:bg-stone-800 px-2.5 py-1 text-slate-700 dark:text-stone-300 hover:text-slate-900 dark:hover:text-white transition"
+              className="rounded-lg bg-[var(--hover-bg)] px-2.5 py-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition"
             >
               Clear
             </button>
@@ -284,19 +301,19 @@ export default function TenantTable({
       )}
 
       {/* ── Main Table Card ─────────────────────────────────────── */}
-      <div className="rounded-3xl border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900/60 overflow-hidden shadow-xs transition-colors">
+      <div className="table-container">
         {loading ? (
-          <div className="p-12 text-center text-slate-400 dark:text-stone-500 space-y-3">
+          <div className="p-12 text-center text-[var(--text-muted)] space-y-3">
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
             <p className="text-xs">Loading registered platform cafés...</p>
           </div>
         ) : filteredTenants.length === 0 ? (
-          <div className="py-16 text-center text-slate-500 dark:text-stone-400 space-y-3">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 dark:bg-stone-800 text-slate-400 dark:text-stone-500">
+          <div className="py-16 text-center text-[var(--text-muted)] space-y-3">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--hover-bg)] text-[var(--text-muted)]">
               <Store size={24} />
             </div>
-            <div className="text-sm font-bold text-slate-900 dark:text-white">No cafés found</div>
-            <p className="text-xs text-slate-500 dark:text-stone-500 max-w-sm mx-auto">
+            <div className="text-sm font-bold text-[var(--text-primary)]">No cafés found</div>
+            <p className="text-xs text-[var(--text-muted)] max-w-sm mx-auto">
               No registered cafés match your search query or active filter criteria.
             </p>
             <button
@@ -305,7 +322,7 @@ export default function TenantTable({
                 setStatusFilter('all');
                 setPlanFilter('all');
               }}
-              className="rounded-xl border border-slate-300 dark:border-stone-700 bg-slate-100 dark:bg-stone-800 px-4 py-1.5 text-xs font-semibold text-slate-700 dark:text-stone-200 hover:bg-slate-200 dark:hover:text-white transition"
+              className="rounded-xl border border-[var(--border-primary)] bg-[var(--hover-bg)] px-4 py-1.5 text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] transition"
             >
               Reset Filters
             </button>
@@ -313,7 +330,7 @@ export default function TenantTable({
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-stone-950/80 text-slate-500 dark:text-stone-400 uppercase tracking-wider text-[10px] border-b border-slate-200 dark:border-stone-800">
+              <thead className="table-header border-b border-[var(--table-border)]">
                 <tr>
                   <th className="py-3 px-4 w-10 text-center">
                     <input
@@ -323,20 +340,20 @@ export default function TenantTable({
                         selectedIds.size === filteredTenants.length
                       }
                       onChange={handleSelectAll}
-                      className="rounded border-slate-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-amber-500 focus:ring-0"
+                      className="rounded border-[var(--border-primary)] bg-[var(--input-bg)] text-amber-500 focus:ring-0"
                     />
                   </th>
-                  <th className="py-3 px-4 font-bold text-slate-700 dark:text-stone-300">Café & Subdomain</th>
-                  {visibleColumns.owner && <th className="py-3 px-4 font-bold text-slate-700 dark:text-stone-300">Owner</th>}
-                  {visibleColumns.status && <th className="py-3 px-4 font-bold text-slate-700 dark:text-stone-300">Status</th>}
-                  {visibleColumns.plan && <th className="py-3 px-4 font-bold text-slate-700 dark:text-stone-300">Plan</th>}
-                  {visibleColumns.usage && <th className="py-3 px-4 font-bold text-slate-700 dark:text-stone-300">Usage vs Quota</th>}
-                  {visibleColumns.joined && <th className="py-3 px-4 font-bold text-slate-700 dark:text-stone-300">Joined</th>}
-                  <th className="py-3 px-6 font-bold text-slate-700 dark:text-stone-300 text-right">Actions</th>
+                  <th className="py-3 px-4 font-bold text-[var(--text-secondary)]">Café & Subdomain</th>
+                  {visibleColumns.owner && <th className="py-3 px-4 font-bold text-[var(--text-secondary)]">Owner</th>}
+                  {visibleColumns.status && <th className="py-3 px-4 font-bold text-[var(--text-secondary)]">Status</th>}
+                  {visibleColumns.plan && <th className="py-3 px-4 font-bold text-[var(--text-secondary)]">Plan</th>}
+                  {visibleColumns.usage && <th className="py-3 px-4 font-bold text-[var(--text-secondary)]">Usage vs Quota</th>}
+                  {visibleColumns.joined && <th className="py-3 px-4 font-bold text-[var(--text-secondary)]">Joined</th>}
+                  <th className="py-3 px-6 font-bold text-[var(--text-secondary)] text-right">Actions</th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-slate-100 dark:divide-stone-800/60 text-slate-700 dark:text-stone-300">
+              <tbody className="divide-y divide-[var(--table-border)] text-[var(--text-primary)]">
                 {paginatedTenants.map((t) => {
                   const isSelected = selectedIds.has(t.id);
                   const isSuspended = t.status === 'suspended';
@@ -344,6 +361,7 @@ export default function TenantTable({
                   const tablePercent = Math.min(100, Math.round(((t.tableCount || 0) / limits.maxTables) * 100));
                   const productPercent = Math.min(100, Math.round(((t.productCount || 0) / limits.maxProducts) * 100));
                   const isOwnerUnassigned = !t.ownerEmail || t.ownerEmail === 'N/A';
+                  const statusStyles = getStatusStyles(t.status);
 
                   return (
                     <tr
@@ -351,8 +369,8 @@ export default function TenantTable({
                       onClick={() => onRowClick && onRowClick(t)}
                       className={`cursor-pointer transition group ${
                         isSelected
-                          ? 'bg-amber-50/60 dark:bg-amber-500/5'
-                          : 'hover:bg-slate-50/90 dark:hover:bg-stone-800/40'
+                          ? 'bg-[var(--table-row-selected)]'
+                          : 'hover:bg-[var(--table-row-hover)]'
                       }`}
                     >
                       {/* Checkbox */}
@@ -361,7 +379,7 @@ export default function TenantTable({
                           type="checkbox"
                           checked={isSelected}
                           onChange={(e) => handleToggleSelect(e, t.id)}
-                          className="rounded border-slate-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-amber-500 focus:ring-0"
+                          className="rounded border-[var(--border-primary)] bg-[var(--input-bg)] text-amber-500 focus:ring-0"
                         />
                       </td>
 
@@ -378,18 +396,18 @@ export default function TenantTable({
                           </div>
 
                           <div>
-                            <div className="font-bold text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-300 transition flex items-center gap-1.5">
+                            <div className="font-bold text-[var(--text-primary)] group-hover:text-amber-600 dark:group-hover:text-amber-300 transition flex items-center gap-1.5">
                               <span>{t.name}</span>
                             </div>
 
                             {/* Copyable Subdomain link */}
                             <div className="flex items-center gap-1 mt-0.5">
-                              <span className="font-mono text-[11px] text-slate-500 dark:text-stone-400">
+                              <span className="font-mono text-[11px] text-[var(--text-muted)]">
                                 {t.slug}.localhost:5173
                               </span>
                               <button
                                 onClick={(e) => handleCopySubdomain(e, t.slug)}
-                                className="p-0.5 text-slate-400 hover:text-amber-600 dark:text-stone-500 dark:hover:text-amber-400 transition"
+                                className="p-0.5 text-[var(--text-muted)] hover:text-amber-600 dark:hover:text-amber-400 transition"
                                 title="Copy subdomain link"
                               >
                                 {copiedSlug === t.slug ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
@@ -404,7 +422,7 @@ export default function TenantTable({
                         <td className={`${density === 'compact' ? 'py-2.5' : 'py-3.5'} px-4`}>
                           {isOwnerUnassigned ? (
                             <div className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                              <span className="rounded-md border border-slate-300 dark:border-stone-700 bg-slate-100 dark:bg-stone-800/80 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-stone-400">
+                              <span className="rounded-md border border-[var(--border-primary)] bg-[var(--hover-bg)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-muted)]">
                                 Unassigned
                               </span>
                               <button
@@ -416,10 +434,10 @@ export default function TenantTable({
                             </div>
                           ) : (
                             <div>
-                              <div className="font-medium text-slate-900 dark:text-stone-200 truncate max-w-[170px]">
+                              <div className="font-medium text-[var(--text-primary)] truncate max-w-[170px]">
                                 {t.ownerName && t.ownerName !== 'N/A' ? t.ownerName : t.ownerEmail}
                               </div>
-                              <div className="text-[10px] text-slate-500 dark:text-stone-500 truncate max-w-[170px]">{t.ownerEmail}</div>
+                              <div className="text-[10px] text-[var(--text-muted)] truncate max-w-[170px]">{t.ownerEmail}</div>
                             </div>
                           )}
                         </td>
@@ -429,16 +447,16 @@ export default function TenantTable({
                       {visibleColumns.status && (
                         <td className={`${density === 'compact' ? 'py-2.5' : 'py-3.5'} px-4`}>
                           <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                              t.status === 'active'
-                                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/25'
-                                : 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/25'
-                            }`}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border"
+                            style={{
+                              backgroundColor: statusStyles.bg,
+                              color: statusStyles.text,
+                              borderColor: statusStyles.border,
+                            }}
                           >
                             <span
-                              className={`h-1.5 w-1.5 rounded-full ${
-                                t.status === 'active' ? 'bg-emerald-500 dark:bg-emerald-400 animate-pulse' : 'bg-red-500 dark:bg-red-400'
-                              }`}
+                              className="h-1.5 w-1.5 rounded-full"
+                              style={{ backgroundColor: statusStyles.dot }}
                             />
                             {t.status}
                           </span>
@@ -453,11 +471,11 @@ export default function TenantTable({
                               e.stopPropagation();
                               onChangePlan && onChangePlan(t);
                             }}
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-stone-700 bg-slate-50 dark:bg-stone-950 px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:text-stone-200 hover:border-amber-500/50 hover:text-amber-600 dark:hover:text-amber-300 transition"
+                            className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-primary)] bg-[var(--hover-bg)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)] hover:border-amber-500/50 hover:text-amber-600 dark:hover:text-amber-300 transition"
                             title="Click to change plan"
                           >
                             <span className="capitalize">{t.plan || 'Starter'}</span>
-                            <span className="text-[9px] text-slate-400 dark:text-stone-500">✎</span>
+                            <span className="text-[9px] text-[var(--text-muted)]">✎</span>
                           </button>
                         </td>
                       )}
@@ -468,12 +486,12 @@ export default function TenantTable({
                           <div className="space-y-1.5 min-w-[120px]">
                             {/* Tables Usage */}
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-slate-500 dark:text-stone-400">Tables</span>
-                              <span className="font-semibold text-slate-800 dark:text-stone-200">
+                              <span className="text-[var(--text-muted)]">Tables</span>
+                              <span className="font-semibold text-[var(--text-primary)]">
                                 {t.tableCount || 0}/{limits.maxTables}
                               </span>
                             </div>
-                            <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-stone-800 overflow-hidden">
+                            <div className="h-1.5 w-full rounded-full bg-[var(--border-primary)] overflow-hidden">
                               <div
                                 className={`h-full rounded-full transition-all duration-300 ${
                                   tablePercent > 85 ? 'bg-amber-500' : 'bg-cyan-500'
@@ -484,12 +502,12 @@ export default function TenantTable({
 
                             {/* Products Usage */}
                             <div className="flex items-center justify-between text-[10px] pt-0.5">
-                              <span className="text-slate-500 dark:text-stone-400">Items</span>
-                              <span className="font-semibold text-slate-800 dark:text-stone-200">
+                              <span className="text-[var(--text-muted)]">Items</span>
+                              <span className="font-semibold text-[var(--text-primary)]">
                                 {t.productCount || 0}/{limits.maxProducts}
                               </span>
                             </div>
-                            <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-stone-800 overflow-hidden">
+                            <div className="h-1.5 w-full rounded-full bg-[var(--border-primary)] overflow-hidden">
                               <div
                                 className={`h-full rounded-full transition-all duration-300 ${
                                   productPercent > 85 ? 'bg-amber-500' : 'bg-emerald-500'
@@ -504,10 +522,10 @@ export default function TenantTable({
                       {/* Joined Date */}
                       {visibleColumns.joined && (
                         <td className={`${density === 'compact' ? 'py-2.5' : 'py-3.5'} px-4`}>
-                          <div className="text-slate-800 dark:text-stone-300" title={new Date(t.createdAt).toLocaleString()}>
+                          <div className="text-[var(--text-primary)]" title={new Date(t.createdAt).toLocaleString()}>
                             {formatRelativeTime(t.createdAt)}
                           </div>
-                          <div className="text-[10px] text-slate-400 dark:text-stone-500">
+                          <div className="text-[10px] text-[var(--text-muted)]">
                             {new Date(t.createdAt).toLocaleDateString()}
                           </div>
                         </td>
@@ -522,7 +540,7 @@ export default function TenantTable({
                           {/* Primary: Open User Panel */}
                           <button
                             onClick={() => onOpenPanel && onOpenPanel(t)}
-                            className="inline-flex items-center gap-1 rounded-xl border border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition"
+                            className="inline-flex items-center gap-1 rounded-xl border border-amber-500/30 bg-[var(--brand-primary-subtle)] px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition"
                             title="Open Customer QR Ordering Panel"
                           >
                             <Eye size={13} />
@@ -533,7 +551,7 @@ export default function TenantTable({
                           <div className="relative">
                             <button
                               onClick={() => setOpenActionId(openActionId === t.id ? null : t.id)}
-                              className="rounded-xl border border-slate-200 dark:border-stone-800 bg-slate-50 dark:bg-stone-900 p-1.5 text-slate-500 dark:text-stone-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-stone-800 transition"
+                              className="rounded-xl border border-[var(--border-primary)] bg-[var(--hover-bg)] p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)] transition"
                               title="More options"
                             >
                               <MoreVertical size={14} />
@@ -542,14 +560,14 @@ export default function TenantTable({
                             {openActionId === t.id && (
                               <div
                                 onClick={(e) => e.stopPropagation()}
-                                className="absolute right-0 top-full mt-1.5 w-48 rounded-2xl border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-1.5 shadow-2xl text-left z-20"
+                                className="dropdown-menu"
                               >
                                 <button
                                   onClick={() => {
                                     setOpenActionId(null);
                                     onImpersonate && onImpersonate(t);
                                   }}
-                                  className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 dark:text-stone-200 hover:bg-slate-100 dark:hover:bg-stone-800 hover:text-amber-600 dark:hover:text-amber-400 transition"
+                                  className="dropdown-item"
                                 >
                                   <ArrowUpRight size={13} /> Impersonate Session
                                 </button>
@@ -559,7 +577,7 @@ export default function TenantTable({
                                     setOpenActionId(null);
                                     onChangePlan && onChangePlan(t);
                                   }}
-                                  className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 dark:text-stone-200 hover:bg-slate-100 dark:hover:bg-stone-800 transition"
+                                  className="dropdown-item"
                                 >
                                   <Layers size={13} /> Change Plan Tier
                                 </button>
@@ -569,7 +587,7 @@ export default function TenantTable({
                                     setOpenActionId(null);
                                     onRowClick && onRowClick(t);
                                   }}
-                                  className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 dark:text-stone-200 hover:bg-slate-100 dark:hover:bg-stone-800 transition"
+                                  className="dropdown-item"
                                 >
                                   <Store size={13} /> View Café Drawer
                                 </button>
@@ -579,7 +597,7 @@ export default function TenantTable({
                                     setOpenActionId(null);
                                     onViewAudit && onViewAudit(t);
                                   }}
-                                  className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 dark:text-stone-200 hover:bg-slate-100 dark:hover:bg-stone-800 transition"
+                                  className="dropdown-item"
                                 >
                                   <Calendar size={13} /> Audit History
                                 </button>
@@ -590,22 +608,22 @@ export default function TenantTable({
                                     navigator.clipboard.writeText(t.id);
                                     toast.success(`Copied ID: ${t.id}`);
                                   }}
-                                  className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 dark:text-stone-200 hover:bg-slate-100 dark:hover:bg-stone-800 transition"
+                                  className="dropdown-item"
                                 >
                                   <Copy size={13} /> Copy Tenant ID
                                 </button>
 
-                                <div className="my-1 border-t border-slate-200 dark:border-stone-800" />
+                                <div className="dropdown-divider" />
 
                                 <button
                                   onClick={() => {
                                     setOpenActionId(null);
                                     onToggleStatus && onToggleStatus(t);
                                   }}
-                                  className={`w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                                  className={`dropdown-item font-semibold transition ${
                                     isSuspended
-                                      ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
-                                      : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40'
+                                      ? 'text-emerald-600 dark:text-emerald-400 hover:bg-[var(--success-bg)]'
+                                      : 'text-red-600 dark:text-red-400 hover:bg-[var(--danger-bg)]'
                                   }`}
                                 >
                                   <ShieldAlert size={13} />
@@ -625,21 +643,21 @@ export default function TenantTable({
         )}
 
         {/* ── Pagination Footer ────────────────────────────────────── */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-200 dark:border-stone-800/80 bg-slate-50/70 dark:bg-stone-950/40 px-6 py-4 text-xs text-slate-600 dark:text-stone-400 transition-colors">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[var(--border-primary)]/80 bg-[var(--hover-bg)]/70 px-6 py-4 text-xs text-[var(--text-muted)] transition-colors">
           <div className="flex items-center gap-3">
             <span>
               Showing{' '}
-              <strong className="text-slate-900 dark:text-white font-bold">
+              <strong className="text-[var(--text-primary)] font-bold">
                 {filteredTenants.length === 0 ? 0 : (page - 1) * pageSize + 1}
               </strong>{' '}
               to{' '}
-              <strong className="text-slate-900 dark:text-white font-bold">
+              <strong className="text-[var(--text-primary)] font-bold">
                 {Math.min(filteredTenants.length, page * pageSize)}
               </strong>{' '}
-              of <strong className="text-slate-900 dark:text-white font-bold">{filteredTenants.length}</strong> cafés
+              of <strong className="text-[var(--text-primary)] font-bold">{filteredTenants.length}</strong> cafés
             </span>
 
-            <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200 dark:border-stone-800">
+            <div className="flex items-center gap-1.5 pl-3 border-l border-[var(--border-primary)]">
               <span>Per page:</span>
               <select
                 value={pageSize}
@@ -647,7 +665,7 @@ export default function TenantTable({
                   setPageSize(Number(e.target.value));
                   setPage(1);
                 }}
-                className="rounded-lg border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900 px-2 py-1 text-xs text-slate-800 dark:text-stone-200 focus:outline-none"
+                className="input-field min-w-[60px]"
               >
                 <option value={10}>10</option>
                 <option value={25}>25</option>
@@ -660,7 +678,7 @@ export default function TenantTable({
             <button
               onClick={() => setPage(1)}
               disabled={page === 1}
-              className="rounded-lg border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-1.5 text-slate-500 dark:text-stone-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-stone-800 disabled:opacity-30 transition"
+              className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-surface)] p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)] disabled:opacity-30 transition"
               title="First Page"
             >
               <ChevronsLeft size={14} />
@@ -668,20 +686,20 @@ export default function TenantTable({
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="rounded-lg border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-1.5 text-slate-500 dark:text-stone-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-stone-800 disabled:opacity-30 transition"
+              className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-surface)] p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)] disabled:opacity-30 transition"
               title="Previous Page"
             >
               <ChevronLeft size={14} />
             </button>
 
-            <span className="px-2 text-slate-700 dark:text-stone-300 font-medium">
+            <span className="px-2 text-[var(--text-secondary)] font-medium">
               Page {page} of {totalPages}
             </span>
 
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="rounded-lg border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-1.5 text-slate-500 dark:text-stone-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-stone-800 disabled:opacity-30 transition"
+              className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-surface)] p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)] disabled:opacity-30 transition"
               title="Next Page"
             >
               <ChevronRight size={14} />
@@ -689,7 +707,7 @@ export default function TenantTable({
             <button
               onClick={() => setPage(totalPages)}
               disabled={page === totalPages}
-              className="rounded-lg border border-slate-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-1.5 text-slate-500 dark:text-stone-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-stone-800 disabled:opacity-30 transition"
+              className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-surface)] p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)] disabled:opacity-30 transition"
               title="Last Page"
             >
               <ChevronsRight size={14} />

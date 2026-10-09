@@ -20,7 +20,7 @@ export default function ImpersonationBanner({ cafeName, onExit }) {
   };
 
   return (
-    <div className="sticky top-0 z-50 flex items-center justify-between border-b border-amber-500/30 bg-amber-500/15 px-4 py-2.5 text-xs font-medium text-amber-200 backdrop-blur-md">
+    <div className="sticky top-0 z-50 flex items-center justify-between border-b border-amber-500/30 bg-[var(--warning-bg)] px-4 py-2.5 text-xs font-medium text-amber-200 backdrop-blur-md">
       <div className="flex items-center gap-2">
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-amber-400">
           <AlertTriangle size={13} />
