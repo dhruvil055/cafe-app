@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { tenantFromAuthenticatedUser } from './tenant.js';
 import { runWithSystemTenantAccess } from '../utils/tenantContext.js';
+import { getRedisClient } from '../config/redis.js';
 
 const getJwtSecret = () => {
   const secret = process.env.JWT_SECRET;
@@ -11,31 +12,70 @@ const getJwtSecret = () => {
   return secret;
 };
 
-// Per-IP login attempt tracker (in-memory with TTL; replace with Redis in prod)
+// Per-IP login attempt tracker & lockout:
+// Uses Redis TTL keys in production; falls back to in-memory tracking when REDIS_URL is unset or Redis is down.
 const loginAttemptsByIp = new Map();
 const LOCKOUT_THRESHOLD = 10;
-const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
-const LOCKOUT_DURATION_MS = 30 * 60 * 1000;
+const LOCKOUT_WINDOW_SECONDS = 15 * 60; // 15 mins
+const LOCKOUT_DURATION_SECONDS = 30 * 60; // 30 mins
 
-const checkIpLockout = (ip) => {
+export const checkIpLockout = async (ip) => {
+  if (!ip || ip === 'unknown') return false;
+
+  const redis = getRedisClient();
+  if (redis) {
+    try {
+      const isLocked = await redis.get(`auth:lockout:${ip}`);
+      if (isLocked) return true;
+      return false;
+    } catch (err) {
+      console.warn('[Auth Lockout] Redis check failed, falling back to in-memory:', err.message);
+    }
+  }
+
+  // In-memory fallback
   const now = Date.now();
   const record = loginAttemptsByIp.get(ip);
   if (!record) return false;
-  if (now - record.firstAttempt > LOCKOUT_WINDOW_MS) {
+  if (now - record.firstAttempt > LOCKOUT_WINDOW_SECONDS * 1000) {
     loginAttemptsByIp.delete(ip);
     return false;
   }
-  if (record.count >= LOCKOUT_THRESHOLD && now - record.lockedUntil < LOCKOUT_DURATION_MS) {
+  if (record.count >= LOCKOUT_THRESHOLD && now - record.lockedUntil < LOCKOUT_DURATION_SECONDS * 1000) {
     return true;
   }
-  if (record.count >= LOCKOUT_THRESHOLD && now - record.lockedUntil >= LOCKOUT_DURATION_MS) {
+  if (record.count >= LOCKOUT_THRESHOLD && now - record.lockedUntil >= LOCKOUT_DURATION_SECONDS * 1000) {
     loginAttemptsByIp.delete(ip);
     return false;
   }
   return false;
 };
 
-const recordLoginAttempt = (ip, success) => {
+export const recordLoginAttempt = async (ip, success) => {
+  if (!ip || ip === 'unknown') return;
+
+  const redis = getRedisClient();
+  if (redis) {
+    try {
+      if (success) {
+        await redis.del(`auth:attempts:${ip}`, `auth:lockout:${ip}`);
+        loginAttemptsByIp.delete(ip);
+        return;
+      }
+      const attemptsKey = `auth:attempts:${ip}`;
+      const count = await redis.incr(attemptsKey);
+      if (count === 1) {
+        await redis.expire(attemptsKey, LOCKOUT_WINDOW_SECONDS);
+      }
+      if (count >= LOCKOUT_THRESHOLD) {
+        await redis.set(`auth:lockout:${ip}`, '1', 'EX', LOCKOUT_DURATION_SECONDS);
+      }
+    } catch (err) {
+      console.warn('[Auth Lockout] Redis record failed, falling back to in-memory:', err.message);
+    }
+  }
+
+  // In-memory fallback tracking
   const now = Date.now();
   if (success) {
     loginAttemptsByIp.delete(ip);
@@ -43,7 +83,9 @@ const recordLoginAttempt = (ip, success) => {
   }
   const record = loginAttemptsByIp.get(ip) || { count: 0, firstAttempt: now, lockedUntil: 0 };
   record.count += 1;
-  if (record.count >= LOCKOUT_THRESHOLD) record.lockedUntil = now + LOCKOUT_DURATION_MS;
+  if (record.count >= LOCKOUT_THRESHOLD) {
+    record.lockedUntil = now + (LOCKOUT_DURATION_SECONDS * 1000);
+  }
   loginAttemptsByIp.set(ip, record);
 };
 

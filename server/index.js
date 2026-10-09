@@ -8,6 +8,7 @@ import mongoose from 'mongoose';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { connectDB } from './config/db.js';
+import { createRateLimitStore } from './config/redis.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -209,20 +210,32 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
       keyGenerator,
     };
 
+    // Dedicated Redis stores with distinct key prefixes (falls back to memory store when Redis is unset)
+    const apiStore = createRateLimitStore('rl:api:');
+    const publicStore = createRateLimitStore('rl:public:');
+    const authStore = createRateLimitStore('rl:auth:');
+    const sensitiveStore = createRateLimitStore('rl:sensitive:');
+
     // Paths that have their own dedicated limiter, so the general apiLimiter skips them (no double counting)
     const OWN_LIMITER = /^\/(auth|payment|contact|ai|platform\/auth|menu|categories|session|tables|gallery|public|tenant)(\/|$)/;
 
     // General baseline for authenticated panel traffic (polling, dashboards, CRUD)
+    // Fail-open when Redis is unavailable so administrative work is never interrupted
     const apiLimiter = rateLimit({
       ...base,
       limit: API_MAX,
+      store: apiStore,
+      passOnStoreError: true,
       skip: (req) => req.method === 'OPTIONS' || OWN_LIMITER.test(req.path),
     });
 
     // Relaxed limiter for read-heavy public endpoints (menu, tenant public info, tables, public endpoints)
+    // Fail-open when Redis is down
     const publicLimiter = rateLimit({
       ...base,
       limit: PUBLIC_MAX,
+      store: publicStore,
+      passOnStoreError: true,
       skip: (req) => req.method === 'OPTIONS',
     });
 
@@ -231,6 +244,8 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
     const authLimiter = rateLimit({
       ...base,
       limit: AUTH_MAX,
+      store: authStore,
+      passOnStoreError: true,
       skipSuccessfulRequests: true,
       skip: (req) => req.method === 'OPTIONS',
     });
@@ -239,6 +254,8 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
     const sensitiveLimiter = rateLimit({
       ...base,
       limit: SENSITIVE_MAX,
+      store: sensitiveStore,
+      passOnStoreError: true,
       skip: (req) => req.method === 'OPTIONS',
     });
 

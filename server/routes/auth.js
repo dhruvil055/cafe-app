@@ -69,7 +69,7 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
 
-    if (checkIpLockoutForLogin(clientIp)) {
+    if (await checkIpLockoutForLogin(clientIp)) {
       return res.status(429).json({ error: 'Too many failed login attempts from this IP. Try again later.', code: 'IP_LOCKED' });
     }
 
@@ -82,7 +82,7 @@ router.post('/login', async (req, res) => {
       return User.findOne({ email: normalizedEmail }).select('+password +failedLoginAttempts +loginLockUntil +twoFactorSecretEncrypted');
     });
     if (!user) {
-      recordLoginAttemptForIp(clientIp, false);
+      await recordLoginAttemptForIp(clientIp, false);
       await runWithSystemTenantAccess(async () => {
         try {
           const defaultTenant = await Tenant.findOne({ slug: String(process.env.TENANT_DEFAULT_SLUG || 'brewhaus').toLowerCase() }).select('_id');
@@ -117,7 +117,7 @@ router.post('/login', async (req, res) => {
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       await recordLoginFailure(user);
-      recordLoginAttemptForIp(clientIp, false);
+      await recordLoginAttemptForIp(clientIp, false);
       await runWithSystemTenantAccess(async () => {
         await AuditEvent.create({
           tenantId: user.tenantId,
@@ -137,7 +137,7 @@ router.post('/login', async (req, res) => {
       const secret = decryptTwoFactorSecret(user.twoFactorSecretEncrypted);
       if (!verifyTotpCode(secret, req.body?.twoFactorCode)) {
         await recordLoginFailure(user);
-        recordLoginAttemptForIp(clientIp, false);
+        await recordLoginAttemptForIp(clientIp, false);
         await runWithSystemTenantAccess(async () => {
           await AuditEvent.create({
             tenantId: user.tenantId,
@@ -169,7 +169,7 @@ router.post('/login', async (req, res) => {
         details: { ip: clientIp },
       });
     });
-    recordLoginAttemptForIp(clientIp, true);
+    await recordLoginAttemptForIp(clientIp, true);
     const token = await issueSession(user, res);
     const tenant = user.tenantId
       ? await runWithSystemTenantAccess(async () => Tenant.findById(user.tenantId).lean())

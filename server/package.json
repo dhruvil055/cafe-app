@@ -6,6 +6,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed": "node utils/seed.js",
+    "seed:food": "node scripts/seedAllCafesFood.js",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
     "migrate:phase1": "node migrations/20261004_phase1_payment_integrity.js",
     "migrate:phase2": "node migrations/20261004_phase2_live_order_flow.js",
@@ -32,12 +33,14 @@
     "express-validator": "^7.0.1",
     "helmet": "^7.1.0",
     "ioredis": "^6.0.0",
+    "ioredis-mock": "^8.13.1",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.0.3",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^10.0.15",
     "pdfkit": "^0.14.0",
     "qrcode": "^1.5.3",
+    "rate-limit-redis": "^4.3.1",
     "razorpay": "^2.9.2",
     "web-push": "^3.6.7"
   }
