@@ -1,0 +1,37 @@
+# Gitleaks configuration for Brewhaus Cafe SaaS
+title = "Brewhaus Cafe Secret Detection"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist for examples, tests, and mock configs"
+paths = [
+  '''.*\.example$''',
+  '''.*\.test\.js$''',
+  '''node_modules''',
+  '''dist''',
+]
+regexes = [
+  '''<[^>]+>''', # Ignore angle-bracket placeholders like <production-key>
+  '''EXAMPLE''',
+  '''test_''',
+]
+
+[[rules]]
+id = "mongodb-connection-string"
+description = "MongoDB Atlas Connection String with Password"
+regex = '''mongodb\+srv:\/\/[a-zA-Z0-9_\-\.]+:[a-zA-Z0-9_\-\.%\+!#\$]+@[a-zA-Z0-9_\-\.]+\.mongodb\.net'''
+keywords = ["mongodb+srv"]
+
+[[rules]]
+id = "jwt-secret-inline"
+description = "Hardcoded JWT Secret"
+regex = '''(?i)(jwt_secret|jwtsecret)\s*=\s*['"][a-zA-Z0-9_\-]{16,}['"]'''
+keywords = ["jwt_secret", "jwtsecret"]
+
+[[rules]]
+id = "razorpay-live-secret"
+description = "Razorpay Live Secret Key"
+regex = '''(?i)(razorpay_key_secret|razorpay_secret)\s*=\s*['"][a-zA-Z0-9]{20,}['"]'''
+keywords = ["razorpay"]
