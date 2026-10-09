@@ -237,7 +237,7 @@ export default function ProfilePage() {
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl bg-espresso-950 p-7 text-white shadow-soft"
+        className="relative overflow-hidden rounded-3xl bg-espresso-900 p-6 text-white shadow-soft sm:p-7"
       >
         {/* decorative background glow */}
         <div className="pointer-events-none absolute -right-12 -top-12 h-56 w-56 rounded-full bg-brew-500/20 blur-2xl" />
@@ -252,31 +252,31 @@ export default function ProfilePage() {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2.5">
               <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight">{user?.name || 'Admin'}</h2>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-brew-500/25 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-brew-200 border border-brew-500/30">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brew-500/25 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-100 border border-brew-300/40">
                 <Crown size={12} />
                 {user?.role || 'owner'}
               </span>
             </div>
-            <div className="mt-1 text-sm text-espresso-200">{user?.email}</div>
+            <div className="mt-1 break-all text-sm text-espresso-100">{user?.email}</div>
           </div>
         </div>
 
         {/* stat row */}
         <div className="relative mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl bg-espresso-900/80 px-4 py-3 border border-espresso-800/60 backdrop-blur-sm">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-espresso-300">
+          <div className="rounded-2xl bg-espresso-800/85 px-4 py-3 border border-espresso-700/80 backdrop-blur-sm">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-espresso-100">
               <Shield size={11} /> Access Role
             </div>
             <div className="mt-1 text-sm font-semibold text-white capitalize">{user?.role || 'Owner'}</div>
           </div>
-          <div className="rounded-2xl bg-espresso-900/80 px-4 py-3 border border-espresso-800/60 backdrop-blur-sm">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-espresso-300">
+          <div className="rounded-2xl bg-espresso-800/85 px-4 py-3 border border-espresso-700/80 backdrop-blur-sm">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-espresso-100">
               <CalendarDays size={11} /> Member Since
             </div>
             <div className="mt-1 text-sm font-semibold text-white">{memberSince}</div>
           </div>
-          <div className="rounded-2xl bg-espresso-900/80 px-4 py-3 border border-espresso-800/60 backdrop-blur-sm col-span-2 sm:col-span-1">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-espresso-300">
+          <div className="rounded-2xl bg-espresso-800/85 px-4 py-3 border border-espresso-700/80 backdrop-blur-sm col-span-2 sm:col-span-1">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-espresso-100">
               <CheckCircle2 size={11} /> Account Status
             </div>
             <div className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-emerald-400">

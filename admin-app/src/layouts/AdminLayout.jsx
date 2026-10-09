@@ -67,6 +67,16 @@ const NAV_GROUPS = [
   },
 ];
 
+const SIDEBAR_THEME = {
+  '--sidebar-bg': '#1a0f08',
+  '--sidebar-border': '#49372b',
+  '--sidebar-text': '#fff7ed',
+  '--sidebar-text-muted': '#ddc8b4',
+  '--sidebar-active-bg': '#8f4616',
+  '--sidebar-active-text': '#ffffff',
+  '--sidebar-hover-bg': '#302219',
+};
+
 export default function AdminLayout({ children, title }) {
   const { user, logout } = useAuth();
   const tenant = useTenant();
@@ -199,6 +209,7 @@ export default function AdminLayout({ children, title }) {
           isCollapsed ? 'w-20' : 'w-64'
         }`}
         style={{
+          ...SIDEBAR_THEME,
           backgroundColor: 'var(--sidebar-bg)',
           borderColor: 'var(--sidebar-border)',
           color: 'var(--sidebar-text)',
@@ -206,7 +217,7 @@ export default function AdminLayout({ children, title }) {
       >
         {/* 1. Tenant Brand Header */}
         <div className="h-16 shrink-0 flex items-center justify-between px-4 border-b"
-          style={{ borderColor: 'rgba(46, 42, 37, 0.5)' }}
+          style={{ borderColor: 'var(--sidebar-border)' }}
         >
           <div className="flex items-center gap-3 min-w-0 overflow-hidden">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl font-display text-base font-bold text-white shadow-sm overflow-hidden border"
@@ -224,7 +235,7 @@ export default function AdminLayout({ children, title }) {
                 <div className="truncate font-display text-sm font-bold text-[var(--sidebar-text)] tracking-wide">
                   {tenant.name || 'Brewhaus Café'}
                 </div>
-                <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-300/80">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-200">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   <span className="truncate">Branch Console</span>
                 </div>
@@ -250,7 +261,7 @@ export default function AdminLayout({ children, title }) {
             return (
               <div key={group.title} className="space-y-1">
                 {!isCollapsed && (
-                  <div className="px-3 pt-1 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-300/60">
+                  <div className="px-3 pt-1 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-200">
                     {group.title}
                   </div>
                 )}
@@ -266,7 +277,7 @@ export default function AdminLayout({ children, title }) {
                         const active = directActive || isActive;
                         return `w-full flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold transition group ${
                           active
-                            ? 'bg-[var(--brand-primary-subtle)] text-white font-bold border-l-3 border-amber-400 shadow-2xs'
+                            ? 'bg-[var(--sidebar-active-bg)] text-[var(--sidebar-active-text)] font-bold border-l-3 border-amber-300 shadow-2xs'
                             : `text-[var(--sidebar-text-muted)] hover:bg-[var(--sidebar-hover-bg)] hover:text-[var(--sidebar-text)] border-l-3 border-transparent`
                         } ${isCollapsed ? 'justify-center' : ''}`;
                       }}
@@ -274,7 +285,7 @@ export default function AdminLayout({ children, title }) {
                       <Icon
                         size={17}
                         className={`shrink-0 transition ${
-                          isActive ? 'text-amber-300' : `text-[var(--sidebar-text-muted)] group-hover:text-[var(--sidebar-text)]`
+                          isActive ? 'text-amber-200' : `text-[var(--sidebar-text-muted)] group-hover:text-[var(--sidebar-text)]`
                         }`}
                       />
                       {!isCollapsed && <span className="truncate">{label}</span>}
@@ -288,7 +299,7 @@ export default function AdminLayout({ children, title }) {
 
         {/* 3. Sticky User Profile & Sign Out Footer */}
         <div className="border-t p-3 bg-[var(--sidebar-hover-bg)]/80 shrink-0 space-y-2"
-          style={{ borderColor: 'rgba(46, 42, 37, 0.5)' }}
+          style={{ borderColor: 'var(--sidebar-border)' }}
         >
           <NavLink
             to="/profile"
@@ -325,7 +336,7 @@ export default function AdminLayout({ children, title }) {
             className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition hover:bg-red-500/20 hover:text-red-200 border ${
               isCollapsed ? 'justify-center' : ''
             }`}
-            style={{ borderColor: 'rgba(46, 42, 37, 0.5)', color: 'var(--sidebar-text-muted)' }}
+            style={{ borderColor: 'var(--sidebar-border)', color: 'var(--sidebar-text-muted)' }}
           >
             <LogOut size={14} className="shrink-0" />
             {!isCollapsed && <span>Sign out</span>}
@@ -352,6 +363,7 @@ export default function AdminLayout({ children, title }) {
               transition={{ type: 'spring', stiffness: 260, damping: 28 }}
               className="fixed inset-y-0 left-0 z-50 w-64 md:hidden flex flex-col custom-scrollbar"
               style={{
+                ...SIDEBAR_THEME,
                 backgroundColor: 'var(--sidebar-bg)',
                 borderColor: 'var(--sidebar-border)',
                 color: 'var(--sidebar-text)',
@@ -359,7 +371,7 @@ export default function AdminLayout({ children, title }) {
             >
               {/* Mobile Header */}
               <div className="h-16 shrink-0 flex items-center justify-between px-4 border-b"
-                style={{ borderColor: 'rgba(46, 42, 37, 0.5)' }}
+                style={{ borderColor: 'var(--sidebar-border)' }}
               >
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-xl bg-[var(--brand-primary)] flex items-center justify-center font-bold text-white"
@@ -388,7 +400,7 @@ export default function AdminLayout({ children, title }) {
               <nav className="flex-1 overflow-y-auto p-3 space-y-4">
                 {NAV_GROUPS.map((group) => (
                   <div key={group.title} className="space-y-1">
-                    <div className="px-3 pt-1 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-300/60">
+                    <div className="px-3 pt-1 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-200">
                       {group.title}
                     </div>
                     {group.items.filter(item => canAccessItem(item.access)).map(({ to, icon: Icon, label }) => (
@@ -399,7 +411,7 @@ export default function AdminLayout({ children, title }) {
                         className={({ isActive }) =>
                           `flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-semibold transition ${
                             isActive
-                              ? 'bg-[var(--brand-primary-subtle)] text-white font-bold border-l-3 border-amber-400'
+                              ? 'bg-[var(--sidebar-active-bg)] text-[var(--sidebar-active-text)] font-bold border-l-3 border-amber-300'
                               : 'text-[var(--sidebar-text-muted)] hover:bg-[var(--sidebar-hover-bg)] hover:text-[var(--sidebar-text)]'
                           }`
                         }
@@ -414,7 +426,7 @@ export default function AdminLayout({ children, title }) {
 
               {/* Mobile Footer */}
               <div className="border-t p-3 bg-[var(--sidebar-hover-bg)]/80"
-                style={{ borderColor: 'rgba(46, 42, 37, 0.5)' }}
+                style={{ borderColor: 'var(--sidebar-border)' }}
               >
                 <button
                   onClick={handleLogout}
