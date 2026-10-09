@@ -39,6 +39,17 @@ body {
   color: #1c140e;
 }
 
+html.dark body {
+  background: #09090b;
+  color: #fafaf9;
+}
+
+html.sa-light body,
+html[data-theme="light"] body {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -87,8 +98,92 @@ button, input, select, textarea {
   background: rgba(255, 255, 255, 0.3);
 }
 
-/* Tenant-configurable brand accents */
-.btn-primary { background-color: var(--tenant-accent, #1a0f08); }
+/* Tenant-configurable brand accents & tokens */
+:root {
+  --tenant-primary: #c96b18;
+  --tenant-accent: #1a0f08;
+  --tenant-primary-subtle: rgba(201, 107, 24, 0.12);
+  --tenant-primary-border: rgba(201, 107, 24, 0.28);
+  --tenant-primary-hover: #b45a10;
+}
+
+.btn-primary { 
+  background-color: var(--tenant-primary, #c96b18); 
+  color: #ffffff;
+}
+.btn-primary:hover {
+  background-color: var(--tenant-primary-hover, #b45a10);
+  filter: brightness(0.95);
+}
 .bg-brew-500 { background-color: var(--tenant-primary, #c96b18); }
 .text-brew-500, .text-brew-600 { color: var(--tenant-primary, #c96b18); }
+
+/* Dynamic Brand Utility Classes */
+.brand-bg { background-color: var(--tenant-primary, #c96b18); }
+.brand-bg-subtle { background-color: var(--tenant-primary-subtle, rgba(201, 107, 24, 0.12)); }
+.brand-border { border-color: var(--tenant-primary-border, rgba(201, 107, 24, 0.28)); }
+.brand-text { color: var(--tenant-primary, #c96b18); }
+.brand-active-nav {
+  background-color: var(--tenant-primary-subtle, rgba(201, 107, 24, 0.15)) !important;
+  color: #ffffff !important;
+  border-left: 3px solid var(--tenant-primary, #c96b18);
+}
+
+/* ============================================================
+   SUPER ADMIN DESIGN TOKENS & SYSTEM
+   ============================================================ */
+:root {
+  --sa-bg-canvas: #09090b;
+  --sa-bg-surface: #141210;
+  --sa-bg-elevated: #1e1b18;
+  --sa-bg-card: rgba(26, 23, 20, 0.75);
+  --sa-border: #2e2a25;
+  --sa-border-subtle: rgba(46, 42, 37, 0.6);
+  --sa-text-primary: #fafaf9;
+  --sa-text-secondary: #d6d3d1;
+  --sa-text-muted: #857f79;
+  --sa-accent: #f59e0b;
+  --sa-accent-hover: #fbbf24;
+  --sa-accent-subtle: rgba(245, 158, 11, 0.12);
+  --sa-success: #10b981;
+  --sa-success-subtle: rgba(16, 185, 129, 0.12);
+  --sa-danger: #ef4444;
+  --sa-danger-subtle: rgba(239, 68, 68, 0.12);
+  --sa-info: #06b6d4;
+  --sa-info-subtle: rgba(6, 182, 212, 0.12);
+}
+
+.sa-light, html.sa-light, html[data-theme="light"], :root[data-theme="light"] {
+  --sa-bg-canvas: #f8fafc;
+  --sa-bg-surface: #ffffff;
+  --sa-bg-elevated: #f1f5f9;
+  --sa-bg-card: #ffffff;
+  --sa-border: #e2e8f0;
+  --sa-border-subtle: rgba(226, 232, 240, 0.8);
+  --sa-text-primary: #0f172a;
+  --sa-text-secondary: #475569;
+  --sa-text-muted: #64748b;
+  --sa-accent: #d97706;
+  --sa-accent-hover: #b45309;
+  --sa-accent-subtle: rgba(217, 119, 6, 0.12);
+  --sa-success: #059669;
+  --sa-success-subtle: rgba(5, 150, 105, 0.12);
+  --sa-danger: #dc2626;
+  --sa-danger-subtle: rgba(220, 38, 38, 0.12);
+  --sa-info: #0891b2;
+  --sa-info-subtle: rgba(8, 145, 178, 0.12);
+}
+
+.sa-light .custom-sidebar-scroll::-webkit-scrollbar-thumb,
+html[data-theme="light"] .custom-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+.sa-light .custom-sidebar-scroll::-webkit-scrollbar-thumb:hover,
+html[data-theme="light"] .custom-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
 

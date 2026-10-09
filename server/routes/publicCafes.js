@@ -184,21 +184,32 @@ router.get('/cafes/:cafeId', async (req, res, next) => {
       return sendApiError(res, 404, 'CAFE_NOT_FOUND', 'Cafe not found.');
     }
 
-    return sendApiSuccess(res, 200, {
-      id: String(cafe._id),
-      name: cafe.settings?.cafeName || cafe.name,
-      slug: cafe.slug,
-      logo: cafe.settings?.logoUrl || '',
-      description: cafe.settings?.tagline || `Welcome to ${cafe.settings?.cafeName || cafe.name}`,
-      branding: {
-        primaryColor: cafe.settings?.primaryColor || '#000000',
-        secondaryColor: cafe.settings?.accentColor || '#ffffff',
-      },
-      settings: {
-        currency: cafe.settings?.currency || 'INR',
-        taxEnabled: Boolean((cafe.settings?.taxRate ?? 0) > 0),
-      },
-    });
+      return sendApiSuccess(res, 200, {
+        id: String(cafe._id),
+        name: cafe.settings?.cafeName || cafe.name,
+        slug: cafe.slug,
+        logo: cafe.settings?.logoUrl || '',
+        logoUrl: cafe.settings?.logoUrl || '',
+        description: cafe.settings?.tagline || `Welcome to ${cafe.settings?.cafeName || cafe.name}`,
+        branding: {
+          primaryColor: cafe.settings?.primaryColor || '#c96b18',
+          secondaryColor: cafe.settings?.accentColor || '#1a0f08',
+        },
+        settings: {
+          cafeName: cafe.settings?.cafeName || cafe.name,
+          logoUrl: cafe.settings?.logoUrl || '',
+          tagline: cafe.settings?.tagline || '',
+          primaryColor: cafe.settings?.primaryColor || '#c96b18',
+          accentColor: cafe.settings?.accentColor || '#1a0f08',
+          currency: cafe.settings?.currency || 'INR',
+          taxRate: Number(cafe.settings?.taxRate ?? 5),
+          taxEnabled: Boolean((cafe.settings?.taxRate ?? 0) > 0),
+          address: cafe.settings?.address || '',
+          contactEmail: cafe.settings?.contactEmail || '',
+          contactPhone: cafe.settings?.contactPhone || '',
+          openingHours: cafe.settings?.openingHours || {},
+        },
+      });
   } catch (error) {
     next(error);
   }
@@ -217,6 +228,9 @@ router.get('/cafes/:cafeId/menu', async (req, res, next) => {
     }
 
     const productFilter = { available: true };
+    if (req.query.veg === 'true' || req.query.vegOnly === 'true') {
+      productFilter.isVeg = true;
+    }
     if (req.query.category && mongoose.isValidObjectId(req.query.category)) {
       productFilter.category = req.query.category;
     }
@@ -247,6 +261,7 @@ router.get('/cafes/:cafeId/menu', async (req, res, next) => {
         price: prod.price,
         image: prod.image || '',
         available: prod.available !== false,
+        isVeg: prod.isVeg !== false,
       };
       if (catId && categoryMap.has(catId)) {
         categoryMap.get(catId).items.push(item);

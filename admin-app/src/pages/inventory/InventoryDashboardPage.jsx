@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import api from '../../services/api';
 import { useTenant } from '../../context/TenantContext';
 import { formatMoney } from '../../utils/money';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
 
 const COMMON_UNITS = [
   'Can', 'Bottle', 'Piece', 'Cup', 'Glass', 
@@ -96,6 +97,8 @@ export default function InventoryDashboardPage() {
   const [showItemModal, setShowItemModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [itemForm, setItemForm] = useState(EMPTY_ITEM_FORM);
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [deletingItem, setDeletingItem] = useState(false);
 
   const [showAddStockModal, setShowAddStockModal] = useState(null); // item
   const [addStockQty, setAddStockQty] = useState('');
@@ -246,14 +249,22 @@ export default function InventoryDashboardPage() {
   };
 
   // Delete/Deactivate Item
-  const handleDeleteItem = async (item) => {
-    if (!window.confirm(`Are you sure you want to remove "${item.name}" from inventory?`)) return;
+  const handleDeleteItem = (item) => {
+    setItemToDelete(item);
+  };
+
+  const handleConfirmDeleteItem = async () => {
+    if (!itemToDelete) return;
+    setDeletingItem(true);
     try {
-      await api.delete(`/inventory/items/${item._id}`);
-      toast.success(`${item.name} removed`);
+      await api.delete(`/inventory/items/${itemToDelete._id}`);
+      toast.success(`${itemToDelete.name} removed from inventory`);
+      setItemToDelete(null);
       loadAllData();
     } catch (err) {
       toast.error(err.message || 'Failed to delete item');
+    } finally {
+      setDeletingItem(false);
     }
   };
 
@@ -638,12 +649,17 @@ export default function InventoryDashboardPage() {
                     </tr>
                   ) : filteredItems.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-stone-400">
-                        <Package size={32} className="mx-auto mb-2 text-stone-300" />
-                        <p className="text-xs">No consumable items found.</p>
+                      <td colSpan={7} className="py-14 text-center">
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-brew-600 mb-3">
+                          <Package size={24} />
+                        </div>
+                        <h4 className="font-display text-sm font-bold text-stone-800">No consumable items recorded</h4>
+                        <p className="mt-1 text-xs text-stone-500 max-w-sm mx-auto">
+                          Consumables are physical one-time items used per order (cups, lids, takeaway bags, beverage cans) automatically deducted when orders are placed.
+                        </p>
                         <button
                           onClick={handleOpenCreateModal}
-                          className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-espresso-900 px-3.5 py-1.5 text-xs font-semibold text-white"
+                          className="mt-3.5 inline-flex items-center gap-1.5 rounded-xl bg-espresso-900 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-espresso-800 transition"
                         >
                           <Plus size={13} /> Add First Consumable
                         </button>
@@ -663,8 +679,25 @@ export default function InventoryDashboardPage() {
                             {item.category?.name || 'Disposable'}
                           </span>
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3.5 text-right font-mono text-base font-bold text-stone-900">
-                          {item.currentQuantity}
+                        <td className="whitespace-nowrap px-4 py-3.5 text-right">
+                          <span className="font-mono text-base font-bold text-stone-900">{item.currentQuantity}</span>
+                          {/* Low stock progress bar */}
+                          <div className="mt-1 w-20 ml-auto">
+                            <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden border border-stone-200/60">
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${
+                                  item.currentQuantity <= 0
+                                    ? 'bg-red-500'
+                                    : item.currentQuantity <= (item.minimumStock || 5)
+                                    ? 'bg-amber-500'
+                                    : 'bg-emerald-500'
+                                }`}
+                                style={{
+                                  width: `${Math.min(100, Math.max(8, Math.round((item.currentQuantity / (Math.max((item.minimumStock || 5) * 2, item.currentQuantity, 1))) * 100)))}%`
+                                }}
+                              />
+                            </div>
+                          </div>
                         </td>
                         <td className="whitespace-nowrap px-4 py-3.5 text-xs text-stone-500 font-medium">
                           {item.unit}
@@ -1338,6 +1371,18 @@ export default function InventoryDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Confirm Delete Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(itemToDelete)}
+        title="Remove Consumable Item?"
+        message={`Are you sure you want to remove "${itemToDelete?.name}" from physical inventory? Dishes linked to this item will no longer auto-deduct stock.`}
+        confirmText="Remove Item"
+        confirmVariant="danger"
+        loading={deletingItem}
+        onConfirm={handleConfirmDeleteItem}
+        onClose={() => setItemToDelete(null)}
+      />
     </div>
   );
 }

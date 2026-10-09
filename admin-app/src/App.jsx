@@ -32,6 +32,7 @@ import SetupWizardPage from './pages/SetupWizardPage';
 import BillingPage from './pages/BillingPage';
 import SuperAdminLoginPage from './pages/super-admin/SuperAdminLoginPage';
 import SuperAdminDashboard from './pages/super-admin/SuperAdminDashboard';
+import UserPanelPage from './pages/UserPanelPage';
 import { canManageMenu, canManageTeam, canViewOrders, effectiveRole } from './utils/roles';
 
 function ProtectedRoute({ children, allowedRoles }) {
@@ -80,6 +81,7 @@ export default function App() {
       <Route path="/team" element={<ProtectedRoute allowedRoles={['owner']}><AdminLayout title="Team & Security"><TeamPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute allowedRoles={['owner']}><AdminLayout title="Plan & Billing"><BillingPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute allowedRoles={['owner']}><AdminLayout title="Café Settings"><TenantSettingsPage /></AdminLayout></ProtectedRoute>} />
+      <Route path="/user-panel" element={<ProtectedRoute allowedRoles={['owner', 'manager', 'cashier']}><AdminLayout title="User Panel & Storefront"><UserPanelPage /></AdminLayout></ProtectedRoute>} />
 
       {/* Inventory Routes */}
       <Route path="/inventory" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Inventory Dashboard"><InventoryDashboardPage /></AdminLayout></ProtectedRoute>} />

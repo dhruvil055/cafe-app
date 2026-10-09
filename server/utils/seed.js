@@ -69,19 +69,19 @@ const seed = async () => {
       'Classic Chocolate Shake': 'https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=900&q=80',
       'Strawberry Shake': 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&w=900&q=80',
       'Mango Mastani': 'https://images.unsplash.com/photo-1551024601-bec78aea704b?auto=format&fit=crop&w=900&q=80',
-      'Loaded Nachos': 'https://images.unsplash.com/photo-1513456852971-30c0b8199d4d?auto=format&fit=crop&w=900&q=80',
-      'Garlic Bread': 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80',
+      'Loaded Nachos': '/images/food/loaded-veg-nachos.jpg',
+      'Garlic Bread': '/images/food/garlic-bread-cheese.jpg',
       'Veggie Crispy Bites': 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=80',
-      'Classic Veg Burger': 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=900&q=80',
-      'Mushroom Swiss Burger': 'https://images.unsplash.com/photo-1550317138-10000687a72b?auto=format&fit=crop&w=900&q=80',
-      'Smoky Paneer Burger': 'https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=900&q=80',
-      Margherita: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=900&q=80',
-      'Paneer Tikka Pizza': 'https://images.unsplash.com/photo-1548365328-9f547fb9587c?auto=format&fit=crop&w=900&q=80',
-      'Farmhouse Delight': 'https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?auto=format&fit=crop&w=900&q=80',
+      'Classic Veg Burger': '/images/food/classic-veg-burger.jpg',
+      'Mushroom Swiss Burger': '/images/food/mushroom-burger-veg.jpg',
+      'Smoky Paneer Burger': '/images/food/smoky-paneer-burger.jpg',
+      Margherita: '/images/food/farmhouse-pizza-veg.jpg',
+      'Paneer Tikka Pizza': '/images/food/paneer-tikka-pizza.jpg',
+      'Farmhouse Delight': '/images/food/farmhouse-pizza-veg.jpg',
       Tiramisu: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=900&q=80',
       'Belgian Waffle': 'https://images.unsplash.com/photo-1568051243851-f9b136146e97?auto=format&fit=crop&w=900&q=80',
       'Gulab Jamun with Ice Cream': 'https://images.unsplash.com/photo-1614707267537-b85aaf00c4b7?auto=format&fit=crop&w=900&q=80',
-      'Brewhaus Brunch Platter': 'https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=900&q=80',
+      'Brewhaus Brunch Platter': '/images/food/brewhaus-brunch-platter-veg.jpg',
       'Café Special Thali': 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=80',
     };
 
@@ -130,8 +130,8 @@ const seed = async () => {
       { name: 'Gulab Jamun with Ice Cream', description: 'Warm soft gulab jamun served with chilled vanilla ice cream. Best of both worlds.', price: 149, category: catMap['Desserts'], image: productImages['Gulab Jamun with Ice Cream'], popular: true, prepTime: 5 },
 
       // Specials
-      { name: 'Brewhaus Brunch Platter', description: 'Eggs your way, garlic toast, hash browns, grilled tomatoes, and a coffee of your choice.', price: 449, category: catMap['Specials'], image: productImages['Brewhaus Brunch Platter'], popular: true, prepTime: 20, addons: [{ name: 'Add Egg', price: 60 }, { name: 'Extra Toast', price: 20 }] },
-      { name: 'Café Special Thali', description: 'Chef\'s daily special — ask your server. Changes every day. Always delicious.', price: 299, category: catMap['Specials'], image: productImages['Café Special Thali'], popular: true, prepTime: 15 },
+      { name: 'Brewhaus Brunch Platter', description: 'Artisan avocado sourdough toast, golden hash browns, grilled herb tomatoes, sautéed butter mushrooms, and a specialty brew.', price: 449, category: catMap['Specials'], image: productImages['Brewhaus Brunch Platter'], popular: true, prepTime: 15, isVeg: true, addons: [{ name: 'Extra Hash Brown', price: 40 }, { name: 'Extra Toast', price: 20 }] },
+      { name: 'Café Special Thali', description: 'Chef\'s daily special vegetarian thali with paneer, dal makhani, fragrant rice and breads.', price: 299, category: catMap['Specials'], image: productImages['Café Special Thali'], popular: true, prepTime: 15, isVeg: true },
     ];
 
     const createdProducts = await Product.insertMany(products);

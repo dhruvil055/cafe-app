@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import {
   Loader2, Bell, CheckCircle2, AlertTriangle, Volume2, VolumeX,
-  RefreshCw, Clock, UtensilsCrossed, CheckSquare, Square, RotateCcw
+  RefreshCw, Clock, UtensilsCrossed, CheckSquare, Square, RotateCcw,
+  Maximize2, Minimize2, Moon, Sun
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -43,9 +44,7 @@ const playSound = (type) => {
     gain.connect(ctx.destination);
     oscillator.start();
     oscillator.stop(ctx.currentTime + sound.duration);
-  } catch (_err) {
-    // Audio context may be blocked by browser autoplay policy
-  }
+  } catch (_err) {}
 };
 
 export default function KitchenDisplayPage() {
@@ -53,19 +52,27 @@ export default function KitchenDisplayPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
+  const [isKitchenDark, setIsKitchenDark] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedStation, setSelectedStation] = useState('ALL');
   const [viewFilter, setViewFilter] = useState('active'); // 'active' | 'ready' | 'history'
-  const [checkedItems, setCheckedItems] = useState({}); // { [orderId_itemIndex]: boolean }
+  const [checkedItems, setCheckedItems] = useState({});
   const [now, setNow] = useState(Date.now());
 
-  const audioContext = useRef(null);
   const unsubRef = useRef(null);
 
-  // Live timer tick every 10 seconds
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 10000);
     return () => clearInterval(interval);
   }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
 
   const mergeOrder = (incoming) => setOrders((current) => {
     const exists = current.some((order) => String(order._id) === String(incoming._id));
@@ -92,7 +99,6 @@ export default function KitchenDisplayPage() {
     fetchOrders();
   }, []);
 
-  // SSE Live Stream Listener
   useEffect(() => {
     unsubRef.current = subscribeToLiveStream('/orders/events/admin', {
       onEvent: (type, payload) => {
@@ -104,48 +110,46 @@ export default function KitchenDisplayPage() {
           mergeOrder(incoming);
 
           if (audioEnabled) {
-            if (isNew) {
-              playSound('new-order');
-            } else if (incoming.orderStatus === 'confirmed') {
-              playSound('confirm');
-            } else if (incoming.orderStatus === 'ready') {
-              playSound('ready');
-            } else if (incoming.orderStatus === 'completed') {
-              playSound('complete');
-            }
+            if (isNew) playSound('new-order');
+            else if (incoming.orderStatus === 'confirmed') playSound('confirm');
+            else if (incoming.orderStatus === 'ready') playSound('ready');
+            else if (incoming.orderStatus === 'completed') playSound('complete');
           }
 
           if (isNew) {
-            toast.success(`🍳 Ticket ${incoming.orderNumber} (Table ${incoming.tableNumber || 'Takeaway'})`);
+            toast.success(`🍳 Ticket #${incoming.orderNumber} (Table ${incoming.tableNumber || 'Takeaway'})`);
           }
         }
       },
+      onError: () => {},
     });
-    return () => { if (unsubRef.current) unsubRef.current(); };
+
+    return () => {
+      if (unsubRef.current) unsubRef.current();
+    };
   }, [audioEnabled]);
 
   const updateStatus = async (orderId, newStatus) => {
     try {
-      const { data } = await api.put(`/orders/${orderId}/status`, { orderStatus: newStatus });
-      setOrders((current) => current.map((order) => order._id === orderId ? data.order : order));
-      toast.success(`Ticket marked as ${STATUS_LABEL[newStatus] || newStatus}`);
+      const { data } = await api.patch(`/orders/${orderId}/status`, { orderStatus: newStatus });
+      mergeOrder(data.order);
+      if (audioEnabled) {
+        if (newStatus === 'ready') playSound('ready');
+        if (newStatus === 'completed') playSound('complete');
+      }
+      toast.success(`Order updated to ${STATUS_LABEL[newStatus] || newStatus}`);
     } catch (error) {
-      toast.error(error.message || 'Failed to update ticket status');
+      toast.error(error.message || 'Status update failed');
     }
   };
 
   const toggleItemCheck = (orderId, itemIndex) => {
     const key = `${orderId}_${itemIndex}`;
-    setCheckedItems(prev => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
+    setCheckedItems(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Filter Orders by Station & View
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
-      // 1. Status Filter
       if (viewFilter === 'active') {
         if (!['pending', 'confirmed', 'preparing'].includes(order.orderStatus)) return false;
       } else if (viewFilter === 'ready') {
@@ -154,7 +158,6 @@ export default function KitchenDisplayPage() {
         if (order.orderStatus !== 'completed') return false;
       }
 
-      // 2. Station Filter
       if (selectedStation !== 'ALL') {
         const hasStationItem = order.items?.some(item => {
           const itemStation = item.kitchenStation || item.station || 'KITCHEN';
@@ -164,10 +167,9 @@ export default function KitchenDisplayPage() {
       }
 
       return true;
-    }).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)); // FIFO: Oldest tickets first
+    }).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   }, [orders, viewFilter, selectedStation]);
 
-  // Counts for top bar
   const counts = useMemo(() => {
     const active = orders.filter(o => ['pending', 'confirmed', 'preparing'].includes(o.orderStatus)).length;
     const ready = orders.filter(o => o.orderStatus === 'ready').length;
@@ -180,47 +182,42 @@ export default function KitchenDisplayPage() {
   }, [orders, now]);
 
   return (
-    <div className="min-h-screen bg-stone-950 text-stone-100 flex flex-col -m-4 sm:-m-6 lg:-m-8">
-      {/* Top Header Bar */}
-      <header className="border-b border-stone-800 bg-stone-900/95 backdrop-blur px-4 py-3 shrink-0 sticky top-0 z-30">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* Left Title & Live Counters */}
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold text-xl shadow-inner">
-              🍳
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-display font-bold text-white text-base tracking-wide">
-                  Kitchen Display System (KDS)
-                </span>
-                {counts.delayed > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse flex items-center gap-1">
-                    <AlertTriangle size={10} /> {counts.delayed} DELAYED
-                  </span>
-                )}
-              </div>
-              <div className="text-[11px] text-stone-400 flex items-center gap-2 mt-0.5">
-                <span className="text-amber-400 font-semibold">{counts.active} active</span>
-                <span>·</span>
-                <span className="text-emerald-400 font-semibold">{counts.ready} ready to serve</span>
-                <span>·</span>
-                <span>{orders.length} total today</span>
-              </div>
-            </div>
+    <div className={`space-y-4 rounded-3xl p-4 sm:p-5 transition-colors ${
+      isKitchenDark ? 'bg-stone-950 text-stone-100' : 'bg-white text-stone-900 border border-stone-200'
+    }`}>
+      {/* ── Kitchen Control Toolbar (Single clean header) ────── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-stone-800">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="font-display font-bold text-base sm:text-lg">
+              🍳 Kitchen Tickets
+            </span>
+            {counts.delayed > 0 && (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse flex items-center gap-1">
+                <AlertTriangle size={11} /> {counts.delayed} DELAYED (&gt;20m)
+              </span>
+            )}
           </div>
+          <div className="text-xs text-stone-400 hidden sm:flex items-center gap-2">
+            <span className="text-amber-400 font-bold">{counts.active} active</span>
+            <span>·</span>
+            <span className="text-emerald-400 font-bold">{counts.ready} ready</span>
+          </div>
+        </div>
 
-          {/* Middle: Station Filters */}
-          <div className="flex items-center gap-1 bg-stone-950/80 p-1 rounded-xl border border-stone-800 overflow-x-auto">
-            <span className="text-[10px] uppercase font-bold text-stone-500 px-2">Station:</span>
+        {/* Action Controls Cluster */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Station Selector */}
+          <div className="flex items-center gap-1 bg-stone-900/90 p-1 rounded-xl border border-stone-800 text-xs">
+            <span className="text-[10px] uppercase font-bold text-stone-400 px-1.5 hidden md:inline">Station:</span>
             {STATIONS.map(st => (
               <button
                 key={st}
                 onClick={() => setSelectedStation(st)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
                   selectedStation === st
-                    ? 'bg-amber-500 text-stone-950 shadow-sm'
-                    : 'text-stone-400 hover:text-white hover:bg-stone-800'
+                    ? 'bg-amber-500 text-stone-950 shadow-xs font-bold'
+                    : 'text-stone-400 hover:text-white'
                 }`}
               >
                 {st}
@@ -228,267 +225,231 @@ export default function KitchenDisplayPage() {
             ))}
           </div>
 
-          {/* Right: View Tabs & Sound / Refresh */}
-          <div className="flex items-center gap-2">
-            <div className="flex bg-stone-950/80 p-1 rounded-xl border border-stone-800">
-              <button
-                onClick={() => setViewFilter('active')}
-                className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${
-                  viewFilter === 'active'
-                    ? 'bg-stone-800 text-white shadow-sm'
-                    : 'text-stone-400 hover:text-stone-200'
-                }`}
-              >
-                Active ({counts.active})
-              </button>
-              <button
-                onClick={() => setViewFilter('ready')}
-                className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${
-                  viewFilter === 'ready'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-stone-400 hover:text-stone-200'
-                }`}
-              >
-                Ready ({counts.ready})
-              </button>
-              <button
-                onClick={() => setViewFilter('history')}
-                className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${
-                  viewFilter === 'history'
-                    ? 'bg-stone-800 text-white shadow-sm'
-                    : 'text-stone-400 hover:text-stone-200'
-                }`}
-              >
-                Served History
-              </button>
-            </div>
+          {/* Sound Toggle */}
+          <button
+            onClick={() => setAudioEnabled(!audioEnabled)}
+            className={`p-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition ${
+              audioEnabled
+                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
+                : 'border-stone-800 bg-stone-900 text-stone-400'
+            }`}
+            title={audioEnabled ? 'Kitchen chime sound on' : 'Kitchen sound muted'}
+          >
+            {audioEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          </button>
 
-            <button
-              onClick={() => {
-                if (!audioContext.current) {
-                  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                  if (AudioContextClass) audioContext.current = new AudioContextClass();
-                }
-                audioContext.current?.resume();
-                setAudioEnabled(prev => !prev);
-              }}
-              title={audioEnabled ? 'Sound alerts on' : 'Sound alerts muted'}
-              className="h-9 w-9 rounded-xl border border-stone-700 bg-stone-800 text-stone-400 hover:text-stone-200 flex items-center justify-center transition"
-            >
-              {audioEnabled ? <Volume2 size={16} className="text-amber-400" /> : <VolumeX size={16} />}
-            </button>
+          {/* Kitchen Dark/Light Mode Toggle */}
+          <button
+            onClick={() => setIsKitchenDark(!isKitchenDark)}
+            className="p-2 rounded-xl border border-stone-800 bg-stone-900 text-stone-300 hover:text-white transition"
+            title={isKitchenDark ? 'Switch to light mode' : 'Switch to kitchen dark mode'}
+          >
+            {isKitchenDark ? <Sun size={16} className="text-amber-400" /> : <Moon size={16} />}
+          </button>
 
-            <button
-              onClick={fetchOrders}
-              title="Refresh tickets"
-              className="h-9 w-9 rounded-xl border border-stone-700 bg-stone-800 text-stone-400 hover:text-stone-200 flex items-center justify-center transition"
-            >
-              <RefreshCw size={15} />
-            </button>
-          </div>
+          {/* Fullscreen Button */}
+          <button
+            onClick={toggleFullscreen}
+            className="p-2 rounded-xl border border-stone-800 bg-stone-900 text-stone-300 hover:text-white transition"
+            title={isFullscreen ? 'Exit Fullscreen' : 'Enter Kitchen Fullscreen'}
+          >
+            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
+
+          <button
+            onClick={fetchOrders}
+            className="p-2 rounded-xl border border-stone-800 bg-stone-900 text-stone-300 hover:text-white transition"
+            title="Refresh kitchen tickets"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          </button>
         </div>
-      </header>
+      </div>
 
-      {/* Main Ticket Grid */}
-      <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
+      {/* ── View Filter Tabs (Active / Ready / History) ──────────── */}
+      <div className="flex gap-2 text-xs font-bold">
+        <button
+          onClick={() => setViewFilter('active')}
+          className={`px-4 py-2 rounded-xl transition ${
+            viewFilter === 'active'
+              ? 'bg-amber-500 text-stone-950 shadow-sm'
+              : 'bg-stone-900/80 text-stone-400 hover:text-white'
+          }`}
+        >
+          Active Cooking Queue ({counts.active})
+        </button>
+        <button
+          onClick={() => setViewFilter('ready')}
+          className={`px-4 py-2 rounded-xl transition ${
+            viewFilter === 'ready'
+              ? 'bg-emerald-500 text-stone-950 shadow-sm'
+              : 'bg-stone-900/80 text-stone-400 hover:text-white'
+          }`}
+        >
+          Ready to Serve ({counts.ready})
+        </button>
+        <button
+          onClick={() => setViewFilter('history')}
+          className={`px-4 py-2 rounded-xl transition ${
+            viewFilter === 'history'
+              ? 'bg-stone-700 text-white shadow-sm'
+              : 'bg-stone-900/80 text-stone-400 hover:text-white'
+          }`}
+        >
+          Completed History
+        </button>
+      </div>
+
+      {/* ── Kitchen Ticket Grid ─────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-max pt-2">
         {loading && orders.length === 0 ? (
-          <div className="flex min-h-[300px] items-center justify-center text-stone-400">
-            <Loader2 size={32} className="animate-spin text-amber-400" />
+          <div className="col-span-full py-24 text-center text-stone-400">
+            <Loader2 className="animate-spin mx-auto mb-2" size={32} />
+            <span>Connecting to live kitchen feed...</span>
           </div>
         ) : filteredOrders.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-stone-800 bg-stone-900/40 py-24 text-center text-stone-500">
-            <UtensilsCrossed size={48} className="mx-auto text-stone-700 mb-3" />
-            <p className="text-lg font-semibold text-stone-300">Kitchen Queue is Clear!</p>
-            <p className="text-xs text-stone-500 mt-1">All tickets in this view have been prepared and served</p>
+          <div className="col-span-full py-24 text-center text-stone-500 space-y-2">
+            <CheckCircle2 size={36} className="mx-auto text-emerald-500" />
+            <div className="text-sm font-bold text-stone-300">No tickets in this station!</div>
+            <div className="text-xs text-stone-500">All kitchen orders have been cooked and served.</div>
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {filteredOrders.map(order => {
-              const elapsedMins = Math.max(0, Math.floor((now - new Date(order.createdAt).getTime()) / 60000));
-              const isDelayed = elapsedMins >= 20;
-              const isWarning = elapsedMins >= 10 && elapsedMins < 20;
+          filteredOrders.map(order => {
+            const elapsedMins = Math.floor((now - new Date(order.createdAt).getTime()) / 60000);
+            const isDelayed = elapsedMins > 20;
+            const isWarning = elapsedMins > 10 && elapsedMins <= 20;
 
-              // Border and header color based on duration
-              const timerBadgeClass = isDelayed
-                ? 'bg-red-500/20 text-red-300 border-red-500/50 animate-pulse'
-                : isWarning
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30';
+            const timerColor = isDelayed
+              ? 'bg-red-500 text-white animate-pulse border-red-600'
+              : isWarning
+              ? 'bg-amber-500 text-stone-950 border-amber-600'
+              : 'bg-stone-800 text-stone-300 border-stone-700';
 
-              const orderTypeEmoji = {
-                counter: '⚡ Counter',
-                dine_in: `🍽️ Table ${order.tableNumber}`,
-                takeaway: '🛍️ Takeaway',
-                delivery: '🛵 Delivery',
-              }[order.orderType || (order.tableNumber ? 'dine_in' : 'counter')];
-
-              return (
-                <article
-                  key={order._id}
-                  className={`flex flex-col justify-between rounded-3xl border transition-all duration-200 bg-stone-900/90 shadow-xl overflow-hidden ${
-                    isDelayed
-                      ? 'border-red-500/60 ring-2 ring-red-500/20'
-                      : isWarning
-                      ? 'border-amber-500/40'
-                      : order.orderStatus === 'ready'
-                      ? 'border-emerald-500/40'
-                      : 'border-stone-800'
-                  }`}
-                >
-                  <div>
-                    {/* Ticket Header */}
-                    <div className="p-3.5 bg-stone-950/70 border-b border-stone-800/80 flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-display font-bold text-white text-base tracking-wide">
-                            {order.orderNumber}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-stone-800 text-stone-300 border border-stone-700">
-                            {orderTypeEmoji}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-stone-400 mt-0.5 flex items-center gap-1.5">
-                          <span>{order.customer?.name || 'Walk-in'}</span>
-                          <span>·</span>
-                          <span>{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
+            return (
+              <div
+                key={order._id}
+                className={`rounded-3xl border flex flex-col justify-between overflow-hidden shadow-lg transition ${
+                  isKitchenDark ? 'bg-stone-900/90 border-stone-800' : 'bg-white border-stone-200'
+                }`}
+              >
+                {/* Header */}
+                <div className={`p-4 border-b ${isKitchenDark ? 'border-stone-800 bg-stone-950/60' : 'border-stone-100 bg-stone-50/80'}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-extrabold text-base tracking-wide flex items-center gap-2">
+                        <span>#{order.orderNumber || order._id.slice(-4)}</span>
+                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                          order.orderType === 'dine_in'
+                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                            : 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                        }`}>
+                          {order.orderType === 'dine_in' ? `Table ${order.tableNumber}` : 'Takeaway'}
+                        </span>
                       </div>
-
-                      {/* Live Timer Badge */}
-                      <div className={`px-2.5 py-1 rounded-xl text-xs font-bold border flex items-center gap-1 ${timerBadgeClass}`}>
-                        <Clock size={12} />
-                        <span>{elapsedMins}m</span>
+                      <div className="text-[11px] text-stone-400 mt-1">
+                        {order.customer?.name || 'Walk-in'} · {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
 
-                    {/* Order Notes / Special Dietary Alert */}
-                    {order.notes && (
-                      <div className="mx-3 mt-2.5 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs font-medium">
-                        ⚠️ Note: {order.notes}
-                      </div>
-                    )}
+                    {/* Timer chip */}
+                    <div className={`px-2.5 py-1 rounded-xl text-xs font-mono font-extrabold border flex items-center gap-1 ${timerColor}`}>
+                      <Clock size={12} />
+                      <span>{elapsedMins}m</span>
+                    </div>
+                  </div>
 
-                    {/* Items List with Interactive Checkoff */}
-                    <div className="p-3.5 space-y-2">
-                      {order.items?.map((item, idx) => {
-                        const itemKey = `${order._id}_${idx}`;
-                        const isChecked = Boolean(checkedItems[itemKey]);
+                  {order.notes && (
+                    <div className="mt-2 text-xs font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/30 p-2 rounded-xl">
+                      ⚠️ Note: {order.notes}
+                    </div>
+                  )}
+                </div>
 
-                        return (
-                          <div
-                            key={itemKey}
-                            onClick={() => toggleItemCheck(order._id, idx)}
-                            className={`p-2.5 rounded-2xl border transition cursor-pointer select-none ${
-                              isChecked
-                                ? 'bg-stone-950/40 border-stone-800/50 opacity-40 line-through'
-                                : 'bg-stone-950/80 border-stone-800 hover:border-stone-700'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-start gap-2 min-w-0">
-                                <button
-                                  type="button"
-                                  className="mt-0.5 text-stone-500 hover:text-stone-300 shrink-0"
-                                >
-                                  {isChecked ? (
-                                    <CheckSquare size={16} className="text-emerald-400" />
-                                  ) : (
-                                    <Square size={16} />
-                                  )}
-                                </button>
-                                <div className="min-w-0">
-                                  <div className="font-semibold text-sm text-white">
-                                    <span className="text-amber-400 font-bold mr-1">{item.quantity}×</span>
-                                    <span>{item.name}</span>
-                                    {item.variant?.name && (
-                                      <span className="text-xs text-stone-400 ml-1">({item.variant.name})</span>
-                                    )}
-                                  </div>
+                {/* Items with interactive checkoff */}
+                <div className="p-4 space-y-2.5 flex-1 overflow-y-auto max-h-[340px] custom-sidebar-scroll">
+                  {order.items?.map((item, idx) => {
+                    const key = `${order._id}_${idx}`;
+                    const isChecked = Boolean(checkedItems[key]);
 
-                                  {/* Addons */}
-                                  {item.addons?.length > 0 && (
-                                    <div className="text-[11px] text-stone-400 mt-0.5">
-                                      + {item.addons.map(a => a.name).join(', ')}
-                                    </div>
-                                  )}
-
-                                  {/* Special Instructions */}
-                                  {item.specialInstructions && (
-                                    <div className="text-[11px] font-medium text-amber-300 bg-amber-950/40 px-2 py-0.5 rounded mt-1 inline-block border border-amber-900/50">
-                                      {item.specialInstructions}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              {item.kitchenStation && (
-                                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 shrink-0">
-                                  {item.kitchenStation}
-                                </span>
-                              )}
-                            </div>
+                    return (
+                      <div
+                        key={key}
+                        onClick={() => toggleItemCheck(order._id, idx)}
+                        className={`p-2.5 rounded-2xl border transition cursor-pointer select-none flex items-start gap-2.5 ${
+                          isChecked
+                            ? 'opacity-35 line-through bg-black/20 border-transparent'
+                            : isKitchenDark
+                            ? 'bg-stone-950/70 border-stone-800 hover:border-stone-700'
+                            : 'bg-stone-50 border-stone-200 hover:border-stone-300'
+                        }`}
+                      >
+                        <button type="button" className="mt-0.5 text-stone-400 shrink-0">
+                          {isChecked ? <CheckSquare size={16} className="text-emerald-400" /> : <Square size={16} />}
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-bold leading-tight">
+                            <span className="text-amber-400 mr-1.5">{item.quantity}×</span>
+                            <span>{item.name}</span>
+                            {item.variant?.name && (
+                              <span className="text-xs opacity-75 ml-1">({item.variant.name})</span>
+                            )}
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                          {item.addons?.length > 0 && (
+                            <div className="text-[11px] text-stone-400 mt-0.5">
+                              +{item.addons.map(a => a.name).join(', ')}
+                            </div>
+                          )}
+                          {item.specialInstructions && (
+                            <div className="text-[11px] text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded mt-1 inline-block">
+                              {item.specialInstructions}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
 
-                  {/* Bottom Action Footer */}
-                  <div className="p-3 bg-stone-950/80 border-t border-stone-800/80 space-y-2">
-                    {order.orderStatus === 'pending' && (
-                      <button
-                        onClick={() => updateStatus(order._id, 'preparing')}
-                        className="w-full py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-sm transition flex items-center justify-center gap-1.5"
-                      >
-                        <span>Start Cooking</span>
-                      </button>
-                    )}
-
-                    {order.orderStatus === 'confirmed' && (
-                      <button
-                        onClick={() => updateStatus(order._id, 'preparing')}
-                        className="w-full py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-sm transition flex items-center justify-center gap-1.5"
-                      >
-                        <span>Start Cooking</span>
-                      </button>
-                    )}
-
-                    {order.orderStatus === 'preparing' && (
-                      <button
-                        onClick={() => updateStatus(order._id, 'ready')}
-                        className="w-full py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition flex items-center justify-center gap-1.5"
-                      >
-                        <CheckCircle2 size={14} />
-                        <span>Mark Order Ready</span>
-                      </button>
-                    )}
-
-                    {order.orderStatus === 'ready' && (
-                      <button
-                        onClick={() => updateStatus(order._id, 'completed')}
-                        className="w-full py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition flex items-center justify-center gap-1.5"
-                      >
-                        <CheckCircle2 size={14} />
-                        <span>Mark Served / Complete</span>
-                      </button>
-                    )}
-
-                    {order.orderStatus === 'completed' && (
-                      <button
-                        onClick={() => updateStatus(order._id, 'preparing')}
-                        className="w-full py-2 rounded-xl text-xs font-semibold bg-stone-800 hover:bg-stone-700 text-stone-300 transition flex items-center justify-center gap-1.5"
-                      >
-                        <RotateCcw size={13} />
-                        <span>Recall to Kitchen</span>
-                      </button>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+                {/* Action Buttons */}
+                <div className={`p-3 border-t ${isKitchenDark ? 'border-stone-800 bg-stone-950/80' : 'border-stone-100 bg-stone-50'}`}>
+                  {['pending', 'confirmed'].includes(order.orderStatus) && (
+                    <button
+                      onClick={() => updateStatus(order._id, 'preparing')}
+                      className="w-full py-2.5 rounded-xl font-bold text-xs bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-sm transition"
+                    >
+                      Start Cooking
+                    </button>
+                  )}
+                  {order.orderStatus === 'preparing' && (
+                    <button
+                      onClick={() => updateStatus(order._id, 'ready')}
+                      className="w-full py-2.5 rounded-xl font-bold text-xs bg-emerald-500 hover:bg-emerald-400 text-stone-950 shadow-sm transition"
+                    >
+                      Mark as Ready (Bell 🔔)
+                    </button>
+                  )}
+                  {order.orderStatus === 'ready' && (
+                    <button
+                      onClick={() => updateStatus(order._id, 'completed')}
+                      className="w-full py-2.5 rounded-xl font-bold text-xs bg-purple-600 hover:bg-purple-500 text-white shadow-sm transition"
+                    >
+                      Complete & Served ✓
+                    </button>
+                  )}
+                  {order.orderStatus === 'completed' && (
+                    <button
+                      onClick={() => updateStatus(order._id, 'preparing')}
+                      className="w-full py-2 rounded-xl text-xs font-semibold border border-stone-700 text-stone-400 hover:text-white"
+                    >
+                      Reopen Ticket
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })
         )}
-      </main>
+      </div>
     </div>
   );
 }

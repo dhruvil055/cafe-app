@@ -555,7 +555,7 @@ router.get('/tenants', superAdminProtect, async (req, res, next) => {
 
           return {
             id: t._id,
-            name: t.name,
+            name: t.settings?.cafeName || t.name,
             slug: t.slug,
             status: t.status,
             plan: t.plan,
@@ -565,6 +565,19 @@ router.get('/tenants', superAdminProtect, async (req, res, next) => {
             tableCount,
             productCount,
             createdAt: t.createdAt,
+            settings: {
+              cafeName: t.settings?.cafeName || t.name,
+              logoUrl: t.settings?.logoUrl || '',
+              tagline: t.settings?.tagline || '',
+              primaryColor: t.settings?.primaryColor || '#c96b18',
+              accentColor: t.settings?.accentColor || '#1a0f08',
+              currency: t.settings?.currency || 'INR',
+              taxRate: Number(t.settings?.taxRate ?? 5),
+              address: t.settings?.address || '',
+              contactEmail: t.settings?.contactEmail || '',
+              contactPhone: t.settings?.contactPhone || '',
+              openingHours: t.settings?.openingHours || {},
+            },
           };
         })
       );

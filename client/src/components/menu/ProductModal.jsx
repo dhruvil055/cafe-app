@@ -132,7 +132,18 @@ export default function ProductModal({ product, onClose }) {
         <div className="p-5 flex-1 overflow-y-auto space-y-4">
           <div>
             <div className="flex items-start justify-between gap-2">
-              <h2 className="font-display text-xl font-bold text-espresso-900">{product.name}</h2>
+              <div className="flex items-center gap-2">
+                {product.isVeg !== false && (
+                  <span
+                    className="inline-flex items-center justify-center w-4 h-4 rounded-[4px] border border-emerald-600 p-[2px] flex-shrink-0"
+                    title="100% Vegetarian"
+                    aria-label="Vegetarian"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                  </span>
+                )}
+                <h2 className="font-display text-xl font-bold text-espresso-900">{product.name}</h2>
+              </div>
               {product.prepTime && (
                 <span className="flex items-center gap-1 text-xs text-espresso-400 flex-shrink-0">
                   <Clock size={12} /> {product.prepTime}m

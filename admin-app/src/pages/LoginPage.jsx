@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff, Loader2, Clock } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTenant } from '../context/TenantContext';
@@ -16,9 +16,27 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
+
+  // Active countdown timer when rate limited (429)
+  useEffect(() => {
+    if (rateLimitCountdown <= 0) return;
+    const interval = setInterval(() => {
+      setRateLimitCountdown((prev) => {
+        if (prev <= 1) {
+          setError('');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [rateLimitCountdown]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (loading || rateLimitCountdown > 0) return; // Prevent double-submit or submission while in cooldown
+
     if (!email || !password) {
       setError('Please enter your email and password.');
       return;
@@ -31,12 +49,23 @@ export default function LoginPage() {
       await login(email, password, twoFactorCode);
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      if (err.code === 'TWO_FACTOR_REQUIRED') setRequiresTwoFactor(true);
-      setError(err.message || 'Unable to sign in. Please try again.');
+      if (err.code === 'TWO_FACTOR_REQUIRED') {
+        setRequiresTwoFactor(true);
+      }
+
+      if (err.status === 429 || err.code === 'RATE_LIMITED') {
+        const retrySec = Number(err.retryAfter) || 30;
+        setRateLimitCountdown(retrySec);
+        setError(`Too many login attempts. Please wait ${retrySec} seconds before trying again.`);
+      } else {
+        setError(err.message || 'Unable to sign in. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  const isButtonDisabled = loading || rateLimitCountdown > 0;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f5f1eb] px-4 py-10">
@@ -66,7 +95,8 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
-              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3.5 text-sm text-stone-800 placeholder:text-stone-400 focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-orange-100"
+              disabled={loading || rateLimitCountdown > 0}
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3.5 text-sm text-stone-800 placeholder:text-stone-400 focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-orange-100 disabled:opacity-75"
               placeholder="name@example.com"
             />
           </div>
@@ -79,7 +109,8 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
-                className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3.5 pr-11 text-sm text-stone-800 placeholder:text-stone-400 focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-orange-100"
+                disabled={loading || rateLimitCountdown > 0}
+                className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3.5 pr-11 text-sm text-stone-800 placeholder:text-stone-400 focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-orange-100 disabled:opacity-75"
                 placeholder="••••••••"
               />
               <button
@@ -92,21 +123,64 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {requiresTwoFactor && <div><label htmlFor="two-factor-code" className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">Authenticator code</label><input id="two-factor-code" inputMode="numeric" autoComplete="one-time-code" value={twoFactorCode} onChange={(event) => setTwoFactorCode(event.target.value.replace(/\D/g, '').slice(0, 6))} className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3.5 text-sm focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-orange-100" placeholder="6-digit code" /></div>}
+          {requiresTwoFactor && (
+            <div>
+              <label htmlFor="two-factor-code" className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+                Authenticator code
+              </label>
+              <input
+                id="two-factor-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={twoFactorCode}
+                onChange={(event) => setTwoFactorCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                disabled={loading || rateLimitCountdown > 0}
+                className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3.5 text-sm focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-orange-100 disabled:opacity-75"
+                placeholder="6-digit code"
+              />
+            </div>
+          )}
 
           {error && (
-            <div className="flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
-              <AlertCircle size={16} className="mt-0.5 shrink-0" />
-              <span>{error}</span>
+            <div className={`flex items-start gap-2.5 rounded-2xl border p-3.5 text-sm ${
+              rateLimitCountdown > 0
+                ? 'border-amber-300 bg-amber-50 text-amber-800'
+                : 'border-red-200 bg-red-50 text-red-600'
+            }`}>
+              {rateLimitCountdown > 0 ? (
+                <Clock size={16} className="mt-0.5 shrink-0 text-amber-600 animate-spin" />
+              ) : (
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+              )}
+              <div className="flex-1">
+                <span className="font-medium">{error}</span>
+                {rateLimitCountdown > 0 && (
+                  <div className="mt-1 text-xs text-amber-700">
+                    Button will re-enable automatically in <strong className="font-mono">{rateLimitCountdown}s</strong>.
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
           <button
             type="submit"
-            disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-3.5 font-semibold text-white shadow-lg shadow-orange-500/25 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-75"
+            disabled={isButtonDisabled}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-3.5 font-semibold text-white shadow-lg shadow-orange-500/25 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? <><Loader2 size={16} className="animate-spin" /> Signing in...</> : 'Sign in'}
+            {loading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Signing in...</span>
+              </>
+            ) : rateLimitCountdown > 0 ? (
+              <span className="flex items-center gap-1.5">
+                <Clock size={15} />
+                <span>Try again in {rateLimitCountdown}s</span>
+              </span>
+            ) : (
+              'Sign in'
+            )}
           </button>
 
           <div className="text-center pt-2 text-xs text-stone-500">

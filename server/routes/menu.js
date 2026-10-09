@@ -26,10 +26,10 @@ router.get('/', async (req, res) => {
   try {
     res.set('Cache-Control', 'private, no-cache');
     res.set('Vary', 'X-Tenant-Slug, X-Tenant-Id, X-Table-Token, Origin');
-    const { category, search, sort, popular } = req.query;
+    const { category, search, sort, popular, veg, vegOnly } = req.query;
 
     // Check memory cache for identical query scoped by tenant
-    const cacheKey = JSON.stringify({ tenantId: String(req.tenantId || ''), category, search, sort, popular });
+    const cacheKey = JSON.stringify({ tenantId: String(req.tenantId || ''), category, search, sort, popular, veg: veg || vegOnly });
     const cached = menuCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
       return res.json(cached.data);
@@ -39,6 +39,7 @@ router.get('/', async (req, res) => {
 
     if (category && category !== 'all') query.category = category;
     if (popular === 'true') query.popular = true;
+    if (veg === 'true' || vegOnly === 'true') query.isVeg = true;
     if (search) {
       // SECURITY: Escape regex special characters and limit search length
       if (String(search).length > 100) {

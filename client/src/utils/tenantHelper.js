@@ -40,6 +40,7 @@ export function getResolvedTenantSlug() {
   try {
     const params = new URLSearchParams(window.location.search);
     let urlTenant = (
+      params.get('cafeSlug') ||
       params.get('cafe') ||
       params.get('cafeId') ||
       params.get('tenant') ||

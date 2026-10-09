@@ -1,20 +1,29 @@
 import { useState, useEffect } from 'react';
 import {
   ShoppingBag, Plus, Search, Filter, CheckCircle2, AlertCircle,
-  Clock, PackageCheck, Trash2, Eye, Loader2, X, PlusCircle, MinusCircle
+  Clock, PackageCheck, Trash2, Eye, Loader2, X, PlusCircle,
+  MinusCircle, Check, ArrowRight, RefreshCw, FileText
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import { useTenant } from '../context/TenantContext';
 import { formatMoney } from '../utils/money';
+import PageHeader from '../components/common/PageHeader';
+import StatusPill from '../components/common/StatusPill';
+import EmptyState from '../components/common/EmptyState';
+import Drawer from '../components/common/Drawer';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 
-const PO_STATUS_CONFIG = {
-  draft: { label: 'Draft', bg: 'bg-stone-100 text-stone-700 border-stone-200' },
-  ordered: { label: 'Ordered', bg: 'bg-blue-50 text-blue-700 border-blue-200' },
-  received: { label: 'Received & Stocked', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  cancelled: { label: 'Cancelled', bg: 'bg-red-50 text-red-700 border-red-200' },
-};
+const PO_STEPS = [
+  { id: 'draft', label: 'Draft' },
+  { id: 'ordered', label: 'Ordered' },
+  { id: 'received', label: 'Received & Stocked' }
+];
 
 export default function PurchasesPage() {
+  const tenant = useTenant();
+  const currency = tenant?.currency || tenant?.settings?.currency || '₹';
+
   const [purchases, setPurchases] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -25,10 +34,12 @@ export default function PurchasesPage() {
   const [selectedSupplier, setSelectedSupplier] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Modals
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  // Drawers & Modals
+  const [showCreateDrawer, setShowCreateDrawer] = useState(false);
   const [viewingPurchase, setViewingPurchase] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [receiveConfirm, setReceiveConfirm] = useState({ isOpen: false, purchase: null });
+  const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, poId: null });
 
   // Form Fields
   const [supplierId, setSupplierId] = useState('');
@@ -50,8 +61,8 @@ export default function PurchasesPage() {
 
       const [pRes, sRes, invRes] = await Promise.all([
         api.get(`/purchases?${params.toString()}`),
-        api.get('/suppliers?active=true'),
-        api.get('/inventory/items'),
+        api.get('/suppliers?active=true').catch(() => ({ data: { suppliers: [] } })),
+        api.get('/inventory/items').catch(() => ({ data: { items: [] } })),
       ]);
 
       setPurchases(pRes.data.purchases || []);
@@ -68,14 +79,8 @@ export default function PurchasesPage() {
     fetchData();
   }, [selectedStatus, selectedSupplier]);
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    fetchData();
-  };
-
-  // Add line item row
   const addLineItem = () => {
-    setLineItems(prev => [
+    setLineItems((prev) => [
       ...prev,
       { inventoryItemId: '', quantity: 1, unitCost: 0, taxPercent: 5 },
     ]);
@@ -83,16 +88,15 @@ export default function PurchasesPage() {
 
   const removeLineItem = (index) => {
     if (lineItems.length === 1) return;
-    setLineItems(prev => prev.filter((_, idx) => idx !== index));
+    setLineItems((prev) => prev.filter((_, idx) => idx !== index));
   };
 
   const updateLineItem = (index, field, value) => {
-    setLineItems(prev => {
+    setLineItems((prev) => {
       const updated = [...prev];
       updated[index][field] = value;
-      // If inventoryItem changed, auto-fill unitCost from inventory item
       if (field === 'inventoryItemId') {
-        const item = inventoryItems.find(i => i._id === value);
+        const item = inventoryItems.find((i) => i._id === value);
         if (item && item.costPerUnit) {
           updated[index].unitCost = item.costPerUnit;
         }
@@ -101,7 +105,6 @@ export default function PurchasesPage() {
     });
   };
 
-  // Calculate live PO totals
   const calculatedTotals = () => {
     let subtotal = 0;
     let tax = 0;
@@ -119,13 +122,13 @@ export default function PurchasesPage() {
   };
 
   const handleCreatePO = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     if (!supplierId) {
-      toast.error('Select a supplier');
+      toast.error('Select a vendor supplier');
       return;
     }
 
-    const invalidItem = lineItems.find(i => !i.inventoryItemId || Number(i.quantity) <= 0);
+    const invalidItem = lineItems.find((i) => !i.inventoryItemId || Number(i.quantity) <= 0);
     if (invalidItem) {
       toast.error('Select an inventory item and enter valid quantity for all rows');
       return;
@@ -139,7 +142,7 @@ export default function PurchasesPage() {
         invoiceDate,
         paymentMethod,
         notes: notes.trim(),
-        items: lineItems.map(i => ({
+        items: lineItems.map((i) => ({
           inventoryItemId: i.inventoryItemId,
           quantity: Number(i.quantity),
           unitCost: Number(i.unitCost),
@@ -149,7 +152,7 @@ export default function PurchasesPage() {
 
       await api.post('/purchases', payload);
       toast.success('Purchase Order created');
-      setShowCreateModal(false);
+      setShowCreateDrawer(false);
       resetPOForm();
       fetchData();
     } catch (error) {
@@ -167,15 +170,14 @@ export default function PurchasesPage() {
     setLineItems([{ inventoryItemId: '', quantity: 1, unitCost: 0, taxPercent: 5 }]);
   };
 
-  // Mark PO Received & Replenish Stock
-  const handleMarkReceived = async (purchase) => {
-    if (!window.confirm(`Receive stock for ${purchase.poNumber}? This will automatically add quantities to your live inventory.`)) return;
-
+  const executeMarkReceived = async () => {
+    if (!receiveConfirm.purchase) return;
     try {
-      const { data } = await api.patch(`/purchases/${purchase._id}/status`, { status: 'received' });
-      toast.success('Stock received and inventory quantities updated!');
+      const { data } = await api.patch(`/purchases/${receiveConfirm.purchase._id}/status`, { status: 'received' });
+      toast.success('Stock received and inventory quantities replenished!');
+      setReceiveConfirm({ isOpen: false, purchase: null });
       fetchData();
-      if (viewingPurchase?._id === purchase._id) {
+      if (viewingPurchase?._id === receiveConfirm.purchase._id) {
         setViewingPurchase(data.purchase);
       }
     } catch (error) {
@@ -183,11 +185,12 @@ export default function PurchasesPage() {
     }
   };
 
-  const handleDeletePO = async (id) => {
-    if (!window.confirm('Delete this draft purchase order?')) return;
+  const executeDeletePO = async () => {
+    if (!deleteConfirm.poId) return;
     try {
-      await api.delete(`/purchases/${id}`);
+      await api.delete(`/purchases/${deleteConfirm.poId}`);
       toast.success('Purchase order removed');
+      setDeleteConfirm({ isOpen: false, poId: null });
       fetchData();
     } catch (error) {
       toast.error(error.message || 'Delete failed');
@@ -197,15 +200,44 @@ export default function PurchasesPage() {
   const totals = calculatedTotals();
 
   return (
-    <div className="space-y-6">
-      {/* Top Action Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-stone-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Status Filter */}
+    <div className="space-y-6 pb-12">
+      {/* Page Header */}
+      <PageHeader
+        title="Purchase Orders & Procurement"
+        subtitle="Manage coffee beans, milk, syrups, and ingredient replenishment orders."
+        breadcrumbs={[
+          { label: 'Finance', to: '/dashboard' },
+          { label: 'Purchases' }
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => { resetPOForm(); setShowCreateDrawer(true); }}
+              className="btn-primary inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold shadow-xs"
+            >
+              <Plus size={15} />
+              <span>New Purchase Order</span>
+            </button>
+            <button
+              type="button"
+              onClick={fetchData}
+              className="p-2 rounded-xl border border-stone-200 bg-white text-stone-600 hover:bg-stone-50 transition"
+              title="Refresh purchase orders"
+            >
+              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            </button>
+          </div>
+        }
+      />
+
+      {/* Filter Bar */}
+      <div className="rounded-2xl border border-stone-200/80 bg-white p-3.5 shadow-xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <select
             value={selectedStatus}
-            onChange={e => setSelectedStatus(e.target.value)}
-            className="rounded-xl border border-stone-200 px-3 py-1.5 text-xs font-medium text-stone-700 bg-stone-50 focus:outline-none focus:border-brew-500"
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="rounded-xl border border-stone-200 px-3 py-1.5 text-xs font-semibold text-stone-700 bg-stone-50 focus:outline-none"
           >
             <option value="ALL">All Statuses</option>
             <option value="draft">Draft</option>
@@ -214,105 +246,120 @@ export default function PurchasesPage() {
             <option value="cancelled">Cancelled</option>
           </select>
 
-          {/* Supplier Filter */}
           <select
             value={selectedSupplier}
-            onChange={e => setSelectedSupplier(e.target.value)}
-            className="rounded-xl border border-stone-200 px-3 py-1.5 text-xs font-medium text-stone-700 bg-stone-50 focus:outline-none focus:border-brew-500"
+            onChange={(e) => setSelectedSupplier(e.target.value)}
+            className="rounded-xl border border-stone-200 px-3 py-1.5 text-xs font-semibold text-stone-700 bg-stone-50 focus:outline-none"
           >
             <option value="ALL">All Suppliers</option>
-            {suppliers.map(s => (
+            {suppliers.map((s) => (
               <option key={s._id} value={s._id}>{s.name}</option>
             ))}
           </select>
         </div>
-
-        <button
-          onClick={() => {
-            resetPOForm();
-            setShowCreateModal(true);
-          }}
-          className="btn-primary rounded-xl px-4 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm"
-        >
-          <Plus size={14} /> Create Purchase Order
-        </button>
       </div>
 
-      {/* PO List Table */}
-      <div className="bg-white rounded-2xl border border-stone-200/80 shadow-sm overflow-hidden">
+      {/* Purchase Orders Table with Status Stepper */}
+      <div className="overflow-hidden rounded-3xl border border-stone-200/90 bg-white shadow-xs">
         {loading ? (
-          <div className="flex min-h-[250px] items-center justify-center text-stone-400">
-            <Loader2 className="animate-spin text-brew-500" size={30} />
-          </div>
+          <div className="p-8 text-center text-xs text-stone-400">Loading procurement orders...</div>
         ) : purchases.length === 0 ? (
-          <div className="py-20 text-center text-stone-400 text-sm">
-            <ShoppingBag size={40} className="mx-auto text-stone-300 mb-2" />
-            <p>No purchase orders found</p>
-          </div>
+          <EmptyState
+            icon={ShoppingBag}
+            title="No purchase orders found"
+            description="Create purchase orders to procure roasted beans, dairy, and food supplies from vendors."
+            actionLabel="Create first purchase order"
+            onAction={() => { resetPOForm(); setShowCreateDrawer(true); }}
+          />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-stone-50/80 border-b border-stone-200 text-stone-500 uppercase tracking-wider font-semibold">
-                  <th className="py-3.5 px-4">PO Number</th>
-                  <th className="py-3.5 px-4">Supplier</th>
-                  <th className="py-3.5 px-4">Date</th>
-                  <th className="py-3.5 px-4">Items Count</th>
-                  <th className="py-3.5 px-4 text-right">Total Amount</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-stone-200 bg-stone-50/70 font-bold uppercase tracking-wider text-stone-400">
+                <tr>
+                  <th className="py-3 px-4">PO Number</th>
+                  <th className="py-3 px-4">Vendor</th>
+                  <th className="py-3 px-4">Order Date</th>
+                  <th className="py-3 px-4">Status & Stepper</th>
+                  <th className="py-3 px-4 text-right">Total Amount</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {purchases.map(po => {
-                  const cfg = PO_STATUS_CONFIG[po.status] || PO_STATUS_CONFIG.draft;
+                {purchases.map((po) => {
+                  const status = po.status || 'draft';
+                  const stepIndex = status === 'received' ? 2 : status === 'ordered' ? 1 : 0;
+
                   return (
-                    <tr key={po._id} className="hover:bg-stone-50/60 transition">
-                      <td className="py-3.5 px-4 font-mono font-bold text-stone-900 whitespace-nowrap">
+                    <tr key={po._id} className="hover:bg-stone-50/50 transition">
+                      <td className="py-3.5 px-4 font-mono font-bold text-stone-900">
                         {po.poNumber}
-                        {po.invoiceNumber && (
-                          <div className="text-[10px] text-stone-400 font-sans font-normal">Inv: {po.invoiceNumber}</div>
-                        )}
                       </td>
-                      <td className="py-3.5 px-4 font-semibold text-stone-800 whitespace-nowrap">
-                        {po.supplier?.name || '—'}
+                      <td className="py-3.5 px-4">
+                        <span className="font-bold text-stone-900">{po.supplier?.name || 'Unassigned'}</span>
+                        {po.invoiceNumber && <p className="text-[10px] text-stone-400 font-mono">Inv: {po.invoiceNumber}</p>}
                       </td>
-                      <td className="py-3.5 px-4 text-stone-600 whitespace-nowrap">
-                        {new Date(po.createdAt).toLocaleDateString()}
+                      <td className="py-3.5 px-4 text-stone-600">
+                        {new Date(po.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
                       </td>
-                      <td className="py-3.5 px-4 text-stone-600 whitespace-nowrap">
-                        {po.items?.length || 0} line item(s)
+
+                      {/* PO Status Stepper (Draft → Ordered → Received) */}
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-1.5">
+                          {PO_STEPS.map((step, idx) => {
+                            const isCompleted = idx <= stepIndex;
+                            const isCurrent = idx === stepIndex;
+
+                            return (
+                              <div key={step.id} className="flex items-center gap-1">
+                                <span
+                                  className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold ${
+                                    isCompleted
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'bg-stone-200 text-stone-600'
+                                  }`}
+                                >
+                                  {isCompleted ? '✓' : idx + 1}
+                                </span>
+                                <span className={`text-[10px] ${isCurrent ? 'font-bold text-stone-900' : 'text-stone-400'}`}>
+                                  {step.label}
+                                </span>
+                                {idx < PO_STEPS.length - 1 && (
+                                  <ArrowRight size={10} className="text-stone-300 mx-0.5" />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </td>
-                      <td className="py-3.5 px-4 text-right font-display font-bold text-stone-900 text-sm whitespace-nowrap">
-                        {formatMoney(po.total)}
+
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-espresso-950 tabular-nums">
+                        {formatMoney(po.total, currency)}
                       </td>
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${cfg.bg}`}>
-                          {cfg.label}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+
+                      <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {po.status !== 'received' && (
                             <button
-                              onClick={() => handleMarkReceived(po)}
-                              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center gap-1 shadow-sm"
-                              title="Receive stock & update inventory quantities"
+                              type="button"
+                              onClick={() => setReceiveConfirm({ isOpen: true, purchase: po })}
+                              className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 text-[11px] font-bold text-white shadow-2xs transition"
                             >
-                              <PackageCheck size={12} /> Receive
+                              Receive Stock
                             </button>
                           )}
                           <button
+                            type="button"
                             onClick={() => setViewingPurchase(po)}
-                            className="p-1 text-stone-400 hover:text-stone-700"
-                            title="View PO Details"
+                            className="rounded-lg p-1.5 text-stone-400 hover:text-stone-800 hover:bg-stone-100"
+                            title="View PO Breakdown"
                           >
                             <Eye size={14} />
                           </button>
                           {po.status === 'draft' && (
                             <button
-                              onClick={() => handleDeletePO(po._id)}
-                              className="p-1 text-stone-400 hover:text-red-500"
+                              type="button"
+                              onClick={() => setDeleteConfirm({ isOpen: true, poId: po._id })}
+                              className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50"
                               title="Delete Draft"
                             >
                               <Trash2 size={14} />
@@ -329,285 +376,195 @@ export default function PurchasesPage() {
         )}
       </div>
 
-      {/* Create Purchase Order Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150 my-8">
-            <div className="mb-5 flex items-center justify-between border-b border-stone-100 pb-3">
-              <h2 className="font-display text-xl font-bold text-espresso-900">
-                Create Purchase Order (PO)
-              </h2>
+      {/* CREATE PO DRAWER */}
+      <Drawer
+        isOpen={showCreateDrawer}
+        onClose={() => setShowCreateDrawer(false)}
+        title="Create Purchase Order"
+        subtitle="Order consumables and ingredients from registered vendors."
+        width="max-w-xl"
+        footer={
+          <div className="flex items-center justify-between">
+            <div className="text-xs">
+              <span className="text-stone-400">Total PO Value: </span>
+              <span className="font-mono font-bold text-espresso-950 text-sm">
+                {formatMoney(totals.total, currency)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowCreateModal(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-stone-400 hover:text-stone-700 hover:bg-stone-100"
+                type="button"
+                onClick={() => setShowCreateDrawer(false)}
+                className="rounded-xl border border-stone-200 px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-50"
               >
-                <X size={18} />
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreatePO}
+                disabled={saving}
+                className="btn-primary rounded-xl px-5 py-2 text-xs font-semibold shadow-xs"
+              >
+                {saving ? 'Creating...' : 'Issue Purchase Order'}
+              </button>
+            </div>
+          </div>
+        }
+      >
+        <form onSubmit={handleCreatePO} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 mb-1">
+                Vendor / Supplier *
+              </label>
+              <select
+                required
+                value={supplierId}
+                onChange={(e) => setSupplierId(e.target.value)}
+                className="w-full rounded-xl border border-stone-200 px-3 py-2 text-xs focus:border-amber-500 focus:outline-none"
+              >
+                <option value="">Select supplier...</option>
+                {suppliers.map((s) => (
+                  <option key={s._id} value={s._id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 mb-1">
+                Invoice / Ref Number
+              </label>
+              <input
+                type="text"
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                placeholder="e.g. INV-9042"
+                className="w-full rounded-xl border border-stone-200 px-3 py-2 text-xs focus:border-amber-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Line items table */}
+          <div className="space-y-2 pt-2 border-t border-stone-100">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">
+                Procurement Items
+              </span>
+              <button
+                type="button"
+                onClick={addLineItem}
+                className="text-xs font-semibold text-amber-800 hover:text-amber-900"
+              >
+                + Add item row
               </button>
             </div>
 
-            <form onSubmit={handleCreatePO} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block font-semibold text-stone-600 uppercase tracking-wider">
-                    Vendor / Supplier *
-                  </label>
+            <div className="space-y-2">
+              {lineItems.map((item, idx) => (
+                <div key={idx} className="flex items-center gap-2 rounded-xl border border-stone-200 p-2.5 bg-stone-50/50">
                   <select
-                    required
-                    value={supplierId}
-                    onChange={e => setSupplierId(e.target.value)}
-                    className="w-full rounded-xl border border-stone-200 px-3 py-2 text-xs focus:border-brew-500 focus:outline-none"
+                    value={item.inventoryItemId}
+                    onChange={(e) => updateLineItem(idx, 'inventoryItemId', e.target.value)}
+                    className="flex-1 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs focus:outline-none"
                   >
-                    <option value="">-- Choose Supplier --</option>
-                    {suppliers.map(s => (
-                      <option key={s._id} value={s._id}>{s.name} ({s.phone || 'No phone'})</option>
+                    <option value="">Select inventory item...</option>
+                    {inventoryItems.map((inv) => (
+                      <option key={inv._id} value={inv._id}>
+                        {inv.name} ({inv.unit || 'unit'})
+                      </option>
                     ))}
                   </select>
-                </div>
 
-                <div>
-                  <label className="mb-1 block font-semibold text-stone-600 uppercase tracking-wider">
-                    Supplier Invoice No. (Optional)
-                  </label>
                   <input
-                    type="text"
-                    placeholder="e.g. INV-98124"
-                    value={invoiceNumber}
-                    onChange={e => setInvoiceNumber(e.target.value)}
-                    className="w-full rounded-xl border border-stone-200 px-3 py-2 text-xs focus:border-brew-500 focus:outline-none"
+                    type="number"
+                    min="1"
+                    placeholder="Qty"
+                    value={item.quantity}
+                    onChange={(e) => updateLineItem(idx, 'quantity', e.target.value)}
+                    className="w-16 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-center"
                   />
-                </div>
-              </div>
 
-              {/* Dynamic Line Items */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="font-semibold text-stone-700 uppercase tracking-wider">
-                    Procurement Line Items *
-                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Cost"
+                    value={item.unitCost}
+                    onChange={(e) => updateLineItem(idx, 'unitCost', e.target.value)}
+                    className="w-20 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-right"
+                  />
+
                   <button
                     type="button"
-                    onClick={addLineItem}
-                    className="text-brew-600 hover:text-brew-800 font-semibold flex items-center gap-1 text-[11px]"
+                    onClick={() => removeLineItem(idx)}
+                    className="p-1 text-stone-400 hover:text-red-500"
                   >
-                    <PlusCircle size={13} /> Add Item Row
+                    <X size={14} />
                   </button>
                 </div>
-
-                <div className="space-y-2 border border-stone-200 rounded-2xl p-3 bg-stone-50/50 max-h-60 overflow-y-auto">
-                  {lineItems.map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-2 bg-white p-2.5 rounded-xl border border-stone-200 shadow-2xs">
-                      {/* Inventory Item Selection */}
-                      <div className="flex-1 min-w-[140px]">
-                        <select
-                          required
-                          value={item.inventoryItemId}
-                          onChange={e => updateLineItem(idx, 'inventoryItemId', e.target.value)}
-                          className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-xs focus:border-brew-500 focus:outline-none"
-                        >
-                          <option value="">-- Select Item --</option>
-                          {inventoryItems.map(inv => (
-                            <option key={inv._id} value={inv._id}>
-                              {inv.name} ({inv.unit} · Stock: {inv.currentQuantity})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Quantity */}
-                      <div className="w-20">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          required
-                          placeholder="Qty"
-                          value={item.quantity}
-                          onChange={e => updateLineItem(idx, 'quantity', e.target.value)}
-                          className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-center focus:border-brew-500 focus:outline-none"
-                        />
-                      </div>
-
-                      {/* Unit Cost */}
-                      <div className="w-24">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          required
-                          placeholder="Rate ₹"
-                          value={item.unitCost}
-                          onChange={e => updateLineItem(idx, 'unitCost', e.target.value)}
-                          className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-right focus:border-brew-500 focus:outline-none"
-                        />
-                      </div>
-
-                      {/* Tax % */}
-                      <div className="w-16">
-                        <select
-                          value={item.taxPercent}
-                          onChange={e => updateLineItem(idx, 'taxPercent', e.target.value)}
-                          className="w-full rounded-lg border border-stone-200 px-1 py-1.5 text-xs text-center focus:border-brew-500 focus:outline-none"
-                        >
-                          <option value="0">0%</option>
-                          <option value="5">5%</option>
-                          <option value="12">12%</option>
-                          <option value="18">18%</option>
-                        </select>
-                      </div>
-
-                      {/* Remove Row */}
-                      {lineItems.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeLineItem(idx)}
-                          className="text-stone-400 hover:text-red-500 p-1"
-                        >
-                          <MinusCircle size={15} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Order Total Preview Box */}
-              <div className="bg-stone-50 border border-stone-200 rounded-2xl p-3.5 space-y-1.5">
-                <div className="flex justify-between text-stone-500">
-                  <span>Subtotal (Base Cost):</span>
-                  <span>{formatMoney(totals.subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-stone-500">
-                  <span>Estimated GST / Tax:</span>
-                  <span>{formatMoney(totals.tax)}</span>
-                </div>
-                <div className="flex justify-between font-bold text-stone-900 border-t border-stone-200 pt-1.5 text-sm">
-                  <span>Total Purchase Cost:</span>
-                  <span className="font-display text-base text-brew-700">{formatMoney(totals.total)}</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block font-semibold text-stone-600 uppercase tracking-wider">
-                    Payment Method
-                  </label>
-                  <select
-                    value={paymentMethod}
-                    onChange={e => setPaymentMethod(e.target.value)}
-                    className="w-full rounded-xl border border-stone-200 px-3 py-2 text-xs focus:border-brew-500 focus:outline-none"
-                  >
-                    <option value="bank_transfer">Bank Transfer / NEFT</option>
-                    <option value="upi">UPI</option>
-                    <option value="cash">Cash on Delivery</option>
-                    <option value="cheque">Cheque</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="mb-1 block font-semibold text-stone-600 uppercase tracking-wider">
-                    Notes / Delivery Instructions
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Inspect seal before unloading"
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    className="w-full rounded-xl border border-stone-200 px-3 py-2 text-xs focus:border-brew-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3 pt-2 border-t border-stone-100">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="btn-secondary rounded-xl px-4 py-2 text-xs font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="btn-primary rounded-xl px-5 py-2 text-xs font-semibold flex items-center gap-1.5"
-                >
-                  {saving && <Loader2 size={13} className="animate-spin" />}
-                  <span>Generate Purchase Order</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* PO View Detail Modal */}
-      {viewingPurchase && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-4">
-            <div className="flex justify-between items-start border-b border-stone-100 pb-3">
-              <div>
-                <h3 className="font-display text-lg font-bold text-espresso-950">
-                  {viewingPurchase.poNumber}
-                </h3>
-                <p className="text-xs text-stone-500">
-                  Vendor: <strong>{viewingPurchase.supplier?.name}</strong> · {new Date(viewingPurchase.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-              <button
-                onClick={() => setViewingPurchase(null)}
-                className="text-stone-400 hover:text-stone-700"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Line Items Table */}
-            <div className="border border-stone-200 rounded-2xl overflow-hidden text-xs">
-              <table className="w-full text-left">
-                <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 uppercase font-semibold text-[10px]">
-                  <tr>
-                    <th className="p-2.5">Item</th>
-                    <th className="p-2.5 text-center">Qty</th>
-                    <th className="p-2.5 text-right">Unit Rate</th>
-                    <th className="p-2.5 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-100">
-                  {viewingPurchase.items?.map((item, idx) => (
-                    <tr key={idx}>
-                      <td className="p-2.5 font-medium text-stone-800">{item.name}</td>
-                      <td className="p-2.5 text-center text-stone-600">{item.quantity} {item.unit}</td>
-                      <td className="p-2.5 text-right text-stone-600">{formatMoney(item.unitCost)}</td>
-                      <td className="p-2.5 text-right font-bold text-stone-900">{formatMoney(item.total)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="bg-stone-50 rounded-xl p-3 text-xs flex justify-between items-center font-bold">
-              <span>Total PO Value:</span>
-              <span className="text-sm font-display text-brew-700">{formatMoney(viewingPurchase.total)}</span>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              {viewingPurchase.status !== 'received' && (
-                <button
-                  onClick={() => handleMarkReceived(viewingPurchase)}
-                  className="btn-primary rounded-xl px-4 py-2 text-xs font-semibold flex items-center gap-1.5"
-                >
-                  <PackageCheck size={14} /> Receive Stock Now
-                </button>
-              )}
-              <button
-                onClick={() => setViewingPurchase(null)}
-                className="btn-secondary rounded-xl px-4 py-2 text-xs font-semibold"
-              >
-                Close
-              </button>
+              ))}
             </div>
           </div>
-        </div>
-      )}
+        </form>
+      </Drawer>
+
+      {/* CONFIRM RECEIVE STOCK DIALOG */}
+      <ConfirmDialog
+        isOpen={receiveConfirm.isOpen}
+        title={`Receive Stock for ${receiveConfirm.purchase?.poNumber}?`}
+        message="This will mark the PO as fulfilled and automatically replenish your café's live inventory quantities."
+        confirmText="Confirm Stock Received"
+        confirmVariant="primary"
+        onConfirm={executeMarkReceived}
+        onClose={() => setReceiveConfirm({ isOpen: false, purchase: null })}
+      />
+
+      {/* CONFIRM DELETE PO DIALOG */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        title="Delete Draft Purchase Order?"
+        message="This will remove the draft PO permanently."
+        confirmText="Delete PO"
+        confirmVariant="danger"
+        onConfirm={executeDeletePO}
+        onClose={() => setDeleteConfirm({ isOpen: false, poId: null })}
+      />
+
+      {/* PO DETAIL DRAWER */}
+      <Drawer
+        isOpen={Boolean(viewingPurchase)}
+        onClose={() => setViewingPurchase(null)}
+        title={viewingPurchase?.poNumber || 'Purchase Order'}
+        subtitle={`Vendor: ${viewingPurchase?.supplier?.name || 'Unassigned'}`}
+        width="max-w-md"
+      >
+        {viewingPurchase && (
+          <div className="space-y-4 text-xs">
+            <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 space-y-2">
+              <div className="flex justify-between">
+                <span className="text-stone-400">Status:</span>
+                <StatusPill status={viewingPurchase.status || 'draft'} size="xs" />
+              </div>
+              <div className="flex justify-between">
+                <span className="text-stone-400">Order Total:</span>
+                <span className="font-mono font-bold text-stone-900">{formatMoney(viewingPurchase.total, currency)}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="font-bold text-stone-700 uppercase tracking-wider text-[11px]">Ordered Items</h4>
+              <div className="divide-y divide-stone-100 border border-stone-200 rounded-2xl bg-white p-3">
+                {viewingPurchase.items?.map((it, idx) => (
+                  <div key={idx} className="py-2 flex justify-between">
+                    <span>{it.quantity}× {it.inventoryItem?.name || 'Item'}</span>
+                    <span className="font-mono font-bold">{formatMoney(it.itemTotal || (it.quantity * it.unitCost), currency)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 }

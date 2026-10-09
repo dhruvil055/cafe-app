@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import {
   Users, UserCheck, UserX, UserPlus, ShieldAlert,
   Search, Download, Eye, Ban, CheckCircle2, ChevronLeft,
   ChevronRight, X, Phone, Mail, Calendar, ShoppingBag,
   ArrowUpDown, Loader2, RefreshCw, Sparkles, Tag, Check, AlertCircle,
-  MessageSquare, Bell, Monitor, Smartphone,
+  MessageSquare, Bell, Smartphone, DollarSign, Clock, ShieldCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import { useTenant } from '../context/TenantContext';
 import { formatMoney } from '../utils/money';
+import PageHeader from '../components/common/PageHeader';
+import StatusPill from '../components/common/StatusPill';
+import EmptyState from '../components/common/EmptyState';
+import Drawer from '../components/common/Drawer';
 
 export default function CustomersPage() {
   const tenant = useTenant();
+  const currency = tenant?.currency || tenant?.settings?.currency || '₹';
+
   const [customers, setCustomers] = useState([]);
   const [stats, setStats] = useState({
     totalCustomers: 0,
@@ -24,26 +29,23 @@ export default function CustomersPage() {
   });
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Filters & Pagination state
   const [search, setSearch] = useState('');
-  const [notificationsFilter, setNotificationsFilter] = useState('');
   const [consentFilter, setConsentFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [frequencyFilter, setFrequencyFilter] = useState('');
-  const [minSpentFilter, setMinSpentFilter] = useState('');
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Profile modal state
+  // Profile Drawer state
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileData, setProfileData] = useState(null);
-
-  // Edit notes/tags state
   const [editingNotes, setEditingNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
   const [syncingOrders, setSyncingOrders] = useState(false);
@@ -63,42 +65,53 @@ export default function CustomersPage() {
     }
   };
 
-  // Fetch CRM Statistics
   const fetchStats = async () => {
     setStatsLoading(true);
     try {
       const { data } = await api.get('/customers/stats');
       setStats(data.stats || {});
     } catch (err) {
-      console.error('Failed to load CRM stats:', err);
+      // Non-critical
     } finally {
       setStatsLoading(false);
     }
   };
 
-  // Fetch Customers List
+  // Fetch Customers List with Timeout (Fixes Bug #7)
   const fetchCustomers = async () => {
     setLoading(true);
+    setErrorMessage('');
+
+    // Timeout safety
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     try {
       const params = new URLSearchParams();
       if (search.trim()) params.set('search', search.trim());
-      if (notificationsFilter) params.set('notifications', notificationsFilter);
       if (consentFilter) params.set('marketingConsent', consentFilter);
       if (statusFilter) params.set('status', statusFilter);
       if (frequencyFilter) params.set('frequency', frequencyFilter);
-      if (minSpentFilter) params.set('minSpent', minSpentFilter);
       params.set('sortBy', sortBy);
       params.set('sortOrder', sortOrder);
       params.set('page', page.toString());
       params.set('limit', '15');
 
-      const { data } = await api.get(`/customers?${params.toString()}`);
+      const { data } = await api.get(`/customers?${params.toString()}`, {
+        signal: controller.signal
+      });
+
       setCustomers(data.customers || []);
       setTotalPages(data.totalPages || 1);
       setTotalCount(data.total || 0);
     } catch (err) {
-      toast.error(err.message || 'Failed to load customers');
+      if (err.name === 'CanceledError' || err.name === 'AbortError') {
+        setErrorMessage('Request timed out while loading customers. Check your connection or click Retry.');
+      } else {
+        setErrorMessage(err.message || 'Unable to load customer database.');
+      }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
@@ -109,9 +122,8 @@ export default function CustomersPage() {
 
   useEffect(() => {
     fetchCustomers();
-  }, [search, notificationsFilter, consentFilter, statusFilter, frequencyFilter, minSpentFilter, sortBy, sortOrder, page]);
+  }, [search, consentFilter, statusFilter, frequencyFilter, sortBy, sortOrder, page]);
 
-  // Open Customer Profile Drawer
   const openProfile = async (customer) => {
     setSelectedCustomer(customer);
     setProfileLoading(true);
@@ -127,7 +139,6 @@ export default function CustomersPage() {
     }
   };
 
-  // Export CSV
   const handleExportCsv = async () => {
     try {
       toast.loading('Preparing CSV export...', { id: 'csv-export' });
@@ -145,7 +156,6 @@ export default function CustomersPage() {
     }
   };
 
-  // Toggle Block status
   const handleToggleBlock = async (customer) => {
     const newStatus = customer.status === 'blocked' ? 'active' : 'blocked';
     try {
@@ -154,14 +164,13 @@ export default function CustomersPage() {
       if (selectedCustomer?._id === customer._id) {
         setSelectedCustomer(data.customer);
       }
-      toast.success(`Customer ${newStatus === 'blocked' ? 'blocked' : 'unblocked'}`);
+      toast.success(`Customer marked as ${newStatus}`);
       fetchStats();
     } catch (err) {
       toast.error(err.message || 'Failed to update status');
     }
   };
 
-  // Toggle Marketing Consent
   const handleToggleConsent = async (customer) => {
     try {
       const endpoint = customer.marketingConsent
@@ -173,14 +182,13 @@ export default function CustomersPage() {
       if (selectedCustomer?._id === customer._id) {
         setSelectedCustomer(data.customer);
       }
-      toast.success(data.message || 'Consent updated');
+      toast.success(data.message || 'Marketing consent updated');
       fetchStats();
     } catch (err) {
       toast.error(err.message || 'Failed to update consent');
     }
   };
 
-  // Save notes
   const handleSaveNotes = async () => {
     if (!selectedCustomer) return;
     setSavingNotes(true);
@@ -188,7 +196,7 @@ export default function CustomersPage() {
       const { data } = await api.put(`/customers/${selectedCustomer._id}`, { notes: editingNotes });
       setSelectedCustomer(data.customer);
       setCustomers((prev) => prev.map((c) => (c._id === selectedCustomer._id ? data.customer : c)));
-      toast.success('Notes saved');
+      toast.success('Internal notes saved');
     } catch (err) {
       toast.error(err.message || 'Failed to save notes');
     } finally {
@@ -196,734 +204,396 @@ export default function CustomersPage() {
     }
   };
 
-  const statCards = [
-    { label: 'Total Customers', value: stats.totalCustomers, icon: Users, color: 'text-espresso-900', bg: 'bg-stone-100' },
-    { label: 'Notifications Enabled', value: stats.notificationEnabled || stats.notificationsEnabled || 0, icon: Bell, color: 'text-emerald-700', bg: 'bg-emerald-50' },
-    { label: 'Notifications Disabled', value: stats.notificationDisabled || stats.notificationsDisabled || 0, icon: Bell, color: 'text-stone-600', bg: 'bg-stone-100' },
-    { label: 'Marketing Opt-In', value: stats.marketingOptIn || stats.marketingOptedIn || 0, icon: UserCheck, color: 'text-sky-700', bg: 'bg-sky-50' },
-    { label: 'New This Month', value: stats.newThisMonth || stats.newCustomers || 0, icon: UserPlus, color: 'text-brew-700', bg: 'bg-brew-50' },
-  ];
+  // Determine loyalty tag
+  const getCustomerTag = (customer) => {
+    const orders = customer.totalOrders || 0;
+    const spent = customer.totalSpent || 0;
+    if (orders >= 5 || spent >= 2500) {
+      return { label: 'VIP Guest', bg: 'bg-amber-100 text-amber-900 border-amber-200' };
+    }
+    if (orders >= 2) {
+      return { label: 'Repeat Regular', bg: 'bg-purple-100 text-purple-900 border-purple-200' };
+    }
+    return { label: 'New Guest', bg: 'bg-stone-100 text-stone-700 border-stone-200' };
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-espresso-900">Customer CRM</h1>
-          <p className="text-xs text-stone-500">Manage café customer profiles, order history, and marketing consent</p>
+    <div className="space-y-6 pb-12">
+      {/* Page Header */}
+      <PageHeader
+        title="Customer CRM & Profiles"
+        subtitle="Guest profiles, visit frequencies, lifetime spending, and WhatsApp/SMS opt-in consent."
+        breadcrumbs={[
+          { label: 'Growth', to: '/customers' },
+          { label: 'Customers' }
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSyncOrders}
+              disabled={syncingOrders}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3.5 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50 shadow-xs transition"
+              title="Sync historical table orders into customer CRM"
+            >
+              <RefreshCw size={13} className={syncingOrders ? 'animate-spin' : ''} />
+              <span>Sync Orders to CRM</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              className="btn-primary inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold shadow-xs"
+            >
+              <Download size={14} />
+              <span>Export CSV</span>
+            </button>
+          </div>
+        }
+      />
+
+      {/* CRM Stats Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+        <div className="rounded-2xl border border-stone-200/80 bg-white p-4 shadow-xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">Total Guests</span>
+          <div className="mt-1 text-2xl font-bold font-display text-espresso-950">
+            {stats.totalCustomers || totalCount}
+          </div>
+          <p className="text-[10px] text-stone-400 mt-0.5">Identified via QR ordering</p>
         </div>
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={handleSyncOrders}
-            disabled={syncingOrders}
-            className="inline-flex items-center gap-2 rounded-xl border border-brew-200 bg-brew-50 px-3.5 py-2 text-xs font-semibold text-brew-800 shadow-soft transition hover:bg-brew-100 disabled:opacity-50"
-            title="Sync all historical orders to customer CRM profiles"
-          >
-            <RefreshCw size={14} className={syncingOrders ? 'animate-spin' : ''} />
-            <span>{syncingOrders ? 'Syncing...' : 'Sync Orders'}</span>
-          </button>
-          <button
-            onClick={handleExportCsv}
-            className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3.5 py-2 text-xs font-semibold text-stone-700 shadow-soft transition hover:bg-stone-50 hover:text-espresso-900"
-          >
-            <Download size={15} /> Export CSV
-          </button>
-          <button
-            onClick={() => { fetchStats(); fetchCustomers(); }}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600 shadow-soft hover:bg-stone-50"
-            title="Refresh"
-          >
-            <RefreshCw size={15} className={loading || statsLoading ? 'animate-spin' : ''} />
-          </button>
+
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">Opted-in for Promo</span>
+          <div className="mt-1 text-2xl font-bold font-display text-emerald-900">
+            {stats.marketingOptedIn || 0}
+          </div>
+          <p className="text-[10px] text-emerald-700 mt-0.5">Consented for WhatsApp & SMS</p>
+        </div>
+
+        <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">Opted-out</span>
+          <div className="mt-1 text-2xl font-bold font-display text-stone-700">
+            {stats.marketingOptedOut || 0}
+          </div>
+          <p className="text-[10px] text-stone-400 mt-0.5">Transactional orders only</p>
+        </div>
+
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 shadow-xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">New This Month</span>
+          <div className="mt-1 text-2xl font-bold font-display text-amber-900">
+            {stats.newThisMonth || 0}
+          </div>
+          <p className="text-[10px] text-amber-700 mt-0.5">First visit in last 30 days</p>
         </div>
       </div>
 
-      {/* CRM Statistics Cards */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
-        {statCards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <div key={card.label} className="rounded-2xl border border-stone-200 bg-white p-4 shadow-soft">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-stone-500">{card.label}</span>
-                <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${card.bg} ${card.color}`}>
-                  <Icon size={16} />
-                </div>
-              </div>
-              <div className="mt-2 text-2xl font-bold text-stone-900">
-                {statsLoading ? '—' : Number(card.value || 0).toLocaleString()}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Filter and Search Bar */}
-      <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-soft space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {/* Search input */}
-          <div className="relative lg:col-span-2">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+      {/* Search & Filter Bar */}
+      <div className="rounded-2xl border border-stone-200/80 bg-white p-3.5 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Search Input */}
+          <div className="relative flex-1 max-w-md">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
             <input
               type="text"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Search by customer name, mobile (+91...), email..."
-              className="w-full rounded-xl border border-stone-200 bg-stone-50/50 py-2 pl-9 pr-3 text-xs focus:border-espresso-500 focus:bg-white focus:outline-none"
+              placeholder="Search by name, phone (+91), email..."
+              className="w-full rounded-xl border border-stone-200 bg-stone-50/50 py-2 pl-9.5 pr-8 text-xs sm:text-sm text-stone-900 placeholder-stone-400 focus:border-amber-500 focus:bg-white focus:outline-none transition"
             />
-          </div>
-
-          {/* Notifications Filter (Phase 8) */}
-          <div>
-            <select
-              value={notificationsFilter}
-              onChange={(e) => { setNotificationsFilter(e.target.value); setPage(1); }}
-              className="w-full rounded-xl border border-stone-200 bg-white py-2 px-3 text-xs text-stone-700 focus:border-espresso-500 focus:outline-none"
-            >
-              <option value="">Notifications: All</option>
-              <option value="enabled">🔔 Enabled</option>
-              <option value="disabled">🔕 Disabled</option>
-            </select>
-          </div>
-
-          {/* Marketing Consent Filter */}
-          <div>
-            <select
-              value={consentFilter}
-              onChange={(e) => { setConsentFilter(e.target.value); setPage(1); }}
-              className="w-full rounded-xl border border-stone-200 bg-white py-2 px-3 text-xs text-stone-700 focus:border-espresso-500 focus:outline-none"
-            >
-              <option value="">Consent: All</option>
-              <option value="true">✓ Marketing Opted-In</option>
-              <option value="false">✕ Marketing Opted-Out</option>
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div>
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-              className="w-full rounded-xl border border-stone-200 bg-white py-2 px-3 text-xs text-stone-700 focus:border-espresso-500 focus:outline-none"
-            >
-              <option value="">Status: All</option>
-              <option value="active">Active</option>
-              <option value="unsubscribed">Unsubscribed</option>
-              <option value="blocked">Blocked</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Secondary filters row */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-stone-100 text-xs text-stone-600">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-stone-500">Filters:</span>
-            {/* Frequency */}
-            <select
-              value={frequencyFilter}
-              onChange={(e) => { setFrequencyFilter(e.target.value); setPage(1); }}
-              className="rounded-lg border border-stone-200 bg-white px-2 py-1 text-xs text-stone-600"
-            >
-              <option value="">Orders: All</option>
-              <option value="1">1 Order (New)</option>
-              <option value="2-4">2 - 4 Orders (Returning)</option>
-              <option value="5+">5+ Orders (Frequent)</option>
-            </select>
-
-            {/* Spending */}
-            <select
-              value={minSpentFilter}
-              onChange={(e) => { setMinSpentFilter(e.target.value); setPage(1); }}
-              className="rounded-lg border border-stone-200 bg-white px-2 py-1 text-xs text-stone-600"
-            >
-              <option value="">Spending: All</option>
-              <option value="1000">&gt; {formatMoney(1000, tenant.currency)}</option>
-              <option value="3000">&gt; {formatMoney(3000, tenant.currency)}</option>
-              <option value="5000">&gt; {formatMoney(5000, tenant.currency)} (VIP)</option>
-            </select>
-
-            {(search || notificationsFilter || consentFilter || statusFilter || frequencyFilter || minSpentFilter) && (
+            {search && (
               <button
-                onClick={() => {
-                  setSearch('');
-                  setNotificationsFilter('');
-                  setConsentFilter('');
-                  setStatusFilter('');
-                  setFrequencyFilter('');
-                  setMinSpentFilter('');
-                  setPage(1);
-                }}
-                className="text-brew-600 hover:text-brew-800 underline ml-1"
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
               >
-                Reset Filters
+                <X size={14} />
               </button>
             )}
           </div>
 
-          {/* Sort By */}
-          <div className="flex items-center gap-2">
-            <span className="text-stone-400">Sort by:</span>
+          {/* Quick Filter Selectors */}
+          <div className="flex items-center gap-2 flex-wrap">
             <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="rounded-lg border border-stone-200 bg-white px-2 py-1 text-xs font-medium text-stone-700"
+              value={consentFilter}
+              onChange={(e) => { setConsentFilter(e.target.value); setPage(1); }}
+              className="rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 focus:border-amber-500 focus:outline-none"
             >
-              <option value="createdAt">Date Added</option>
-              <option value="totalSpent">Total Spending</option>
-              <option value="totalOrders">Total Orders</option>
-              <option value="lastOrderAt">Last Order Date</option>
-              <option value="name">Customer Name</option>
+              <option value="">All Consent States</option>
+              <option value="true">Marketing Opted-In</option>
+              <option value="false">Opted-Out</option>
             </select>
-            <button
-              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-              className="p-1 rounded-lg border border-stone-200 hover:bg-stone-50"
-              title="Toggle sort direction"
+
+            <select
+              value={frequencyFilter}
+              onChange={(e) => { setFrequencyFilter(e.target.value); setPage(1); }}
+              className="rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 focus:border-amber-500 focus:outline-none"
             >
-              <ArrowUpDown size={14} />
-            </button>
+              <option value="">All Frequencies</option>
+              <option value="frequent">VIP (3+ Visits)</option>
+              <option value="repeat">Repeat (2 Visits)</option>
+              <option value="one-time">First Time (1 Visit)</option>
+            </select>
           </div>
         </div>
       </div>
 
-      {/* Customer Table */}
-      <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-soft">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-stone-200 bg-stone-50/80 font-semibold uppercase tracking-[0.08em] text-stone-500">
-              <tr>
-                <th className="px-4 py-3.5">Customer</th>
-                <th className="px-4 py-3.5">Mobile</th>
-                <th className="px-4 py-3.5 text-center">Orders</th>
-                <th className="px-4 py-3.5 text-right">Total Spent</th>
-                <th className="px-4 py-3.5">Last Order</th>
-                <th className="px-4 py-3.5 text-center">Notifications</th>
-                <th className="px-4 py-3.5 text-center">Marketing Consent</th>
-                <th className="px-4 py-3.5 text-center">Status</th>
-                <th className="px-4 py-3.5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {loading ? (
+      {/* Error state with Retry button (Fixes Bug #7) */}
+      {errorMessage ? (
+        <div className="rounded-3xl border border-rose-200 bg-rose-50/60 p-8 text-center space-y-3">
+          <AlertCircle size={32} className="mx-auto text-rose-500" />
+          <h3 className="font-display text-base font-bold text-rose-950">Failed to Load Customers</h3>
+          <p className="text-xs text-rose-700 max-w-md mx-auto">{errorMessage}</p>
+          <button
+            type="button"
+            onClick={fetchCustomers}
+            className="btn-primary rounded-xl px-5 py-2 text-xs font-semibold inline-flex items-center gap-2"
+          >
+            <RefreshCw size={13} /> Retry Loading
+          </button>
+        </div>
+      ) : loading ? (
+        /* Skeletons instead of stuck text */
+        <div className="rounded-3xl border border-stone-200/90 bg-white p-4 space-y-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-14 w-full animate-pulse rounded-2xl bg-stone-100 border border-stone-200/50" />
+          ))}
+        </div>
+      ) : customers.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="No customers found"
+          description={search ? `No guests match "${search}".` : "Guests who order via table QR or settle at counter will automatically populate here."}
+          actionLabel="Sync Historical Orders"
+          onAction={handleSyncOrders}
+        />
+      ) : (
+        /* Table with Avatar Rows, Loyalty Tags, and Consent Badges */
+        <div className="overflow-hidden rounded-3xl border border-stone-200/90 bg-white shadow-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-stone-200 bg-stone-50/70 font-bold uppercase tracking-wider text-stone-400">
                 <tr>
-                  <td colSpan="9" className="py-16 text-center text-stone-400">
-                    <Loader2 size={24} className="animate-spin mx-auto mb-2" />
-                    Loading customers...
-                  </td>
+                  <th className="py-3 px-4">Guest</th>
+                  <th className="py-3 px-4">Contact</th>
+                  <th className="py-3 px-4">Loyalty Tier</th>
+                  <th className="py-3 px-4 text-center">Visits</th>
+                  <th className="py-3 px-4 text-right">Lifetime Spend</th>
+                  <th className="py-3 px-4">Consent</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
-              ) : customers.length === 0 ? (
-                <tr>
-                  <td colSpan="9" className="py-16 text-center text-stone-400">
-                    No customers found matching the search criteria.
-                  </td>
-                </tr>
-              ) : (
-                customers.map((c) => {
-                  const initials = (c.name || 'G').slice(0, 2).toUpperCase();
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {customers.map((customer) => {
+                  const tag = getCustomerTag(customer);
+                  const initialLetter = (customer.name || customer.phone || 'G').charAt(0).toUpperCase();
+
                   return (
-                    <tr key={c._id} className="transition hover:bg-stone-50/60">
-                      {/* Customer Name & Email */}
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-espresso-100 font-semibold text-espresso-800 text-[11px]">
-                            {initials}
+                    <tr
+                      key={customer._id}
+                      onClick={() => openProfile(customer)}
+                      className="cursor-pointer hover:bg-stone-50/60 transition"
+                    >
+                      {/* Name & Avatar */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-espresso-950 font-display text-xs font-bold text-white shadow-2xs">
+                            {initialLetter}
                           </div>
-                          <div>
-                            <div className="font-semibold text-stone-900">{c.name || 'Guest Customer'}</div>
-                            {c.email && <div className="text-[10px] text-stone-400 truncate max-w-[150px]">{c.email}</div>}
+                          <div className="min-w-0">
+                            <span className="font-bold text-stone-900 block truncate">
+                              {customer.name || 'Guest'}
+                            </span>
+                            <span className="text-[10px] text-stone-400">
+                              Joined {new Date(customer.createdAt).toLocaleDateString([], { month: 'short', year: 'numeric' })}
+                            </span>
                           </div>
                         </div>
                       </td>
 
-                      {/* Mobile */}
-                      <td className="px-4 py-3 font-mono font-medium text-stone-700">
-                        {c.phone}
+                      {/* Phone / Email */}
+                      <td className="py-3 px-4 font-mono text-stone-700">
+                        {customer.phone || customer.email || '—'}
                       </td>
 
-                      {/* Orders */}
-                      <td className="px-4 py-3 text-center">
-                        <span className="inline-flex h-6 min-w-[24px] items-center justify-center rounded-full bg-stone-100 px-2 font-bold text-stone-800">
-                          {c.totalOrders || 0}
+                      {/* Loyalty Tag */}
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${tag.bg}`}>
+                          {tag.label}
                         </span>
                       </td>
 
-                      {/* Total Spent */}
-                      <td className="px-4 py-3 text-right font-semibold text-stone-900">
-                        {formatMoney(c.totalSpent, tenant.currency)}
+                      {/* Visits */}
+                      <td className="py-3 px-4 text-center font-bold text-stone-800">
+                        {customer.totalOrders || 1}
                       </td>
 
-                      {/* Last Order */}
-                      <td className="px-4 py-3 text-stone-500">
-                        {c.lastOrderAt ? new Date(c.lastOrderAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-                      </td>
-
-                      {/* Notifications (Phase 8) */}
-                      <td className="px-4 py-3 text-center">
-                        {c.notificationPermission ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
-                            <Bell size={11} /> Enabled {c.activeDevicesCount > 0 ? `(${c.activeDevicesCount})` : ''}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-semibold text-stone-500 border border-stone-200">
-                            Disabled
-                          </span>
-                        )}
+                      {/* Lifetime Spend */}
+                      <td className="py-3 px-4 text-right font-bold text-espresso-950 font-mono tabular-nums">
+                        {formatMoney(customer.totalSpent || 0, currency)}
                       </td>
 
                       {/* Marketing Consent */}
-                      <td className="px-4 py-3 text-center">
-                        {c.marketingConsent ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
-                            <Check size={11} /> Opted-In
+                      <td className="py-3 px-4">
+                        {customer.marketingConsent ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 border border-emerald-200">
+                            <CheckCircle2 size={10} /> Opted-in
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-semibold text-stone-600 border border-stone-200">
-                            <X size={11} /> Opted-Out
+                          <span className="inline-flex items-center rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-stone-500">
+                            Opted-out
                           </span>
                         )}
                       </td>
 
-                      {/* Status */}
-                      <td className="px-4 py-3 text-center">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${
-                            c.status === 'active'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : c.status === 'blocked'
-                              ? 'bg-red-50 text-red-700 border border-red-200'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}
+                      {/* Actions */}
+                      <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => openProfile(customer)}
+                          className="rounded-lg p-1.5 text-stone-400 hover:text-stone-800 hover:bg-stone-100 transition"
+                          title="View Profile Drawer"
                         >
-                          {c.status}
-                        </span>
-                      </td>
-
-                      {/* Row Actions */}
-                      <td className="px-4 py-3 text-right">
-                        <div className="inline-flex items-center gap-1.5">
-                          <a
-                            href={`https://api.whatsapp.com/send?phone=${c.phone ? c.phone.replace(/[^\d]/g, '') : ''}&text=${encodeURIComponent(`Hello ${c.name || 'Friend'} 👋 Greetings from ${tenant.name}!`)}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            title="Open in WhatsApp"
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-900 transition"
-                          >
-                            <MessageSquare size={13} />
-                          </a>
-                          <button
-                            onClick={() => openProfile(c)}
-                            title="View Customer Profile"
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 hover:bg-stone-50 hover:text-espresso-900"
-                          >
-                            <Eye size={13} />
-                          </button>
-                          <button
-                            onClick={() => handleToggleConsent(c)}
-                            title={c.marketingConsent ? 'Revoke Consent (Unsubscribe)' : 'Opt-In to Marketing'}
-                            className={`inline-flex h-7 px-2 items-center justify-center rounded-lg border text-[11px] font-medium transition ${
-                              c.marketingConsent
-                                ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
-                                : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                            }`}
-                          >
-                            {c.marketingConsent ? 'Opt-Out' : 'Opt-In'}
-                          </button>
-                          <button
-                            onClick={() => handleToggleBlock(c)}
-                            title={c.status === 'blocked' ? 'Unblock Customer' : 'Block Customer'}
-                            className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border ${
-                              c.status === 'blocked'
-                                ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
-                                : 'border-stone-200 text-stone-400 hover:text-red-600 hover:border-red-200'
-                            }`}
-                          >
-                            <Ban size={13} />
-                          </button>
-                        </div>
+                          <Eye size={14} />
+                        </button>
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Table Footer with Pagination */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-stone-200 bg-stone-50/50 px-4 py-3 text-xs text-stone-500">
-          <div>
-            Showing <span className="font-semibold text-stone-700">{customers.length}</span> of{' '}
-            <span className="font-semibold text-stone-700">{totalCount}</span> customers
+                })}
+              </tbody>
+            </table>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="inline-flex h-8 items-center gap-1 rounded-lg border border-stone-200 bg-white px-2.5 text-stone-600 hover:bg-stone-50 disabled:opacity-40"
-            >
-              <ChevronLeft size={14} /> Previous
-            </button>
-            <span className="px-2 font-medium">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="inline-flex h-8 items-center gap-1 rounded-lg border border-stone-200 bg-white px-2.5 text-stone-600 hover:bg-stone-50 disabled:opacity-40"
-            >
-              Next <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
-      </div>
 
-      {/* Customer Profile Slide-over Drawer / Modal */}
-      <AnimatePresence>
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-stone-200 bg-stone-50/50 p-3 text-xs text-stone-500">
+              <span>Showing {customers.length} of {totalCount} profiles</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="rounded-lg border border-stone-200 bg-white px-3 py-1 text-xs font-semibold disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <span className="font-bold text-stone-800">Page {page} of {totalPages}</span>
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="rounded-lg border border-stone-200 bg-white px-3 py-1 text-xs font-semibold disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CUSTOMER PROFILE DRAWER */}
+      <Drawer
+        isOpen={Boolean(selectedCustomer)}
+        onClose={() => setSelectedCustomer(null)}
+        title={selectedCustomer?.name || 'Guest Profile'}
+        subtitle={selectedCustomer?.phone || selectedCustomer?.email || 'Walk-in'}
+        width="max-w-md"
+        footer={
+          selectedCustomer && (
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => handleToggleConsent(selectedCustomer)}
+                className="rounded-xl border border-stone-200 px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50 transition"
+              >
+                {selectedCustomer.marketingConsent ? 'Revoke Consent' : 'Opt-in Customer'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleBlock(selectedCustomer)}
+                className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                  selectedCustomer.status === 'blocked'
+                    ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+                    : 'border border-rose-200 bg-rose-50 text-rose-700'
+                }`}
+              >
+                {selectedCustomer.status === 'blocked' ? 'Unblock' : 'Block Guest'}
+              </button>
+            </div>
+          )
+        }
+      >
         {selectedCustomer && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSelectedCustomer(null)}
-              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
-            />
-
-            {/* Slide-over Drawer */}
-            <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-              className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-white shadow-2xl flex flex-col"
-            >
-              {/* Drawer Header */}
-              <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 bg-stone-50/50">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brew-500 font-display text-lg font-bold text-white shadow-sm">
-                    {(selectedCustomer.name || 'G').slice(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <h2 className="font-display text-xl font-bold text-espresso-900">{selectedCustomer.name || 'Guest Customer'}</h2>
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500 mt-1">
-                      <span className="flex items-center gap-1 font-mono font-medium"><Phone size={12} /> {selectedCustomer.phone}</span>
-                      {selectedCustomer.email && <span className="flex items-center gap-1"><Mail size={12} /> {selectedCustomer.email}</span>}
-                      <a
-                        href={`https://api.whatsapp.com/send?phone=${selectedCustomer.phone ? selectedCustomer.phone.replace(/[^\d]/g, '') : ''}&text=${encodeURIComponent(`Hello ${selectedCustomer.name || 'Friend'} 👋 Greetings from ${tenant.name}!`)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg hover:bg-emerald-100 transition"
-                      >
-                        <MessageSquare size={12} /> WhatsApp
-                      </a>
-                    </div>
-                  </div>
+          <div className="space-y-5">
+            {/* Summary cards */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-3.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Lifetime Spend</span>
+                <div className="mt-1 font-mono text-base font-bold text-espresso-950">
+                  {formatMoney(selectedCustomer.totalSpent || 0, currency)}
                 </div>
-                <button
-                  onClick={() => setSelectedCustomer(null)}
-                  className="rounded-full p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
-                >
-                  <X size={20} />
-                </button>
               </div>
+              <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-3.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Total Visits</span>
+                <div className="mt-1 font-mono text-base font-bold text-espresso-950">
+                  {selectedCustomer.totalOrders || 1} Orders
+                </div>
+              </div>
+            </div>
 
-              {/* Drawer Body */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {profileLoading ? (
-                  <div className="flex min-h-[300px] items-center justify-center text-stone-400">
-                    <Loader2 size={28} className="animate-spin" />
-                  </div>
-                ) : (
-                  <>
-                    {/* Customer Information (Phase 9) */}
-                    <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-soft space-y-3">
-                      <div className="flex items-center justify-between border-b border-foam pb-2">
-                        <h3 className="font-display text-sm font-bold text-espresso-900">Customer Information</h3>
-                        <span className="text-[10px] text-stone-400">ID: {selectedCustomer._id}</span>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                        <div>
-                          <span className="text-stone-400 block text-[10px]">Full Name</span>
-                          <span className="font-semibold text-stone-900">{selectedCustomer.name || 'Guest'}</span>
-                        </div>
-                        <div>
-                          <span className="text-stone-400 block text-[10px]">Mobile</span>
-                          <span className="font-mono font-medium text-stone-900">{selectedCustomer.phone}</span>
-                        </div>
-                        <div>
-                          <span className="text-stone-400 block text-[10px]">Email</span>
-                          <span className="text-stone-700 truncate block">{selectedCustomer.email || '—'}</span>
-                        </div>
-                        <div>
-                          <span className="text-stone-400 block text-[10px]">First Order</span>
-                          <span className="text-stone-800">
-                            {selectedCustomer.firstOrderAt ? new Date(selectedCustomer.firstOrderAt).toLocaleDateString('en-IN') : '—'}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-stone-400 block text-[10px]">Last Order</span>
-                          <span className="text-stone-800">
-                            {selectedCustomer.lastOrderAt ? new Date(selectedCustomer.lastOrderAt).toLocaleDateString('en-IN') : '—'}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-stone-400 block text-[10px]">Total Orders</span>
-                          <span className="font-bold text-stone-900">{selectedCustomer.totalOrders || 0}</span>
-                        </div>
-                        <div>
-                          <span className="text-stone-400 block text-[10px]">Loyalty Points</span>
-                          <span className="font-bold text-brew-700">{Number(selectedCustomer.loyaltyPoints || 0).toLocaleString('en-IN')} points</span>
-                        </div>
-                        <div>
-                          <span className="text-stone-400 block text-[10px]">Total Spent</span>
-                          <span className="font-bold text-brew-700">{formatMoney(selectedCustomer.totalSpent, tenant.currency)}</span>
-                        </div>
-                        <div>
-                          <span className="text-stone-400 block text-[10px]">Notification Status</span>
-                          <span className={`font-semibold inline-flex items-center gap-1 ${
-                            selectedCustomer.notificationPermission ? 'text-emerald-700' : 'text-stone-500'
-                          }`}>
-                            <Bell size={11} /> {selectedCustomer.notificationPermission ? 'Enabled' : 'Disabled'}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-stone-400 block text-[10px]">Marketing Consent</span>
-                          <span className={`font-semibold ${
-                            selectedCustomer.marketingConsent ? 'text-emerald-700' : 'text-stone-500'
-                          }`}>
-                            {selectedCustomer.marketingConsent ? 'Opted-In' : 'Opted-Out'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+            {/* Internal Barista Notes */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-stone-700">
+                Staff & Barista Preferences Note
+              </label>
+              <textarea
+                rows={3}
+                value={editingNotes}
+                onChange={(e) => setEditingNotes(e.target.value)}
+                placeholder="e.g. Likes extra hot oat flat white, allergic to walnuts, preferred Table 4..."
+                className="w-full rounded-xl border border-stone-200 p-2.5 text-xs focus:border-amber-500 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleSaveNotes}
+                disabled={savingNotes}
+                className="btn-primary rounded-xl px-3 py-1.5 text-xs font-semibold shadow-xs"
+              >
+                {savingNotes ? 'Saving...' : 'Save Notes'}
+              </button>
+            </div>
 
-                    {/* Registered Devices (Phase 9) */}
-                    <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-soft space-y-3">
-                      <div className="flex items-center justify-between border-b border-foam pb-2">
-                        <div className="flex items-center gap-1.5">
-                          <Monitor size={15} className="text-brew-600" />
-                          <h3 className="font-display text-sm font-bold text-espresso-900">Registered Devices</h3>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-semibold text-stone-500">
-                            {profileData?.devices?.length || 0} device(s)
-                          </span>
-                        </div>
-                      </div>
-
-                      {!profileData?.devices || profileData.devices.length === 0 ? (
-                        <div className="py-4 text-center text-xs text-stone-400 bg-stone-50/50 rounded-xl border border-dashed border-foam">
-                          No registered browser push devices found for this customer.
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {profileData.devices.map((device, i) => {
-                            const isMobile = device.deviceType === 'Mobile';
-                            const DeviceIcon = isMobile ? Smartphone : Monitor;
-                            const active = device.isActive || device.active;
-                            return (
-                              <div
-                                key={device._id || i}
-                                className="flex items-center justify-between rounded-xl border border-foam bg-stone-50/50 p-3 text-xs"
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-foam text-stone-600">
-                                    <DeviceIcon size={16} />
-                                  </div>
-                                  <div>
-                                    <div className="font-semibold text-espresso-900">
-                                      {device.browser || 'Browser'} {device.deviceType || 'Device'}
-                                    </div>
-                                    <div className="text-[10px] text-stone-400">
-                                      Added {new Date(device.createdAt).toLocaleDateString('en-IN')}
-                                    </div>
-                                  </div>
-                                </div>
-                                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                                  active ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
-                                }`}>
-                                  {active ? 'Active' : 'Inactive'}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Spend Metrics */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-2xl bg-espresso-900 text-white p-4">
-                        <span className="text-[11px] text-espresso-200 block">Lifetime Spending</span>
-                        <span className="text-2xl font-bold font-display mt-1 block">
-                          {formatMoney(selectedCustomer.totalSpent, tenant.currency)}
-                        </span>
-                      </div>
-                      <div className="rounded-2xl bg-brew-50 border border-brew-100 p-4 text-brew-900">
-                        <span className="text-[11px] text-brew-600 block font-medium">Order Frequency</span>
-                        <span className="text-2xl font-bold font-display mt-1 block">
-                          {selectedCustomer.totalOrders || 0} Orders
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Order History */}
-                    <div className="space-y-3">
+            {/* Recent Orders List in Profile */}
+            <div className="space-y-2.5 pt-2 border-t border-stone-100">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500">
+                Order History
+              </h4>
+              {profileLoading ? (
+                <div className="py-6 text-center text-xs text-stone-400">
+                  <Loader2 size={18} className="animate-spin mx-auto text-amber-600 mb-1" />
+                  Loading order history...
+                </div>
+              ) : profileData?.orders?.length > 0 ? (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {profileData.orders.map((ord) => (
+                    <div key={ord._id} className="rounded-xl border border-stone-200 p-3 bg-stone-50/40 text-xs space-y-1">
                       <div className="flex items-center justify-between">
-                        <h3 className="font-display text-base font-bold text-espresso-900 flex items-center gap-2">
-                          <ShoppingBag size={16} /> Order History
-                        </h3>
-                        <span className="text-xs text-stone-400">{profileData?.orders?.length || 0} orders found</span>
+                        <span className="font-bold text-stone-900">{ord.orderNumber}</span>
+                        <span className="font-mono font-bold text-stone-900">{formatMoney(ord.total, currency)}</span>
                       </div>
-
-                      <div className="overflow-hidden rounded-2xl border border-stone-200">
-                        <table className="w-full text-left text-xs">
-                          <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold">
-                            <tr>
-                              <th className="px-3 py-2">Order #</th>
-                              <th className="px-3 py-2">Date</th>
-                              <th className="px-3 py-2">Items</th>
-                              <th className="px-3 py-2 text-right">Amount</th>
-                              <th className="px-3 py-2 text-center">Payment</th>
-                              <th className="px-3 py-2 text-center">Status</th>
-                              <th className="px-3 py-2 text-center">Rating</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-stone-100">
-                            {!profileData?.orders || profileData.orders.length === 0 ? (
-                              <tr>
-                                <td colSpan="7" className="py-6 text-center text-stone-400">
-                                  No previous orders recorded for this customer.
-                                </td>
-                              </tr>
-                            ) : (
-                              profileData.orders.map((ord) => (
-                                <tr key={ord._id} className="hover:bg-stone-50/50">
-                                  <td className="px-3 py-2 font-mono font-semibold text-stone-800">{ord.orderNumber}</td>
-                                  <td className="px-3 py-2 text-stone-500">
-                                    {new Date(ord.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
-                                  </td>
-                                  <td className="px-3 py-2 text-stone-600">
-                                    {ord.items?.length || 0} items
-                                  </td>
-                                  <td className="px-3 py-2 text-right font-semibold text-stone-800">
-                                    {formatMoney(ord.total, tenant.currency)}
-                                  </td>
-                                  <td className="px-3 py-2 text-center">
-                                    <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${ord.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-600'}`}>
-                                      {ord.paymentStatus}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-2 text-center">
-                                    <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-stone-100 text-stone-700">
-                                      {ord.orderStatus}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-2 text-center text-amber-600" title={ord.rating?.comment || ''}>{ord.rating?.score ? `${ord.rating.score}/5` : '—'}</td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
+                      <div className="flex items-center justify-between text-[11px] text-stone-400">
+                        <span>Table {ord.tableNumber}</span>
+                        <span>{new Date(ord.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                       </div>
                     </div>
-
-                    {/* Marketing Campaign Deliveries */}
-                    <div className="space-y-3">
-                      <h3 className="font-display text-base font-bold text-espresso-900 flex items-center gap-2">
-                        <Sparkles size={16} /> Campaign History
-                      </h3>
-                      <div className="rounded-2xl border border-stone-200 overflow-hidden">
-                        <table className="w-full text-left text-xs">
-                          <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold">
-                            <tr>
-                              <th className="px-3 py-2">Campaign</th>
-                              <th className="px-3 py-2">Channel</th>
-                              <th className="px-3 py-2">Status</th>
-                              <th className="px-3 py-2 text-right">Date</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-stone-100">
-                            {!profileData?.deliveries || profileData.deliveries.length === 0 ? (
-                              <tr>
-                                <td colSpan="4" className="py-6 text-center text-stone-400">
-                                  No promotional campaigns sent to this customer yet.
-                                </td>
-                              </tr>
-                            ) : (
-                              profileData.deliveries.map((del) => (
-                                <tr key={del._id}>
-                                  <td className="px-3 py-2 font-medium text-stone-800">{del.campaignId?.name || 'Campaign'}</td>
-                                  <td className="px-3 py-2 uppercase text-[10px] text-stone-500">{del.channel}</td>
-                                  <td className="px-3 py-2">
-                                    <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${del.status === 'delivered' ? 'bg-emerald-50 text-emerald-700' : del.status === 'failed' ? 'bg-red-50 text-red-700' : 'bg-stone-100 text-stone-600'}`}>
-                                      {del.status}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-2 text-right text-stone-400">
-                                    {new Date(del.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
-                                  </td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    {/* Admin Notes & Tags */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-stone-700 block">Customer Notes</label>
-                      <textarea
-                        value={editingNotes}
-                        onChange={(e) => setEditingNotes(e.target.value)}
-                        placeholder="Add private staff notes about preferred orders, seating preferences, allergies..."
-                        className="w-full rounded-xl border border-stone-200 p-3 text-xs focus:border-espresso-500 focus:outline-none"
-                        rows="3"
-                      />
-                      <div className="flex justify-end">
-                        <button
-                          onClick={handleSaveNotes}
-                          disabled={savingNotes}
-                          className="btn-primary text-xs py-1.5 px-3"
-                        >
-                          {savingNotes ? 'Saving...' : 'Save Notes'}
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Drawer Footer Actions */}
-              <div className="border-t border-stone-200 p-4 bg-stone-50 flex items-center justify-between">
-                <button
-                  onClick={() => handleToggleBlock(selectedCustomer)}
-                  className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
-                    selectedCustomer.status === 'blocked'
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                      : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
-                  }`}
-                >
-                  <Ban size={14} /> {selectedCustomer.status === 'blocked' ? 'Unblock Customer' : 'Block Customer'}
-                </button>
-
-                <button
-                  onClick={() => handleToggleConsent(selectedCustomer)}
-                  className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
-                    selectedCustomer.marketingConsent
-                      ? 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'
-                      : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                  }`}
-                >
-                  {selectedCustomer.marketingConsent ? 'Unsubscribe from Marketing' : 'Opt-In to Marketing'}
-                </button>
-              </div>
-            </motion.div>
-          </>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-stone-400 italic">No past detailed orders recorded.</p>
+              )}
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      </Drawer>
     </div>
   );
 }

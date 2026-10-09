@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import api from '../services/api';
+import api, { getOnce } from '../services/api';
 import { setAccessToken } from '../services/accessToken';
 
 const AuthContext = createContext(null);
@@ -15,13 +15,24 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    api.get('/auth/me')
-      .then((res) => setUser(res.data.user))
-      .catch(() => {
-        setUser(null);
-        setAccessToken(null);
+    let active = true;
+    getOnce('/auth/me')
+      .then((res) => {
+        if (active) setUser(res.data.user);
       })
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (active) {
+          setUser(null);
+          setAccessToken(null);
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const login = async (email, password, twoFactorCode) => {

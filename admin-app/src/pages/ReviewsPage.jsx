@@ -1,19 +1,22 @@
 import { useState, useEffect } from 'react';
 import {
   Star, MessageSquare, Reply, ThumbsUp, Filter, Loader2,
-  CheckCircle2, EyeOff, Flag, Clock, Search, X
+  CheckCircle2, EyeOff, Flag, Clock, Search, X, MessageCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import PageHeader from '../components/common/PageHeader';
+import EmptyState from '../components/common/EmptyState';
+import Drawer from '../components/common/Drawer';
 
 export default function ReviewsPage() {
   const [reviews, setReviews] = useState([]);
-  const [stats, setStats] = useState({ overall: 5, food: 5, service: 5, ambience: 5, totalReviews: 0 });
+  const [stats, setStats] = useState({ overall: 0, food: 0, service: 0, ambience: 0, totalReviews: 0 });
   const [loading, setLoading] = useState(true);
   const [selectedRating, setSelectedRating] = useState('ALL');
 
-  // Replying state
-  const [replyingToId, setReplyingToId] = useState(null);
+  // Replying state in Drawer
+  const [replyingReview, setReplyingReview] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [submittingReply, setSubmittingReply] = useState(false);
 
@@ -36,17 +39,17 @@ export default function ReviewsPage() {
     fetchReviews();
   }, [selectedRating]);
 
-  const handleSendReply = async (reviewId) => {
-    if (!replyText.trim()) {
+  const handleSendReply = async () => {
+    if (!replyingReview || !replyText.trim()) {
       toast.error('Reply text cannot be empty');
       return;
     }
 
     setSubmittingReply(true);
     try {
-      await api.post(`/reviews/${reviewId}/reply`, { text: replyText.trim() });
+      await api.post(`/reviews/${replyingReview._id}/reply`, { text: replyText.trim() });
       toast.success('Reply submitted to customer');
-      setReplyingToId(null);
+      setReplyingReview(null);
       setReplyText('');
       fetchReviews();
     } catch (error) {
@@ -69,7 +72,7 @@ export default function ReviewsPage() {
   const renderStars = (rating) => {
     return (
       <div className="flex items-center gap-0.5">
-        {[1, 2, 3, 4, 5].map(star => (
+        {[1, 2, 3, 4, 5].map((star) => (
           <Star
             key={star}
             size={13}
@@ -80,208 +83,286 @@ export default function ReviewsPage() {
     );
   };
 
+  const hasReviews = stats.totalReviews > 0;
+
   return (
-    <div className="space-y-6">
-      {/* 3-Factor Overall Rating KPI Banner */}
-      <div className="bg-white p-6 rounded-3xl border border-stone-200/80 shadow-sm grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
-        {/* Big Overall Star Badge */}
-        <div className="flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-stone-100 pb-4 md:pb-0 md:pr-4">
-          <div className="font-display font-extrabold text-5xl text-espresso-950">
-            {stats.overall}
-          </div>
-          <div className="flex items-center gap-1 mt-1 text-amber-400">
-            {[1, 2, 3, 4, 5].map(star => (
-              <Star key={star} size={18} className="fill-amber-400" />
-            ))}
-          </div>
-          <div className="text-xs text-stone-400 font-medium mt-1">
-            Based on {stats.totalReviews} verified reviews
-          </div>
-        </div>
+    <div className="space-y-6 pb-12">
+      {/* Page Header */}
+      <PageHeader
+        title="Guest Reviews & Ratings"
+        subtitle="Feedback submitted by guests after settling their QR dining bills."
+        breadcrumbs={[
+          { label: 'Growth', to: '/customers' },
+          { label: 'Reviews' }
+        ]}
+      />
 
-        {/* 3-Factor Sub-scores */}
-        <div className="md:col-span-3 grid grid-cols-3 gap-4">
-          <div className="bg-stone-50/80 border border-stone-200/60 rounded-2xl p-4 text-center">
-            <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Food & Taste</span>
-            <div className="font-display font-bold text-2xl text-espresso-900 mt-1">
-              {stats.food} <span className="text-xs text-stone-400 font-normal">/ 5.0</span>
-            </div>
-            <div className="mt-1 flex justify-center">{renderStars(stats.food)}</div>
+      {/* Rating Distribution & Overall Score KPI Banner (Fixes Bug #5) */}
+      <div className="rounded-3xl border border-stone-200/90 bg-white p-6 shadow-xs">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
+          {/* Big Overall Star Badge */}
+          <div className="flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-stone-100 pb-5 md:pb-0 md:pr-6 text-center">
+            {hasReviews ? (
+              <>
+                <div className="font-display font-extrabold text-5xl text-espresso-950">
+                  {Number(stats.overall).toFixed(1)}
+                </div>
+                <div className="flex items-center gap-1 mt-1.5 text-amber-400">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      size={18}
+                      className={star <= Math.round(stats.overall) ? 'fill-amber-400' : 'text-stone-200'}
+                    />
+                  ))}
+                </div>
+                <p className="text-xs text-stone-500 font-medium mt-1">
+                  Based on {stats.totalReviews} verified guest reviews
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="font-display font-bold text-2xl text-stone-400">
+                  No ratings yet
+                </div>
+                <div className="flex items-center gap-1 mt-1.5 text-stone-300">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star key={star} size={18} />
+                  ))}
+                </div>
+                <p className="text-xs text-stone-400 mt-1">
+                  Awaiting first guest review
+                </p>
+              </>
+            )}
           </div>
 
-          <div className="bg-stone-50/80 border border-stone-200/60 rounded-2xl p-4 text-center">
-            <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Service Speed</span>
-            <div className="font-display font-bold text-2xl text-espresso-900 mt-1">
-              {stats.service} <span className="text-xs text-stone-400 font-normal">/ 5.0</span>
-            </div>
-            <div className="mt-1 flex justify-center">{renderStars(stats.service)}</div>
-          </div>
+          {/* Sub-factor Breakdown Progress Bars */}
+          <div className="md:col-span-3 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">
+              Category Satisfaction Breakdown
+            </h4>
 
-          <div className="bg-stone-50/80 border border-stone-200/60 rounded-2xl p-4 text-center">
-            <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Ambience & Cleanliness</span>
-            <div className="font-display font-bold text-2xl text-espresso-900 mt-1">
-              {stats.ambience} <span className="text-xs text-stone-400 font-normal">/ 5.0</span>
+            {/* Food & Beverage */}
+            <div className="flex items-center gap-4 text-xs">
+              <span className="w-28 font-semibold text-stone-700">Food Quality</span>
+              <div className="h-2 flex-1 rounded-full bg-stone-100 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-amber-600 transition-all duration-300"
+                  style={{ width: hasReviews ? `${(stats.food / 5) * 100}%` : '0%' }}
+                />
+              </div>
+              <span className="w-12 text-right font-bold text-stone-800">
+                {hasReviews ? `${stats.food}/5` : '—'}
+              </span>
             </div>
-            <div className="mt-1 flex justify-center">{renderStars(stats.ambience)}</div>
+
+            {/* Service & Hospitality */}
+            <div className="flex items-center gap-4 text-xs">
+              <span className="w-28 font-semibold text-stone-700">Service Speed</span>
+              <div className="h-2 flex-1 rounded-full bg-stone-100 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-amber-600 transition-all duration-300"
+                  style={{ width: hasReviews ? `${(stats.service / 5) * 100}%` : '0%' }}
+                />
+              </div>
+              <span className="w-12 text-right font-bold text-stone-800">
+                {hasReviews ? `${stats.service}/5` : '—'}
+              </span>
+            </div>
+
+            {/* Ambience & Music */}
+            <div className="flex items-center gap-4 text-xs">
+              <span className="w-28 font-semibold text-stone-700">Café Ambience</span>
+              <div className="h-2 flex-1 rounded-full bg-stone-100 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-amber-600 transition-all duration-300"
+                  style={{ width: hasReviews ? `${(stats.ambience / 5) * 100}%` : '0%' }}
+                />
+              </div>
+              <span className="w-12 text-right font-bold text-stone-800">
+                {hasReviews ? `${stats.ambience}/5` : '—'}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-stone-200/80 shadow-sm flex items-center justify-between gap-3">
+      {/* Filter Chips Bar */}
+      <div className="rounded-2xl border border-stone-200/80 bg-white p-3.5 shadow-xs flex items-center justify-between">
         <div className="flex items-center gap-1.5 overflow-x-auto">
-          <span className="text-xs font-bold text-stone-500 uppercase tracking-wider mr-1">Filter Stars:</span>
-          {['ALL', '5', '4', '3', '2', '1'].map(r => (
+          <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider mr-1">Filter Stars:</span>
+          {['ALL', '5', '4', '3', '2', '1'].map((star) => (
             <button
-              key={r}
-              onClick={() => setSelectedRating(r)}
-              className={`px-3 py-1 rounded-xl text-xs font-semibold transition whitespace-nowrap ${
-                selectedRating === r
-                  ? 'bg-espresso-900 text-white shadow-sm'
-                  : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200/60'
+              key={star}
+              type="button"
+              onClick={() => setSelectedRating(star)}
+              className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                selectedRating === star
+                  ? 'bg-espresso-950 text-white shadow-xs'
+                  : 'bg-stone-100 text-stone-600 hover:bg-stone-200/70'
               }`}
             >
-              {r === 'ALL' ? 'All Reviews' : `${r}★ & above`}
+              {star === 'ALL' ? 'All Reviews' : `${star} ★`}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Reviews List Cards */}
+      {/* Reviews List */}
       {loading ? (
-        <div className="flex min-h-[250px] items-center justify-center text-stone-400">
-          <Loader2 className="animate-spin text-brew-500" size={30} />
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-28 animate-pulse rounded-2xl bg-stone-100 border border-stone-200/60" />
+          ))}
         </div>
       ) : reviews.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-stone-300 bg-white py-20 text-center text-stone-500">
-          <MessageSquare size={44} className="mx-auto text-stone-300 mb-3" />
-          <p className="text-base font-semibold text-stone-700">No reviews found matching this filter</p>
-          <p className="text-xs text-stone-400 mt-1">Customer feedback submitted from the QR bill will appear here</p>
-        </div>
+        <EmptyState
+          icon={MessageSquare}
+          title="No guest reviews found"
+          description="When guests complete a table session, their ratings and suggestions will appear here."
+        />
       ) : (
-        <div className="space-y-4">
-          {reviews.map(rev => (
+        <div className="space-y-3">
+          {reviews.map((review) => (
             <div
-              key={rev._id}
-              className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-soft space-y-3.5 hover:shadow-md transition"
+              key={review._id}
+              className="rounded-2xl border border-stone-200/90 bg-white p-4.5 shadow-xs space-y-3"
             >
-              {/* Header: Customer, Order, Overall Star */}
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-display font-bold text-stone-900 text-sm">
-                      {rev.customerName || 'Café Guest'}
-                    </span>
-                    {rev.orderNumber && (
-                      <span className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-stone-100 text-stone-700 border border-stone-200">
-                        {rev.orderNumber}
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-espresso-950 font-display text-sm font-bold text-white">
+                    {review.customerName ? review.customerName.charAt(0).toUpperCase() : 'G'}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-stone-900">
+                        {review.customerName || 'Anonymous Guest'}
                       </span>
-                    )}
-                  </div>
-                  <div className="text-[11px] text-stone-400 mt-0.5">
-                    {new Date(rev.createdAt).toLocaleDateString()} at {new Date(rev.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {review.tableNumber && (
+                        <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-bold text-stone-600">
+                          Table {review.tableNumber}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-stone-400 mt-0.5">
+                      {renderStars(review.rating || 5)}
+                      <span>•</span>
+                      <span className="flex items-center gap-1">
+                        <Clock size={11} />
+                        {new Date(review.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-xl">
-                    <Star size={13} className="text-amber-500 fill-amber-500" />
-                    <span className="text-xs font-bold text-amber-900">{rev.overallRating || 5}</span>
-                  </div>
-                  {rev.status !== 'published' && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-500 uppercase">
-                      {rev.status}
-                    </span>
-                  )}
+                {/* Moderation status */}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReplyingReview(review);
+                      setReplyText(review.ownerReply?.text || '');
+                    }}
+                    className="inline-flex items-center gap-1 rounded-xl border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-100 transition"
+                  >
+                    <Reply size={13} />
+                    <span>{review.ownerReply ? 'Edit Reply' : 'Reply'}</span>
+                  </button>
                 </div>
               </div>
 
-              {/* 3-Factor Mini Pill Breakdown */}
-              <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-600">
-                <span className="px-2 py-0.5 bg-stone-50 rounded-lg border border-stone-200/80">
-                  Food: <strong>{rev.foodRating}★</strong>
-                </span>
-                <span className="px-2 py-0.5 bg-stone-50 rounded-lg border border-stone-200/80">
-                  Service: <strong>{rev.serviceRating}★</strong>
-                </span>
-                <span className="px-2 py-0.5 bg-stone-50 rounded-lg border border-stone-200/80">
-                  Ambience: <strong>{rev.ambienceRating}★</strong>
-                </span>
-              </div>
-
-              {/* Comment */}
-              {rev.comment && (
-                <p className="text-xs text-stone-800 leading-relaxed font-normal bg-stone-50/50 p-3 rounded-xl border border-stone-100">
-                  "{rev.comment}"
+              {/* Review Text */}
+              {review.comment && (
+                <p className="text-xs sm:text-sm text-stone-700 leading-relaxed bg-stone-50/50 p-3 rounded-xl border border-stone-100">
+                  "{review.comment}"
                 </p>
               )}
 
-              {/* Management Reply Display */}
-              {rev.reply?.text && (
-                <div className="bg-brew-50/40 border border-brew-200/60 rounded-xl p-3 text-xs space-y-1">
-                  <div className="flex items-center justify-between text-[11px] text-brew-800 font-bold">
-                    <span>Café Management Response:</span>
-                    <span className="text-stone-400 font-normal">
-                      {new Date(rev.reply.repliedAt).toLocaleDateString()}
-                    </span>
+              {/* Owner Reply bubble if already answered */}
+              {review.ownerReply?.text && (
+                <div className="ml-4 rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-1">
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-900">
+                    <MessageCircle size={13} />
+                    <span>Response from Brewhaus Team:</span>
                   </div>
-                  <p className="text-stone-700 italic">"{rev.reply.text}"</p>
-                </div>
-              )}
-
-              {/* Reply Form */}
-              {replyingToId === rev._id ? (
-                <div className="pt-2 space-y-2">
-                  <textarea
-                    rows={2}
-                    placeholder="Type polite, appreciative management response..."
-                    value={replyText}
-                    onChange={e => setReplyText(e.target.value)}
-                    className="w-full rounded-xl border border-stone-200 p-2.5 text-xs text-stone-800 focus:outline-none focus:border-brew-500"
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => setReplyingToId(null)}
-                      className="btn-secondary rounded-xl px-3 py-1 text-xs font-semibold"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => handleSendReply(rev._id)}
-                      disabled={submittingReply}
-                      className="btn-primary rounded-xl px-3.5 py-1 text-xs font-semibold flex items-center gap-1"
-                    >
-                      {submittingReply && <Loader2 size={12} className="animate-spin" />}
-                      <span>Publish Reply</span>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="pt-1 flex items-center justify-between text-xs border-t border-stone-100">
-                  <button
-                    onClick={() => {
-                      setReplyingToId(rev._id);
-                      setReplyText(rev.reply?.text || '');
-                    }}
-                    className="text-brew-700 hover:text-brew-900 font-semibold flex items-center gap-1 text-[11px]"
-                  >
-                    <Reply size={12} /> {rev.reply?.text ? 'Edit Management Reply' : 'Reply to Guest'}
-                  </button>
-
-                  <div className="flex items-center gap-2 text-stone-400 text-[11px]">
-                    <button
-                      onClick={() => handleModerateStatus(rev._id, rev.status === 'hidden' ? 'published' : 'hidden')}
-                      className="hover:text-stone-700"
-                    >
-                      {rev.status === 'hidden' ? 'Publish' : 'Hide'}
-                    </button>
-                  </div>
+                  <p className="text-xs text-amber-800">
+                    {review.ownerReply.text}
+                  </p>
                 </div>
               )}
             </div>
           ))}
         </div>
       )}
+
+      {/* REPLY DRAWER */}
+      <Drawer
+        isOpen={Boolean(replyingReview)}
+        onClose={() => setReplyingReview(null)}
+        title={replyingReview ? `Reply to ${replyingReview.customerName || 'Guest'}` : ''}
+        subtitle={replyingReview ? `Rated ${replyingReview.rating} ★ on Table ${replyingReview.tableNumber || '-'}` : ''}
+        footer={
+          <div className="flex items-center justify-end gap-2.5">
+            <button
+              type="button"
+              onClick={() => setReplyingReview(null)}
+              className="rounded-xl border border-stone-200 px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSendReply}
+              disabled={submittingReply || !replyText.trim()}
+              className="btn-primary rounded-xl px-5 py-2 text-xs font-semibold shadow-xs"
+            >
+              {submittingReply ? 'Sending...' : 'Publish Reply'}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {replyingReview?.comment && (
+            <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5 text-xs text-stone-700 italic">
+              "{replyingReview.comment}"
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-semibold text-stone-700 mb-1">
+              Your Response *
+            </label>
+            <textarea
+              rows={4}
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder="Thank you so much for dining with us! We are thrilled you enjoyed the pour-over coffee..."
+              className="w-full rounded-xl border border-stone-200 p-3 text-xs focus:border-amber-500 focus:outline-none leading-relaxed"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">Quick templates:</span>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                'Thank you for visiting! We look forward to welcoming you back.',
+                'We appreciate your feedback and will share this with our kitchen team!',
+                'Apologies for the delay during peak rush. We hope to serve you better next time.'
+              ].map((template, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setReplyText(template)}
+                  className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] text-stone-600 hover:bg-stone-100 text-left"
+                >
+                  {template}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Drawer>
     </div>
   );
 }

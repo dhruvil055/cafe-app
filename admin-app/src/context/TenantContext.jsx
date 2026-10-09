@@ -1,32 +1,50 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import api from '../services/api';
+import api, { getOnce } from '../services/api';
 
 const Context = createContext(null);
 const fallback = { name: 'Café', logoUrl: '', primaryColor: '#c96b18', accentColor: '#1a0f08' };
+
+export const applyTenantThemeVariables = (primaryColor = '#c96b18', accentColor = '#1a0f08') => {
+  const root = document.documentElement;
+  root.style.setProperty('--tenant-primary', primaryColor);
+  root.style.setProperty('--tenant-accent', accentColor);
+  root.style.setProperty('--tenant-primary-subtle', `${primaryColor}1f`);
+  root.style.setProperty('--tenant-primary-border', `${primaryColor}4d`);
+  root.style.setProperty('--tenant-primary-hover', primaryColor);
+};
 
 export function TenantProvider({ children }) {
   const [tenant, setTenant] = useState(fallback);
   const [tenantError, setTenantError] = useState(null);
 
+  const setBranding = (newBranding) => {
+    setTenant(prev => {
+      const merged = { ...prev, ...newBranding };
+      applyTenantThemeVariables(merged.primaryColor, merged.accentColor);
+      return merged;
+    });
+  };
+
   useEffect(() => {
     let active = true;
-    api.get('/tenant/public').then(({ data }) => {
+    // Cache tenant public branding for at least 5 minutes to prevent duplicate bootstrap requests
+    getOnce('/tenant/public', 5 * 60 * 1000).then(({ data }) => {
       if (!active) return;
-      setTenant(data.tenant);
+      const t = data.tenant || fallback;
+      setTenant(t);
       setTenantError(null);
-      document.title = `${data.tenant.name} · Admin`;
-      document.documentElement.style.setProperty('--tenant-primary', data.tenant.primaryColor || '#c96b18');
-      document.documentElement.style.setProperty('--tenant-accent', data.tenant.accentColor || '#1a0f08');
+      document.title = `${t.name} · Admin`;
+      applyTenantThemeVariables(t.primaryColor || '#c96b18', t.accentColor || '#1a0f08');
     }).catch((error) => {
       if (!active) return;
-      const status = error.response?.status;
-      const message = error.response?.data?.error || 'Café not found.';
+      const status = error.response?.status || error.status;
+      const message = error.response?.data?.error || error.message || 'Café not found.';
       if (status === 423) {
         setTenantError({ status: 423, title: 'Café Account Suspended', message });
       } else if (status === 404) {
-        // When on localhost or generic admin domain, fallback cleanly without blocking the login screen
         setTenant(fallback);
         setTenantError(null);
+        applyTenantThemeVariables(fallback.primaryColor, fallback.accentColor);
       }
     });
     return () => { active = false; };
@@ -51,7 +69,13 @@ export function TenantProvider({ children }) {
     );
   }
 
-  return <Context.Provider value={tenant}>{children}</Context.Provider>;
+  const value = {
+    ...tenant,
+    currency: tenant?.currency || tenant?.settings?.currency || '₹',
+    setBranding,
+  };
+
+  return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
-export const useTenant = () => useContext(Context) || fallback;
+export const useTenant = () => useContext(Context) || { ...fallback, currency: '₹' };

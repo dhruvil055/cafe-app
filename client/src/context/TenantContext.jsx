@@ -69,10 +69,16 @@ export function TenantProvider({ children }) {
           name: cafeData.name,
           slug: cafeData.slug,
           logo: cafeData.logo || cafeData.settings?.logoUrl || '',
+          logoUrl: cafeData.logoUrl || cafeData.logo || cafeData.settings?.logoUrl || '',
+          tagline: cafeData.description || cafeData.settings?.tagline || '',
           primaryColor: cafeData.branding?.primaryColor || cafeData.settings?.primaryColor || '#c96b18',
           accentColor: cafeData.branding?.secondaryColor || cafeData.settings?.accentColor || '#1a0f08',
           currency: cafeData.settings?.currency || 'INR',
           taxRate: cafeData.settings?.taxRate ?? 5,
+          address: cafeData.settings?.address || '',
+          contactPhone: cafeData.settings?.contactPhone || '',
+          contactEmail: cafeData.settings?.contactEmail || '',
+          openingHours: cafeData.settings?.openingHours || {},
         };
 
         setTenant(normalizedTenant);

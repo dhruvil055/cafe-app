@@ -119,9 +119,20 @@ const MenuCard = forwardRef(function MenuCard({ product, onSelect, priority = fa
 
       {/* Info */}
       <div className="p-2.5">
-        <p className="font-medium text-espresso-900 text-sm leading-tight line-clamp-1">
-          {product.name}
-        </p>
+        <div className="flex items-center gap-1.5">
+          {product.isVeg !== false && (
+            <span
+              className="inline-flex items-center justify-center w-3 h-3 rounded-[3px] border border-emerald-600 p-[1.5px] flex-shrink-0"
+              title="100% Vegetarian"
+              aria-label="Vegetarian"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+            </span>
+          )}
+          <p className="font-medium text-espresso-900 text-sm leading-tight line-clamp-1">
+            {product.name}
+          </p>
+        </div>
         {product.description && (
           <p className="text-espresso-400 text-xs mt-0.5 line-clamp-1">{product.description}</p>
         )}
