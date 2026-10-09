@@ -8,7 +8,7 @@ import mongoose from 'mongoose';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { connectDB } from './config/db.js';
-import { createRateLimitStore } from './config/redis.js';
+import { createRateLimitStore, getRedisClient, closeRedis } from './config/redis.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -302,6 +302,24 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
   app.use(tenantResolver);
   app.use('/uploads', express.static('uploads', { maxAge: '1d', immutable: true, setHeaders: (res) => res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800, immutable') }));
 
+  // Set no-store Cache-Control on private, authenticated, and administrative responses
+  const noStorePrivateCache = (req, res, next) => {
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    });
+    next();
+  };
+  app.use([
+    '/api/auth',
+    '/api/tenant/settings',
+    '/api/admin',
+    '/api/platform/auth',
+    '/api/platform/admin',
+    '/api/users',
+  ], noStorePrivateCache);
+
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/menu', menuRoutes);
@@ -371,6 +389,34 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
       status: ready ? 'ok' : 'not_ready',
       database: ready ? 'connected' : 'disconnected',
       version: '1.0.0',
+    });
+  });
+
+  // Readiness probe for orchestrators & Render: verifies both MongoDB and Redis connectivity
+  app.get(['/readyz', '/api/readyz'], async (req, res) => {
+    const mongoReady = mongoose.connection.readyState === 1;
+    let redisReady = true;
+    let redisStatus = 'disabled';
+    const redis = getRedisClient();
+    if (redis) {
+      try {
+        const pingPromise = redis.ping();
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000));
+        const pong = await Promise.race([pingPromise, timeoutPromise]);
+        redisReady = pong === 'PONG';
+        redisStatus = redisReady ? 'connected' : 'error';
+      } catch {
+        redisReady = false;
+        redisStatus = 'disconnected';
+      }
+    }
+    const isReady = mongoReady && redisReady;
+    return res.status(isReady ? 200 : 503).json({
+      status: isReady ? 'ok' : 'unavailable',
+      database: mongoReady ? 'connected' : 'disconnected',
+      redis: redisStatus,
+      version: '1.0.0',
+      timestamp: new Date().toISOString(),
     });
   });
 
@@ -473,14 +519,54 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
 
 export const app = createApp();
 
+export const setupGracefulShutdown = (server) => {
+  let isShuttingDown = false;
+  const shutdown = async (signal) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`[Shutdown] Received ${signal}. Draining active connections...`);
+
+    // Force terminate if graceful shutdown hangs longer than 20 seconds
+    const forceTimeout = setTimeout(() => {
+      console.error('[Shutdown] Forced termination after timeout limit.');
+      process.exit(1);
+    }, 20000);
+    forceTimeout.unref();
+
+    try {
+      await new Promise((resolve) => server.close(resolve));
+      console.log('[Shutdown] HTTP server closed to new connections.');
+
+      if (mongoose.connection.readyState !== 0) {
+        await mongoose.connection.close(false);
+        console.log('[Shutdown] MongoDB connection closed.');
+      }
+
+      await closeRedis();
+      console.log('[Shutdown] Redis connection closed.');
+
+      clearTimeout(forceTimeout);
+      process.exit(0);
+    } catch (err) {
+      console.error('[Shutdown] Error during graceful shutdown:', err.message);
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+};
+
 export const startServer = async () => {
   const port = process.env.PORT || 5000;
   await connectDB();
   startCampaignScheduler();
-  return app.listen(port, () => {
+  const server = app.listen(port, () => {
     console.log(`Server running on port ${port}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   });
+  setupGracefulShutdown(server);
+  return server;
 };
 
 const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);

@@ -66,6 +66,8 @@ export const tenantResolver = async (req, res, next) => {
     req.path === '/api/health' ||
     req.path === '/ready' ||
     req.path === '/api/ready' ||
+    req.path === '/readyz' ||
+    req.path === '/api/readyz' ||
     req.path === '/api/debug/ip' ||
     req.path === '/api/tenant/public' ||
     req.path.startsWith('/api/platform') ||
