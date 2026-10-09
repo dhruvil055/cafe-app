@@ -34,6 +34,7 @@ import SuperAdminLoginPage from './pages/super-admin/SuperAdminLoginPage';
 import SuperAdminDashboard from './pages/super-admin/SuperAdminDashboard';
 import UserPanelPage from './pages/UserPanelPage';
 import { canManageMenu, canManageTeam, canViewOrders, effectiveRole } from './utils/roles';
+import { LightModeProvider } from './context/LightModeContext';
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { isAuthenticated, loading, user } = useAuth();
@@ -52,15 +53,10 @@ function ProtectedRoute({ children, allowedRoles }) {
   return children;
 }
 
-export default function App() {
+// Café Admin Routes - wrapped with LightModeProvider
+function CafeAdminRoutes() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/signup" element={<SignupPage />} />
-      <Route path="/setup-wizard" element={<ProtectedRoute allowedRoles={['owner']}><SetupWizardPage /></ProtectedRoute>} />
-      <Route path="/super-admin/login" element={<SuperAdminLoginPage />} />
-      <Route path="/super-admin" element={<SuperAdminDashboard />} />
-
+    <LightModeProvider>
       <Route path="/" element={<ProtectedRoute><Navigate to="/dashboard" replace /></ProtectedRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Dashboard"><DashboardPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/pos" element={<ProtectedRoute allowedRoles={['owner', 'manager', 'cashier']}><AdminLayout title="POS Terminal"><POSPage /></AdminLayout></ProtectedRoute>} />
@@ -91,6 +87,23 @@ export default function App() {
       <Route path="/inventory/mappings" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Recipe / BOM Management"><RecipeMappingPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/inventory/transactions" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Inventory Transactions"><InventoryTransactionsPage /></AdminLayout></ProtectedRoute>} />
       <Route path="/inventory/reports" element={<ProtectedRoute allowedRoles={['owner', 'manager']}><AdminLayout title="Inventory Reports"><InventoryReportsPage /></AdminLayout></ProtectedRoute>} />
+    </LightModeProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
+      <Route path="/setup-wizard" element={<ProtectedRoute allowedRoles={['owner']}><SetupWizardPage /></ProtectedRoute>} />
+      
+      {/* Super Admin Routes - use ThemeProvider from main.jsx */}
+      <Route path="/super-admin/login" element={<SuperAdminLoginPage />} />
+      <Route path="/super-admin" element={<SuperAdminDashboard />} />
+      
+      {/* Café Admin Routes - wrapped with LightModeProvider */}
+      <CafeAdminRoutes />
 
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

@@ -17,6 +17,7 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
+      {/* ThemeProvider for Super Admin routes */}
       <ThemeProvider>
         <AuthProvider>
           <TenantProvider><App /></TenantProvider>

@@ -7,7 +7,7 @@ import {
   TrendingDown, BarChart2, Settings, CreditCard, LogOut, ChevronLeft,
   ChevronRight, Menu, RefreshCw, Store, Sparkles, Smartphone, Wifi,
   WifiOff, Search, Clock, Shield, AlertTriangle, CheckCircle2, ChevronDown,
-  Layers, ExternalLink, Sun, Moon
+  Layers, ExternalLink
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -17,7 +17,6 @@ import { canAccessPos, canManageMenu, canManageTeam, canViewOrders } from '../ut
 import api from '../services/api';
 import AiAssistantModal from '../components/AiAssistantModal';
 import CommandPaletteModal from '../components/common/CommandPaletteModal';
-import { useTheme } from '../context/ThemeContext';
 
 // 5 Grouped Navigation Modules
 const NAV_GROUPS = [
@@ -73,7 +72,6 @@ export default function AdminLayout({ children, title }) {
   const tenant = useTenant();
   const navigate = useNavigate();
   const location = useLocation();
-  const { isDark, toggleTheme, mounted } = useTheme();
 
   // Layout states
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -193,21 +191,6 @@ export default function AdminLayout({ children, title }) {
   const isTrialActive = billingSummary?.subscription?.status === 'trial';
   const trialDaysRemaining = billingSummary?.subscription?.trialDaysRemaining;
 
-  // Don't render until theme is mounted to prevent flash
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-[var(--bg-canvas)] flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
-      </div>
-    );
-  }
-
-  const sidebarBg = isDark ? 'var(--sidebar-bg)' : 'var(--sidebar-bg)';
-  const sidebarBorder = isDark ? 'var(--sidebar-border)' : 'var(--sidebar-border)';
-  const sidebarText = isDark ? 'var(--sidebar-text)' : 'var(--sidebar-text)';
-  const sidebarTextMuted = isDark ? 'var(--sidebar-text-muted)' : 'var(--sidebar-text-muted)';
-  const sidebarHoverBg = isDark ? 'var(--sidebar-hover-bg)' : 'var(--sidebar-hover-bg)';
-
   return (
     <div className="flex h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] overflow-hidden font-body select-none">
       {/* ── Left Sidebar ────────────────────────────────────────── */}
@@ -216,9 +199,9 @@ export default function AdminLayout({ children, title }) {
           isCollapsed ? 'w-20' : 'w-64'
         }`}
         style={{
-          backgroundColor: sidebarBg,
-          borderColor: sidebarBorder,
-          color: sidebarText,
+          backgroundColor: 'var(--sidebar-bg)',
+          borderColor: 'var(--sidebar-border)',
+          color: 'var(--sidebar-text)',
         }}
       >
         {/* 1. Tenant Brand Header */}
@@ -342,7 +325,7 @@ export default function AdminLayout({ children, title }) {
             className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition hover:bg-red-500/20 hover:text-red-200 border ${
               isCollapsed ? 'justify-center' : ''
             }`}
-            style={{ borderColor: 'rgba(46, 42, 37, 0.5)', color: sidebarTextMuted }}
+            style={{ borderColor: 'rgba(46, 42, 37, 0.5)', color: 'var(--sidebar-text-muted)' }}
           >
             <LogOut size={14} className="shrink-0" />
             {!isCollapsed && <span>Sign out</span>}
@@ -574,8 +557,8 @@ export default function AdminLayout({ children, title }) {
             <div
               className={`hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold border ${
                 isOnline
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
-                  : 'bg-red-50 text-red-700 border-red-200 animate-pulse dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-red-50 text-red-700 border-red-200 animate-pulse'
               }`}
               title={isOnline ? 'Online: System synced in real-time' : 'Offline mode'}
             >
@@ -621,17 +604,6 @@ export default function AdminLayout({ children, title }) {
             >
               <Sparkles size={13} className="text-amber-300 animate-pulse" />
               <span className="hidden md:inline">AI Advisor</span>
-            </button>
-
-            {/* Theme Toggle */}
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border bg-[var(--hover-bg)] text-[var(--header-text-muted)] hover:text-amber-600 dark:hover:text-amber-400 hover:bg-[var(--hover-bg)] transition shadow-2xs"
-              title={`Switch to ${isDark ? 'Light' : 'Dark'} theme`}
-              style={{ borderColor: 'var(--border-primary)' }}
-            >
-              {isDark ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-slate-700" />}
             </button>
 
             {/* Refresh Button */}

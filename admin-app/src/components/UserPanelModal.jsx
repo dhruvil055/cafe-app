@@ -27,7 +27,20 @@ import {
 import toast from 'react-hot-toast';
 import { env } from '../config/env';
 import api from '../services/api';
-import { useTheme } from '../context/ThemeContext';
+import { useLightMode } from '../context/LightModeContext';
+import { useTheme as useSuperAdminTheme } from '../context/ThemeContext';
+
+// Hook that works in both Café Admin (LightModeProvider) and Super Admin (ThemeProvider)
+function useThemeMode() {
+  try {
+    const { isDark } = useLightMode();
+    return { isDark };
+  } catch {
+    // Fallback to Super Admin theme context
+    const { isDark } = useSuperAdminTheme();
+    return { isDark };
+  }
+}
 
 const PAGES = [
   { path: '/menu', label: 'Menu', icon: UtensilsCrossed },
@@ -45,7 +58,7 @@ export default function UserPanelModal({
   initialCafe = null,
   allCafes = [],
 }) {
-  const { isDark } = useTheme();
+  const { isDark } = useThemeMode();
   const [selectedCafe, setSelectedCafe] = useState(initialCafe);
   const [viewport, setViewport] = useState('mobile'); // 'mobile' | 'tablet' | 'desktop'
   const [activePage, setActivePage] = useState('/menu');
@@ -131,18 +144,6 @@ export default function UserPanelModal({
         return 'w-full h-[760px] rounded-xl shadow-lg border border-[var(--border-primary)]';
     }
   };
-
-  const getBorderColor = () => isDark ? 'var(--border-primary)' : 'var(--border-primary)';
-  const getBgSurface = () => isDark ? 'var(--bg-surface)' : 'var(--bg-surface)';
-  const getBgCard = () => isDark ? 'var(--bg-card)' : 'var(--bg-card)';
-  const getTextPrimary = () => isDark ? 'var(--text-primary)' : 'var(--text-primary)';
-  const getTextSecondary = () => isDark ? 'var(--text-secondary)' : 'var(--text-secondary)';
-  const getTextMuted = () => isDark ? 'var(--text-muted)' : 'var(--text-muted)';
-  const getHoverBg = () => isDark ? 'var(--hover-bg)' : 'var(--hover-bg)';
-  const getHoverBorder = () => isDark ? 'var(--border-primary)' : 'var(--border-primary)';
-  const getActiveBg = () => isDark ? 'var(--brand-primary-subtle)' : 'var(--brand-primary-subtle)';
-  const getActiveBorder = () => isDark ? 'var(--brand-primary-border)' : 'var(--brand-primary-border)';
-  const getActiveText = () => isDark ? 'var(--text-primary)' : 'var(--text-primary)';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4" style={{ backgroundColor: 'var(--modal-backdrop)', backdropFilter: 'blur(4px)' }}>
@@ -346,7 +347,7 @@ export default function UserPanelModal({
                   }}
                   className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
                     isActive
-                      ? 'bg-[var(--brand-primary-subtle)] text-amber-800 dark:text-amber-300 border border-[var(--brand-primary-border)]'
+                      ? 'bg-[var(--brand-primary-subtle)] text-amber-800 border border-[var(--brand-primary-border)]'
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)]'
                   }`}
                 >
@@ -373,7 +374,7 @@ export default function UserPanelModal({
               onClick={() => setViewport('mobile')}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition ${
                 viewport === 'mobile'
-                  ? 'bg-[var(--hover-bg)] text-amber-600 dark:text-amber-400 shadow-xs'
+                  ? 'bg-[var(--hover-bg)] text-amber-600 shadow-xs'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -383,7 +384,7 @@ export default function UserPanelModal({
               onClick={() => setViewport('tablet')}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition ${
                 viewport === 'tablet'
-                  ? 'bg-[var(--hover-bg)] text-amber-600 dark:text-amber-400 shadow-xs'
+                  ? 'bg-[var(--hover-bg)] text-amber-600 shadow-xs'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -393,7 +394,7 @@ export default function UserPanelModal({
               onClick={() => setViewport('desktop')}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition ${
                 viewport === 'desktop'
-                  ? 'bg-[var(--hover-bg)] text-amber-600 dark:text-amber-400 shadow-xs'
+                  ? 'bg-[var(--hover-bg)] text-amber-600 shadow-xs'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
