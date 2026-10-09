@@ -55,14 +55,16 @@ const normalizeOrigin = (value) => String(value || '').trim().replace(/\/+$/, ''
 export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
   const app = express();
   if (razorpayFactory) app.locals.razorpayFactory = razorpayFactory;
-  const trustProxyEnv = process.env.TRUST_PROXY;
-  if (trustProxyEnv !== undefined) {
-    const parsedHop = Number(trustProxyEnv);
-    app.set('trust proxy', Number.isInteger(parsedHop) ? parsedHop : trustProxyEnv === 'true' ? true : trustProxyEnv);
-  } else if (['production', 'staging'].includes(process.env.NODE_ENV)) {
-    // Default to 2 proxy hops in production/staging (Cloudflare -> Nginx -> Express)
-    app.set('trust proxy', 2);
+  // Trust proxy configuration
+  // Render terminates TLS and acts as 1 reverse proxy hop in front of the Node service.
+  // If DNS is proxied via Cloudflare, TRUST_PROXY_HOPS should be configured to 2 (Cloudflare + Render).
+  // Default: 1 hop.
+  const trustHopsRaw = process.env.TRUST_PROXY_HOPS ?? process.env.TRUST_PROXY;
+  if (trustHopsRaw !== undefined) {
+    const parsedHop = Number(trustHopsRaw);
+    app.set('trust proxy', Number.isInteger(parsedHop) ? parsedHop : trustHopsRaw === 'true' ? true : trustHopsRaw);
   } else {
+    // Default to 1 hop on Render
     app.set('trust proxy', 1);
   }
   app.use(requestContext);
@@ -193,16 +195,10 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
       });
     };
 
-    // Tenant-aware keyGenerator: client IP + café subdomain/host, so one busy café cannot lock out others
-    const getTenantKey = (req) => {
-      const host = req.headers['x-forwarded-host'] || req.hostname || req.headers.host || '';
-      const tenantHeader = req.headers['x-tenant-id'] || req.headers['x-cafe-id'] || '';
-      return `${tenantHeader || host}`.toLowerCase();
-    };
-
+    // Security: Keep rate limit keys strictly IP-based (derived from trusted proxy hops).
+    // Never trust client-controlled headers (X-Forwarded-Host, Origin) for security decisions or rate-limit buckets.
     const keyGenerator = (req) => {
-      const clientIp = req.ip || req.socket?.remoteAddress || '127.0.0.1';
-      return `${clientIp}|${getTenantKey(req)}`;
+      return req.ip || req.socket?.remoteAddress || '127.0.0.1';
     };
 
     const base = {

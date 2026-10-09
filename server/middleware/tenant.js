@@ -28,6 +28,36 @@ const isCustomerTenantHost = (host) => {
   return Boolean(baseDomain && host.endsWith(`.${baseDomain}`) && !host.slice(0, -(baseDomain.length + 1)).startsWith('admin.'));
 };
 
+const isAllowedTenantHost = (host) => {
+  if (!host) return false;
+  const clean = cleanHost(host);
+  if (!clean) return false;
+  if (['development', 'test'].includes(process.env.NODE_ENV) || !process.env.NODE_ENV) {
+    if (clean === 'localhost' || clean.endsWith('.localhost') || clean === '127.0.0.1') return true;
+  }
+  const baseDomain = String(process.env.TENANT_BASE_DOMAIN || '').toLowerCase().replace(/^\.+|\.+$/g, '');
+  if (baseDomain && (clean === baseDomain || clean.endsWith(`.${baseDomain}`))) return true;
+
+  // Explicit allowed frontend hosts
+  for (const urlStr of [
+    process.env.CLIENT_URL,
+    process.env.CUSTOMER_APP_URL,
+    process.env.ADMIN_CLIENT_URL,
+    process.env.ADMIN_APP_URL,
+    process.env.CLIENT_URLS,
+    process.env.ADMIN_CLIENT_URLS,
+  ]) {
+    if (!urlStr) continue;
+    for (const item of String(urlStr).split(',')) {
+      try {
+        const parsed = new URL(item.trim());
+        if (cleanHost(parsed.hostname) === clean) return true;
+      } catch {}
+    }
+  }
+  return false;
+};
+
 const cleanTenantError = (res, status, message) => res.status(status).json({ error: message, code: status === 423 ? 'TENANT_SUSPENDED' : 'TENANT_NOT_FOUND' });
 
 export const tenantResolver = async (req, res, next) => {
@@ -118,13 +148,16 @@ export const tenantResolver = async (req, res, next) => {
       } catch { /* Handled later by auth middleware */ }
     }
 
-    // 5. Hostname / Origin / Referer subdomain resolution
+    // 5. Hostname / Origin / Referer subdomain resolution (strictly allow-listed domains only)
     if (!tenant) {
-      const requestHost = cleanHost(req.get('x-forwarded-host') || req.get('host'));
-      let originHost = '';
-      try { originHost = cleanHost(new URL(req.get('origin')).hostname); } catch { originHost = ''; }
-      let refererHost = '';
-      try { refererHost = cleanHost(new URL(req.get('referer')).hostname); } catch { refererHost = ''; }
+      const rawRequestHost = cleanHost(req.get('x-forwarded-host') || req.get('host'));
+      const requestHost = isAllowedTenantHost(rawRequestHost) ? rawRequestHost : '';
+      let rawOriginHost = '';
+      try { rawOriginHost = cleanHost(new URL(req.get('origin')).hostname); } catch { rawOriginHost = ''; }
+      const originHost = isAllowedTenantHost(rawOriginHost) ? rawOriginHost : '';
+      let rawRefererHost = '';
+      try { rawRefererHost = cleanHost(new URL(req.get('referer')).hostname); } catch { rawRefererHost = ''; }
+      const refererHost = isAllowedTenantHost(rawRefererHost) ? rawRefererHost : '';
 
       const explicitTenantSubdomain = (h) => {
         if (!h) return null;
