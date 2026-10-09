@@ -55,8 +55,16 @@ const normalizeOrigin = (value) => String(value || '').trim().replace(/\/+$/, ''
 export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
   const app = express();
   if (razorpayFactory) app.locals.razorpayFactory = razorpayFactory;
-  if (errorTracker) app.locals.errorTracker = errorTracker;
-  if (['production', 'staging'].includes(process.env.NODE_ENV)) app.set('trust proxy', 1);
+  const trustProxyEnv = process.env.TRUST_PROXY;
+  if (trustProxyEnv !== undefined) {
+    const parsedHop = Number(trustProxyEnv);
+    app.set('trust proxy', Number.isInteger(parsedHop) ? parsedHop : trustProxyEnv === 'true' ? true : trustProxyEnv);
+  } else if (['production', 'staging'].includes(process.env.NODE_ENV)) {
+    // Default to 2 proxy hops in production/staging (Cloudflare -> Nginx -> Express)
+    app.set('trust proxy', 2);
+  } else {
+    app.set('trust proxy', 1);
+  }
   app.use(requestContext);
 
   // Security middleware
@@ -162,58 +170,111 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
   });
 
   // ── Rate limiting ──────────────────────────────────────────────────────────
-  if (!['development', 'test'].includes(process.env.NODE_ENV)) {
-    const rateLimitHandler = (windowMs) => (req, res) => {
+  const appEnv = process.env.NODE_ENV || 'development';
+  if (!['development', 'test'].includes(appEnv) || process.env.ENABLE_RATE_LIMITING === 'true') {
+    const WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000;
+    const API_MAX = Number(process.env.RATE_LIMIT_MAX) || 1500;
+    const PUBLIC_MAX = Number(process.env.PUBLIC_RATE_LIMIT_MAX) || 1500;
+    const AUTH_MAX = Number(process.env.AUTH_RATE_LIMIT_MAX) || 20;
+    const SENSITIVE_MAX = Number(process.env.SENSITIVE_RATE_LIMIT_MAX) || 60;
+
+    const rateLimitHandler = (req, res) => {
+      const resetTime = req.rateLimit?.resetTime;
+      const retryAfterSeconds = resetTime
+        ? Math.max(1, Math.ceil((resetTime.getTime() - Date.now()) / 1000))
+        : Math.ceil(WINDOW_MS / 1000);
+      res.set('Retry-After', String(retryAfterSeconds));
       res.status(429).json({
-        error: 'Too many requests.',
+        error: `Too many requests. Try again in ${Math.ceil(retryAfterSeconds / 60)} minute(s).`,
+        message: `Too many requests. Please wait ${retryAfterSeconds} second(s) before retrying.`,
         code: 'RATE_LIMITED',
-        retryAfter: Math.ceil(windowMs / 1000),
+        retryAfterSeconds,
+        retryAfter: retryAfterSeconds,
       });
     };
 
-    // General baseline — covers all /api/ routes (200 req/15min)
+    // Tenant-aware keyGenerator: client IP + café subdomain/host, so one busy café cannot lock out others
+    const getTenantKey = (req) => {
+      const host = req.headers['x-forwarded-host'] || req.hostname || req.headers.host || '';
+      const tenantHeader = req.headers['x-tenant-id'] || req.headers['x-cafe-id'] || '';
+      return `${tenantHeader || host}`.toLowerCase();
+    };
+
+    const keyGenerator = (req) => {
+      const clientIp = req.ip || req.socket?.remoteAddress || '127.0.0.1';
+      return `${clientIp}|${getTenantKey(req)}`;
+    };
+
+    const base = {
+      windowMs: WINDOW_MS,
+      standardHeaders: true, // draft-6 / draft-7 RateLimit-* headers
+      legacyHeaders: false,
+      handler: rateLimitHandler,
+      keyGenerator,
+    };
+
+    // Paths that have their own dedicated limiter, so the general apiLimiter skips them (no double counting)
+    const OWN_LIMITER = /^\/(auth|payment|contact|ai|platform\/auth|menu|categories|session|tables|gallery|public|tenant)(\/|$)/;
+
+    // General baseline for authenticated panel traffic (polling, dashboards, CRUD)
     const apiLimiter = rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 200,
-      standardHeaders: true,
-      legacyHeaders: false,
-      handler: rateLimitHandler(15 * 60 * 1000),
+      ...base,
+      limit: API_MAX,
+      skip: (req) => req.method === 'OPTIONS' || OWN_LIMITER.test(req.path),
     });
 
-    // Relaxed limiter for read-heavy public endpoints
+    // Relaxed limiter for read-heavy public endpoints (menu, tenant public info, tables, public endpoints)
     const publicLimiter = rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 500,
-      standardHeaders: true,
-      legacyHeaders: false,
-      handler: rateLimitHandler(15 * 60 * 1000),
+      ...base,
+      limit: PUBLIC_MAX,
+      skip: (req) => req.method === 'OPTIONS',
     });
 
-    // Strict limiter for sensitive mutation endpoints
-    const strictLimiter = rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 30,
-      standardHeaders: true,
-      legacyHeaders: false,
-      handler: rateLimitHandler(15 * 60 * 1000),
+    // Strict limiter ONLY for credential/OTP authentication mutation endpoints.
+    // Successful logins and registrations are not counted!
+    const authLimiter = rateLimit({
+      ...base,
+      limit: AUTH_MAX,
+      skipSuccessfulRequests: true,
+      skip: (req) => req.method === 'OPTIONS',
+    });
+
+    // Moderate limiter for payments, AI, contact forms
+    const sensitiveLimiter = rateLimit({
+      ...base,
+      limit: SENSITIVE_MAX,
+      skip: (req) => req.method === 'OPTIONS',
     });
 
     app.use('/api/', apiLimiter);
 
-    // Relaxed on public read-heavy routes
-    app.use('/api/menu', publicLimiter);
-    app.use('/api/categories', publicLimiter);
-    app.use('/api/session', publicLimiter);
-    app.use('/api/tables', publicLimiter);
-    app.use('/api/gallery', publicLimiter);
-    app.use('/api/public', publicLimiter);
+    // Read-heavy public endpoints (including tenant public info)
+    app.use([
+      '/api/menu',
+      '/api/categories',
+      '/api/session',
+      '/api/tables',
+      '/api/gallery',
+      '/api/public',
+      '/api/tenant',
+    ], publicLimiter);
 
-    // Strict on sensitive endpoints
-    app.use('/api/auth', strictLimiter);
-    app.use('/api/payment', strictLimiter);
-    app.use('/api/contact', strictLimiter);
-    app.use('/api/ai', strictLimiter);
-    app.use('/api/platform/auth', strictLimiter);
+    // Only credential/OTP endpoints are strict. /auth/me, /auth/refresh, /auth/logout are NOT.
+    app.use([
+      '/api/auth/login',
+      '/api/auth/setup',
+      '/api/auth/forgot-password',
+      '/api/auth/reset-password',
+      '/api/auth/send-otp',
+      '/api/auth/verify-otp',
+      '/api/platform/auth',
+    ], authLimiter);
+
+    // Session validation, refresh token and logout use the generous public limiter
+    app.use(['/api/auth/refresh', '/api/auth/me', '/api/auth/logout'], publicLimiter);
+
+    // Sensitive mutation endpoints
+    app.use(['/api/payment', '/api/contact', '/api/ai'], sensitiveLimiter);
   }
 
   app.use(express.json({
@@ -297,6 +358,35 @@ export const createApp = ({ razorpayFactory, errorTracker } = {}) => {
       status: ready ? 'ok' : 'not_ready',
       database: ready ? 'connected' : 'disconnected',
       version: '1.0.0',
+    });
+  });
+
+  // Temporary diagnostic route to prove client-IP path on Render
+  // Disabled unless DEBUG_IP_ENDPOINT=true and protected by X-Debug-Secret header
+  app.get('/api/debug/ip', (req, res) => {
+    if (process.env.DEBUG_IP_ENDPOINT !== 'true') {
+      return res.status(404).json({ error: 'Route not found', code: 'NOT_FOUND' });
+    }
+    const secret = process.env.DEBUG_IP_SECRET;
+    const provided = req.headers['x-debug-secret'];
+    if (!secret || !provided || provided !== secret) {
+      return res.status(403).json({ error: 'Access denied: invalid or missing debug secret', code: 'FORBIDDEN' });
+    }
+    return res.json({
+      ip: req.ip,
+      ips: req.ips,
+      protocol: req.protocol,
+      secure: req.secure,
+      hostname: req.hostname,
+      headers: {
+        'x-forwarded-for': req.headers['x-forwarded-for'] || null,
+        'x-forwarded-proto': req.headers['x-forwarded-proto'] || null,
+        'x-forwarded-host': req.headers['x-forwarded-host'] || null,
+        'true-client-ip': req.headers['true-client-ip'] || null,
+        'cf-connecting-ip': req.headers['cf-connecting-ip'] || null,
+        'host': req.headers['host'] || null,
+      },
+      trustProxySetting: app.get('trust proxy'),
     });
   });
 
