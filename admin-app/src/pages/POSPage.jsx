@@ -100,7 +100,9 @@ export default function POSPage() {
     try {
       const pending = await getPendingOfflineOrders();
       setPendingSyncCount(pending.length);
-    } catch (_err) {}
+    } catch (_err) {
+      // The offline queue may be unavailable; the POS can still continue online.
+    }
   };
 
   const syncPendingOfflineOrders = async () => {
@@ -312,7 +314,9 @@ export default function POSPage() {
           setCustomerName(data.customer.name);
           toast.success(`Welcome back, ${data.customer.name}!`);
         }
-      } catch (_err) {}
+      } catch (_err) {
+        // Customer lookup is best-effort and should not interrupt checkout.
+      }
     }
   };
 

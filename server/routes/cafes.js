@@ -107,7 +107,7 @@ router.post('/', async (req, res, next) => {
     const trialEndsAt = new Date(Date.now() + days * 86400000);
 
     const tenant = await runWithSystemTenantAccess(async () => {
-      return Tenant.create({
+      const tenant = await Tenant.create({
         name: trimmedName,
         slug: candidateSlug,
         status: 'active',

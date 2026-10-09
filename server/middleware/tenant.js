@@ -52,7 +52,9 @@ const isAllowedTenantHost = (host) => {
       try {
         const parsed = new URL(item.trim());
         if (cleanHost(parsed.hostname) === clean) return true;
-      } catch {}
+      } catch (_err) {
+        // Ignore malformed configured URLs and continue checking the remaining entries.
+      }
     }
   }
   return false;

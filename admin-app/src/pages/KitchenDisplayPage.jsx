@@ -44,7 +44,9 @@ const playSound = (type) => {
     gain.connect(ctx.destination);
     oscillator.start();
     oscillator.stop(ctx.currentTime + sound.duration);
-  } catch (_err) {}
+  } catch (_err) {
+    // Audio feedback is optional; some browsers or devices block audio playback.
+  }
 };
 
 export default function KitchenDisplayPage() {
