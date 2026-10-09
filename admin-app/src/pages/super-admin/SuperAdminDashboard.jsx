@@ -29,7 +29,7 @@ import UserPanelModal from '../../components/UserPanelModal';
 export default function SuperAdminDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { isDark, toggleTheme, mounted } = useTheme();
+  const { theme, isDark, toggleTheme, mounted } = useTheme();
 
   // Navigation tab state: 'overview' | 'tenants' | 'plans' | 'audit' | 'impersonation' | 'settings'
   const activeTab = searchParams.get('tab') || 'overview';
