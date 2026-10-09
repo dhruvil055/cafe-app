@@ -232,12 +232,12 @@ export default function ProfilePage() {
   })();
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 pb-16">
+    <div className="mx-auto w-full max-w-4xl space-y-5 pb-12 sm:space-y-6 sm:pb-16">
       {/* ── Hero card ──────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl bg-espresso-900 p-6 text-white shadow-soft sm:p-7"
+        className="relative overflow-hidden rounded-2xl bg-espresso-900 p-4 text-white shadow-soft sm:rounded-3xl sm:p-7"
       >
         {/* decorative background glow */}
         <div className="pointer-events-none absolute -right-12 -top-12 h-56 w-56 rounded-full bg-brew-500/20 blur-2xl" />
@@ -262,7 +262,7 @@ export default function ProfilePage() {
         </div>
 
         {/* stat row */}
-        <div className="relative mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="relative mt-5 grid grid-cols-1 gap-2.5 sm:mt-6 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
           <div className="rounded-2xl bg-espresso-800/85 px-4 py-3 border border-espresso-700/80 backdrop-blur-sm">
             <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-espresso-100">
               <Shield size={11} /> Access Role
@@ -275,7 +275,7 @@ export default function ProfilePage() {
             </div>
             <div className="mt-1 text-sm font-semibold text-white">{memberSince}</div>
           </div>
-          <div className="rounded-2xl bg-espresso-800/85 px-4 py-3 border border-espresso-700/80 backdrop-blur-sm col-span-2 sm:col-span-1">
+          <div className="rounded-2xl bg-espresso-800/85 px-4 py-3 border border-espresso-700/80 backdrop-blur-sm sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-espresso-100">
               <CheckCircle2 size={11} /> Account Status
             </div>
@@ -292,7 +292,7 @@ export default function ProfilePage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
-        className="rounded-3xl border border-stone-200/80 bg-white p-6 sm:p-7 shadow-soft"
+        className="rounded-2xl border border-stone-200/80 bg-white p-4 shadow-soft sm:rounded-3xl sm:p-6 lg:p-7"
       >
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brew-50 text-brew-600">
@@ -367,7 +367,7 @@ export default function ProfilePage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="rounded-3xl border border-stone-200/80 bg-white p-6 sm:p-7 shadow-soft"
+        className="rounded-2xl border border-stone-200/80 bg-white p-4 shadow-soft sm:rounded-3xl sm:p-6 lg:p-7"
       >
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
@@ -443,9 +443,9 @@ export default function ProfilePage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
-        className="rounded-3xl border border-stone-200/80 bg-white p-6 sm:p-7 shadow-soft"
+        className="rounded-2xl border border-stone-200/80 bg-white p-4 shadow-soft sm:rounded-3xl sm:p-6 lg:p-7"
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
               <ShieldCheck size={20} />
@@ -520,7 +520,7 @@ export default function ProfilePage() {
                     className="w-full max-w-xs rounded-xl border border-stone-200 px-3 py-2 text-sm font-mono tracking-widest focus:outline-none focus:border-brew-500"
                   />
                 </div>
-                <div className="flex gap-2 pt-1">
+                <div className="flex flex-wrap gap-2 pt-1">
                   <button
                     type="button"
                     onClick={updateTwoFactor}
@@ -550,7 +550,7 @@ export default function ProfilePage() {
                 Your account is protected with TOTP Two-Factor Authentication. A code is required on every new device login.
               </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
               <input
                 aria-label="Authenticator code"
                 inputMode="numeric"
@@ -577,7 +577,7 @@ export default function ProfilePage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="rounded-3xl border border-stone-200/80 bg-white p-6 sm:p-7 shadow-soft"
+        className="rounded-2xl border border-stone-200/80 bg-white p-4 shadow-soft sm:rounded-3xl sm:p-6 lg:p-7"
       >
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -646,7 +646,7 @@ export default function ProfilePage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.25 }}
-        className="rounded-3xl border border-stone-200/80 bg-white p-6 sm:p-7 shadow-soft"
+        className="rounded-2xl border border-stone-200/80 bg-white p-4 shadow-soft sm:rounded-3xl sm:p-6 lg:p-7"
       >
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
@@ -667,7 +667,7 @@ export default function ProfilePage() {
           ].map(({ label, value }) => (
             <div key={label} className="rounded-2xl bg-stone-50 p-4 border border-stone-200/60">
               <dt className="text-[10px] font-bold uppercase tracking-wider text-stone-400">{label}</dt>
-              <dd className="mt-1 truncate text-xs font-semibold text-espresso-950 font-mono">{value}</dd>
+              <dd className="mt-1 break-all text-xs font-semibold text-espresso-950 font-mono">{value}</dd>
             </div>
           ))}
         </dl>

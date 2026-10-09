@@ -202,10 +202,10 @@ export default function AdminLayout({ children, title }) {
   const trialDaysRemaining = billingSummary?.subscription?.trialDaysRemaining;
 
   return (
-    <div className="flex h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] overflow-hidden font-body select-none">
+    <div className="flex h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] overflow-hidden font-body select-none" style={{ height: '100dvh' }}>
       {/* ── Left Sidebar ────────────────────────────────────────── */}
       <aside
-        className={`hidden md:flex flex-col h-screen shrink-0 border-r transition-all duration-300 z-30 custom-scrollbar ${
+        className={`hidden md:flex flex-col h-full shrink-0 border-r transition-all duration-300 z-30 custom-scrollbar ${
           isCollapsed ? 'w-20' : 'w-64'
         }`}
         style={{
@@ -361,7 +361,7 @@ export default function AdminLayout({ children, title }) {
               animate={{ x: 0 }}
               exit={{ x: -280 }}
               transition={{ type: 'spring', stiffness: 260, damping: 28 }}
-              className="fixed inset-y-0 left-0 z-50 w-64 md:hidden flex flex-col custom-scrollbar"
+              className="fixed inset-y-0 left-0 z-50 w-[calc(100vw-2rem)] max-w-72 md:hidden flex flex-col custom-scrollbar"
               style={{
                 ...SIDEBAR_THEME,
                 backgroundColor: 'var(--sidebar-bg)',
@@ -395,6 +395,30 @@ export default function AdminLayout({ children, title }) {
                   <ChevronLeft size={18} />
                 </button>
               </div>
+
+              {branches.length > 0 && (
+                <div className="shrink-0 border-b px-4 py-3" style={{ borderColor: 'var(--sidebar-border)' }}>
+                  <label htmlFor="mobile-branch-switcher" className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-amber-200">
+                    Current branch
+                  </label>
+                  <select
+                    id="mobile-branch-switcher"
+                    value={selectedBranchId}
+                    onChange={(event) => {
+                      handleBranchChange(event.target.value);
+                      setSidebarOpen(false);
+                    }}
+                    className="w-full rounded-lg border px-2.5 py-2 text-xs font-semibold text-[var(--sidebar-text)] focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    style={{ backgroundColor: 'var(--sidebar-hover-bg)', borderColor: 'var(--sidebar-border)' }}
+                  >
+                    {branches.map((branch) => (
+                      <option key={branch._id} value={branch._id}>
+                        {branch.name} ({branch.code}){branch.isMain ? ' ★' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Mobile Nav */}
               <nav className="flex-1 overflow-y-auto p-3 space-y-4">
@@ -441,7 +465,7 @@ export default function AdminLayout({ children, title }) {
       </AnimatePresence>
 
       {/* ── Main Content Area ───────────────────────────────────── */}
-      <div className="flex min-w-0 flex-1 flex-col h-screen overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col h-full overflow-hidden">
         {/* Impersonation Banner if active */}
         {user?.impersonatedBy && (
           <div className="bg-gradient-to-r from-amber-600 to-orange-600 px-4 py-2 text-white text-xs font-semibold flex items-center justify-between shadow-sm shrink-0">
@@ -487,7 +511,7 @@ export default function AdminLayout({ children, title }) {
         )}
 
         {/* Top Header */}
-        <header className="flex h-16 shrink-0 items-center justify-between border-b px-4 shadow-2xs md:px-6"
+        <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b px-2.5 shadow-2xs sm:px-4 md:px-6"
           style={{
             backgroundColor: 'var(--header-bg)',
             borderColor: 'var(--header-border)',
@@ -495,10 +519,10 @@ export default function AdminLayout({ children, title }) {
           }}
         >
           {/* Left: Mobile Toggle & Page Title */}
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border p-2 md:hidden hover:bg-[var(--hover-bg)]"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border p-2 md:hidden hover:bg-[var(--hover-bg)]"
               style={{ borderColor: 'var(--border-primary)', color: 'var(--header-text-muted)' }}
               aria-label="Open sidebar"
             >
@@ -506,19 +530,19 @@ export default function AdminLayout({ children, title }) {
             </button>
 
             <div className="min-w-0">
-              <div className="flex items-center gap-2 text-[11px] font-semibold text-[var(--header-text-muted)] uppercase tracking-wider">
+              <div className="hidden items-center gap-2 truncate text-[11px] font-semibold text-[var(--header-text-muted)] uppercase tracking-wider sm:flex">
                 <span>{tenant.name || 'Café'}</span>
                 <span>/</span>
                 <span className="text-[var(--header-text)]">{title}</span>
               </div>
-              <h1 className="min-w-0 truncate font-display text-lg font-bold text-[var(--header-text)] sm:text-xl leading-tight">
+              <h1 className="min-w-0 truncate font-display text-base font-bold text-[var(--header-text)] sm:text-xl leading-tight">
                 {title}
               </h1>
             </div>
           </div>
 
           {/* Right Action Cluster */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
+          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2.5">
             {/* Global ⌘K Trigger Button */}
             <button
               type="button"
@@ -542,7 +566,7 @@ export default function AdminLayout({ children, title }) {
 
             {/* Branch Switcher */}
             {branches.length > 0 && (
-              <div className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 border"
+              <div className="hidden items-center gap-1.5 rounded-xl px-2.5 py-1.5 border sm:flex"
                 style={{
                   backgroundColor: 'var(--hover-bg)',
                   borderColor: 'var(--border-primary)',
@@ -633,7 +657,7 @@ export default function AdminLayout({ children, title }) {
         </header>
 
         {/* Main Body */}
-        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-6 lg:p-8" style={{ backgroundColor: 'var(--bg-canvas)' }}>
+        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6 lg:p-8" style={{ backgroundColor: 'var(--bg-canvas)' }}>
           {children}
         </main>
 
