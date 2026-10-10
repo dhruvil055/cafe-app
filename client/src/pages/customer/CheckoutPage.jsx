@@ -428,7 +428,7 @@ export default function CheckoutPage() {
                   className={`p-4 rounded-2xl border-2 transition-all text-left flex flex-col justify-between min-h-[92px] ${
                     paymentMethod === 'razorpay'
                       ? 'border-brew-600 bg-brew-50/80 shadow-xs'
-                      : 'border-foam bg-cream/40 hover:border-espresso-300'
+                      : 'border-espresso-200/90 bg-white hover:border-espresso-400 hover:bg-espresso-50/40'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full">
@@ -458,7 +458,7 @@ export default function CheckoutPage() {
                   className={`p-4 rounded-2xl border-2 transition-all text-left flex flex-col justify-between min-h-[92px] ${
                     paymentMethod === 'cash'
                       ? 'border-brew-600 bg-brew-50/80 shadow-xs'
-                      : 'border-foam bg-cream/40 hover:border-espresso-300'
+                      : 'border-espresso-200/90 bg-white hover:border-espresso-400 hover:bg-espresso-50/40'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full">

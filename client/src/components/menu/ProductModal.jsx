@@ -316,7 +316,7 @@ export default function ProductModal({ product, onClose }) {
                   key={preset}
                   type="button"
                   onClick={() => handlePresetInstruction(preset)}
-                  className="rounded-full border border-foam bg-cream/60 px-2.5 py-1 text-[11px] font-medium text-espresso-700 hover:bg-espresso-100 transition active:scale-95"
+                  className="rounded-full border border-espresso-200 bg-cream px-3 py-1 text-[11px] font-semibold text-espresso-800 hover:bg-espresso-100 hover:border-espresso-300 transition shadow-2xs active:scale-95"
                 >
                   + {preset}
                 </button>
@@ -337,25 +337,25 @@ export default function ProductModal({ product, onClose }) {
         {/* Modal Sticky Footer Action */}
         <div className="p-4 sm:p-5 border-t border-foam bg-cream/70 flex items-center gap-3 flex-shrink-0">
           {/* Quantity Stepper */}
-          <div className="flex items-center gap-1 border border-espresso-200 bg-white rounded-2xl p-1 shadow-2xs">
+          <div className="flex items-center gap-1 border border-espresso-200/90 bg-white rounded-2xl p-1 shadow-2xs">
             <button
               type="button"
-              className="qty-btn"
               onClick={() => changeQty(-1)}
               disabled={!isAvailable || quantity <= 1}
               aria-label="Decrease quantity"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-cream text-espresso-900 hover:bg-espresso-900 hover:text-white transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-cream disabled:hover:text-espresso-900 active:scale-95"
             >
               <Minus size={15} strokeWidth={2.5} aria-hidden="true" />
             </button>
-            <span className="w-8 text-center font-bold text-sm text-espresso-950 font-mono">
+            <span className="w-8 text-center font-bold text-base text-espresso-950 font-mono">
               {quantity}
             </span>
             <button
               type="button"
-              className="qty-btn"
               onClick={() => changeQty(1)}
               disabled={!isAvailable || quantity >= maxQty}
               aria-label="Increase quantity"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-cream text-espresso-900 hover:bg-espresso-900 hover:text-white transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-cream disabled:hover:text-espresso-900 active:scale-95"
             >
               <Plus size={15} strokeWidth={2.5} aria-hidden="true" />
             </button>
@@ -370,8 +370,6 @@ export default function ProductModal({ product, onClose }) {
             className={`flex-1 min-h-[50px] flex items-center justify-between py-3.5 rounded-2xl px-5 font-bold text-sm transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-brew-500
               ${!isAvailable
                 ? 'bg-espresso-200 text-espresso-400 cursor-not-allowed'
-                : !tableNumber
-                ? 'bg-amber-600 text-white hover:bg-amber-700'
                 : 'bg-espresso-900 text-cream hover:bg-espresso-800 active:scale-[0.98]'
               }`}
           >
@@ -380,7 +378,7 @@ export default function ProductModal({ product, onClose }) {
                 <span>Out of Stock</span>
               ) : !tableNumber ? (
                 <>
-                  <Lock size={17} className="text-amber-200" strokeWidth={2.4} aria-hidden="true" />
+                  <Lock size={17} className="text-cream/90" strokeWidth={2.4} aria-hidden="true" />
                   <span>Scan Table to Order</span>
                 </>
               ) : (
@@ -391,7 +389,7 @@ export default function ProductModal({ product, onClose }) {
               )}
             </div>
             {isAvailable && (
-              <span className={`font-mono text-base font-bold ${!tableNumber ? 'text-amber-100' : 'text-brew-300'}`}>
+              <span className="font-mono font-bold text-base text-cream">
                 {formatMoney(total, tenant.currency)}
               </span>
             )}

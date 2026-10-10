@@ -374,10 +374,10 @@ export default function MenuPage() {
                     <button
                       type="button"
                       onClick={openScanner}
-                      className="ml-2 rounded-xl bg-white/15 hover:bg-white/25 px-2.5 py-1.5 text-xs font-medium text-cream transition"
+                      className="ml-2 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-espresso-950 hover:bg-cream transition shadow-xs"
                       title="Switch to another table"
                     >
-                      Change
+                      Change Table
                     </button>
                   </motion.div>
                 ) : (
@@ -456,11 +456,11 @@ export default function MenuPage() {
               className={`min-h-[44px] flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border text-xs font-bold transition-all active:scale-95 whitespace-nowrap shadow-2xs ${
                 vegOnly
                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-emerald-600/20'
-                  : 'bg-white text-espresso-800 border-espresso-200/80 hover:border-espresso-300'
+                  : 'bg-white text-espresso-900 border-espresso-300 hover:border-espresso-400 hover:bg-espresso-50/50'
               }`}
             >
-              <Leaf size={14} className={vegOnly ? 'text-white' : 'text-emerald-600'} />
-              <span>Veg</span>
+              <Leaf size={14} className={vegOnly ? 'text-white' : 'text-emerald-700'} />
+              <span>Veg Only</span>
             </button>
 
             {/* Filter / Sort Button */}
@@ -469,10 +469,10 @@ export default function MenuPage() {
               onClick={() => setShowFilters(!showFilters)}
               aria-expanded={showFilters}
               aria-label="Toggle menu sorting and options"
-              className={`min-h-[44px] flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border text-xs font-semibold transition-all active:scale-95 shadow-2xs ${
+              className={`min-h-[44px] flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border text-xs font-bold transition-all active:scale-95 shadow-2xs ${
                 showFilters || sort
                   ? 'bg-espresso-900 text-cream border-espresso-900'
-                  : 'bg-white text-espresso-800 border-espresso-200/80 hover:border-espresso-300'
+                  : 'bg-white text-espresso-900 border-espresso-300 hover:border-espresso-400 hover:bg-espresso-50/50'
               }`}
             >
               <SlidersHorizontal size={14} />
@@ -528,12 +528,12 @@ export default function MenuPage() {
               className={`relative flex-shrink-0 min-h-[38px] inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 border ${
                 selectedCategory === 'all'
                   ? 'bg-espresso-900 text-cream border-espresso-900 shadow-sm'
-                  : 'bg-white text-espresso-700 border-foam/90 hover:border-espresso-300'
+                  : 'bg-white text-espresso-900 border-espresso-200/90 hover:border-espresso-400 hover:bg-espresso-50/60 shadow-2xs'
               }`}
             >
               <span>All Items</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                selectedCategory === 'all' ? 'bg-white/20 text-white' : 'bg-foam text-espresso-600'
+              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                selectedCategory === 'all' ? 'bg-white/20 text-white' : 'bg-espresso-100 text-espresso-800'
               }`}>
                 {categoryCounts.all || 0}
               </span>
@@ -551,14 +551,14 @@ export default function MenuPage() {
                   className={`relative flex-shrink-0 min-h-[38px] inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 border whitespace-nowrap ${
                     isSelected
                       ? 'bg-espresso-900 text-cream border-espresso-900 shadow-sm'
-                      : 'bg-white text-espresso-700 border-foam/90 hover:border-espresso-300'
+                      : 'bg-white text-espresso-900 border-espresso-200/90 hover:border-espresso-400 hover:bg-espresso-50/60 shadow-2xs'
                   }`}
                 >
                   {cat.icon && <span className="text-sm leading-none">{cat.icon}</span>}
                   <span>{cat.name}</span>
                   {count > 0 && (
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      isSelected ? 'bg-white/20 text-white' : 'bg-foam text-espresso-600'
+                    <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                      isSelected ? 'bg-white/20 text-white' : 'bg-espresso-100 text-espresso-800'
                     }`}>
                       {count}
                     </span>

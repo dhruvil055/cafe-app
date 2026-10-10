@@ -234,18 +234,6 @@ const MenuCard = forwardRef(function MenuCard({ product, onSelect, priority = fa
               <span className="text-[11px] font-semibold text-espresso-400 uppercase tracking-wider px-2 py-1">
                 Unavailable
               </span>
-            ) : !tableNumber ? (
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.92 }}
-                onClick={handleQuickAdd}
-                title="Scan table QR to order"
-                aria-label={`Scan table QR code to order ${product.name}`}
-                className="min-h-[38px] inline-flex items-center gap-1 rounded-xl bg-amber-500/15 border border-amber-500/40 px-2.5 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-500/25 transition-all focus:outline-none focus:ring-2 focus:ring-amber-400"
-              >
-                <Lock size={13} className="text-amber-700" />
-                <span className="text-[11px]">Unlock</span>
-              </motion.button>
             ) : totalQtyInCart > 0 && !hasCustomizations ? (
               /* Inline Quantity Stepper for Simple Products */
               <div
@@ -282,19 +270,19 @@ const MenuCard = forwardRef(function MenuCard({ product, onSelect, priority = fa
                   onSelect();
                 }}
                 aria-label={`Item in cart, tap to customize ${product.name}`}
-                className="min-h-[36px] inline-flex items-center gap-1.5 rounded-xl bg-brew-500 text-white px-3 py-1.5 text-xs font-bold shadow-xs transition hover:bg-brew-600 focus:outline-none focus:ring-2 focus:ring-brew-400"
+                className="min-h-[36px] inline-flex items-center gap-1.5 rounded-xl bg-brew-600 text-white px-3 py-1.5 text-xs font-bold shadow-xs transition hover:bg-brew-700 focus:outline-none focus:ring-2 focus:ring-brew-400"
               >
                 <span>{totalQtyInCart} in Cart</span>
                 <Plus size={12} strokeWidth={3} />
               </motion.button>
             ) : (
-              /* Clean Add Button */
+              /* Prominent, high-contrast Add Button */
               <motion.button
                 type="button"
                 whileTap={{ scale: 0.92 }}
                 onClick={handleQuickAdd}
                 aria-label={`Add ${product.name} to cart`}
-                className="min-h-[36px] inline-flex items-center gap-1 rounded-xl bg-espresso-900 text-cream px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-all hover:bg-espresso-800 active:scale-95 shadow-xs focus:outline-none focus:ring-2 focus:ring-brew-500"
+                className="min-h-[36px] inline-flex items-center gap-1 rounded-xl bg-espresso-900 text-cream px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider transition-all hover:bg-espresso-800 active:scale-95 shadow-xs focus:outline-none focus:ring-2 focus:ring-brew-500"
               >
                 <span>ADD</span>
                 <Plus size={13} strokeWidth={2.6} />

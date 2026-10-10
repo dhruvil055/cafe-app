@@ -160,11 +160,11 @@ export default function CartPage() {
                   onClick={openScanner}
                   className={`min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition active:scale-95 shadow-xs ${
                     tableNumber
-                      ? 'bg-white hover:bg-emerald-100/60 text-emerald-900 border border-emerald-200'
-                      : 'bg-amber-600 hover:bg-amber-700 text-white'
+                      ? 'bg-white hover:bg-emerald-100/60 text-emerald-950 border border-emerald-300'
+                      : 'bg-espresso-900 hover:bg-espresso-800 text-cream'
                   }`}
                 >
-                  {tableNumber ? 'Switch Table' : 'Scan QR'}
+                  {tableNumber ? 'Switch Table' : 'Scan Table QR'}
                 </button>
               </div>
             </div>
@@ -240,11 +240,11 @@ export default function CartPage() {
 
                       {/* Quantity Stepper & Price */}
                       <div className="mt-3 flex items-center justify-between gap-2">
-                        <div className="inline-flex items-center rounded-xl bg-cream border border-espresso-200/80 p-0.5">
+                        <div className="inline-flex items-center rounded-xl bg-cream border border-espresso-300 p-0.5 shadow-2xs">
                           <button
                             type="button"
                             onClick={() => updateQuantity(item.key, item.quantity - 1)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso-700 hover:bg-espresso-900 hover:text-white transition active:scale-90"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso-900 hover:bg-espresso-900 hover:text-white transition active:scale-90"
                             aria-label={`Decrease quantity of ${item.name}`}
                           >
                             <Minus size={13} strokeWidth={2.5} />
@@ -255,7 +255,7 @@ export default function CartPage() {
                           <button
                             type="button"
                             onClick={() => updateQuantity(item.key, item.quantity + 1)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso-700 hover:bg-espresso-900 hover:text-white transition active:scale-90"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso-900 hover:bg-espresso-900 hover:text-white transition active:scale-90"
                             aria-label={`Increase quantity of ${item.name}`}
                           >
                             <Plus size={13} strokeWidth={2.5} />

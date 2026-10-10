@@ -57,18 +57,18 @@
 
 @layer components {
   .btn-primary {
-    @apply bg-espresso-900 text-cream font-body font-semibold px-6 py-3 rounded-2xl
+    @apply bg-espresso-900 text-cream font-body font-bold px-6 py-3 rounded-2xl
            hover:bg-espresso-800 active:scale-[0.98] transition-all duration-200
            disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] inline-flex items-center justify-center gap-2 shadow-sm;
   }
 
   .btn-secondary {
-    @apply border border-espresso-200/90 bg-white text-espresso-900 font-body font-semibold px-5 py-2.5 rounded-2xl
-           hover:bg-espresso-50/80 hover:border-espresso-300 active:scale-[0.98] transition-all duration-200 min-h-[44px] inline-flex items-center justify-center gap-2 shadow-xs;
+    @apply border-2 border-espresso-300 bg-white text-espresso-950 font-body font-bold px-5 py-2.5 rounded-2xl
+           hover:bg-espresso-50 hover:border-espresso-900 active:scale-[0.98] transition-all duration-200 min-h-[44px] inline-flex items-center justify-center gap-2 shadow-xs;
   }
 
   .btn-accent {
-    @apply bg-brew-500 text-white font-body font-semibold px-6 py-3 rounded-2xl
+    @apply bg-brew-500 text-white font-body font-bold px-6 py-3 rounded-2xl
            hover:bg-brew-600 active:scale-[0.98] transition-all duration-200
            disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] inline-flex items-center justify-center gap-2 shadow-md;
   }
@@ -259,9 +259,10 @@ canvas {
 
 /* Quantity controls */
 .qty-btn {
-  @apply w-11 h-11 min-w-[44px] min-h-[44px] rounded-full border border-espresso-200 flex items-center justify-center
-         text-espresso-700 hover:bg-espresso-900 hover:text-cream hover:border-espresso-900
-         transition-all duration-150 text-sm font-bold active:scale-90 focus:outline-none focus:ring-2 focus:ring-brew-500;
+  @apply w-10 h-10 min-w-[40px] min-h-[40px] rounded-xl border border-espresso-300 bg-white flex items-center justify-center
+         text-espresso-900 hover:bg-espresso-900 hover:text-cream hover:border-espresso-900
+         transition-all duration-150 text-sm font-bold active:scale-90 focus:outline-none focus:ring-2 focus:ring-brew-500
+         disabled:opacity-30 disabled:cursor-not-allowed disabled:pointer-events-none;
 }
 
 /* ─── Unified price / number style ─────────────────────────────────────────
@@ -287,9 +288,23 @@ canvas {
 .status-completed  { @apply bg-gray-100 text-gray-600 border border-gray-200; }
 .status-cancelled  { @apply bg-red-100 text-red-700 border border-red-200; }
 
-/* Tenant-configurable brand accents */
-.btn-primary { background-color: var(--tenant-accent, #1a0f08); }
-.btn-primary:hover { background-color: color-mix(in srgb, var(--tenant-accent, #1a0f08) 82%, white); }
-.btn-accent, .bg-brew-500 { background-color: var(--tenant-primary, #c96b18); }
-.text-brew-500, .text-brew-600 { color: var(--tenant-primary, #c96b18); }
-.bg-brew-600 { background-color: var(--tenant-primary, #c96b18); }
+/* Tenant-configurable brand accents with guaranteed high contrast */
+.btn-primary {
+  background-color: var(--tenant-accent, #1a0f08) !important;
+  color: #FAF6F0 !important;
+}
+.btn-primary:hover {
+  background-color: color-mix(in srgb, var(--tenant-accent, #1a0f08) 82%, white) !important;
+  color: #FAF6F0 !important;
+}
+.btn-accent, .bg-brew-500 {
+  background-color: var(--tenant-primary, #c96b18) !important;
+  color: #FFFFFF !important;
+}
+.text-brew-500, .text-brew-600 {
+  color: var(--tenant-primary, #c96b18) !important;
+}
+.bg-brew-600 {
+  background-color: var(--tenant-primary, #c96b18) !important;
+  color: #FFFFFF !important;
+}
