@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Download, UtensilsCrossed, CheckCircle2, Clock, Loader2 } from 'lucide-react';
+import { Download, UtensilsCrossed, CheckCircle2, Clock, Loader2, Sparkles, Receipt, ArrowRight, ShieldCheck } from 'lucide-react';
 import api from '../../services/api';
 import { downloadPdf } from '../../utils/download';
 import NotificationPermissionPrompt from '../../components/ui/NotificationPermissionPrompt';
@@ -11,19 +11,19 @@ import { formatMoney } from '../../utils/money';
 import usePageMeta from '../../hooks/usePageMeta';
 
 const STATUS_CONFIG = {
-  pending:   { label: 'Order Received',    color: 'text-yellow-600', bg: 'bg-yellow-50', icon: '📋' },
-  confirmed: { label: 'Order Received',    color: 'text-blue-600',   bg: 'bg-blue-50',   icon: '✅' },
-  preparing: { label: 'Being Prepared',    color: 'text-orange-600', bg: 'bg-orange-50', icon: '👨‍🍳' },
-  ready:     { label: 'Ready to Serve!',   color: 'text-green-600',  bg: 'bg-green-50',  icon: '🔔' },
-  completed: { label: 'Served',             color: 'text-gray-600',   bg: 'bg-gray-50',   icon: '🎉' },
+  pending:   { label: 'Order Received',    color: 'text-amber-800', bg: 'bg-amber-50/80', border: 'border-amber-200', icon: '📋' },
+  confirmed: { label: 'Order Confirmed',   color: 'text-blue-800',   bg: 'bg-blue-50/80',   border: 'border-blue-200',   icon: '✅' },
+  preparing: { label: 'Being Prepared',    color: 'text-orange-800', bg: 'bg-orange-50/80', border: 'border-orange-200', icon: '👨‍🍳' },
+  ready:     { label: 'Ready to Serve!',   color: 'text-emerald-800',  bg: 'bg-emerald-50/80',  border: 'border-emerald-200',  icon: '🔔' },
+  completed: { label: 'Served & Enjoyed',  color: 'text-gray-800',   bg: 'bg-gray-50/80',   border: 'border-gray-200',   icon: '🎉' },
 };
 
 export default function OrderConfirmPage() {
   const tenant = useTenant();
 
   usePageMeta({
-    title: 'Order Confirmation & Kitchen Status',
-    description: 'Your café order has been received by the kitchen! Follow real-time preparation progress and download your itemized order receipt.',
+    title: 'Order Confirmed — Kitchen Status & Receipt',
+    description: 'Your order has been sent to the kitchen. Track real-time preparation progress and download your itemized receipt.',
   });
   const { orderId } = useParams();
   const [searchParams] = useSearchParams();
@@ -58,6 +58,7 @@ export default function OrderConfirmPage() {
       downloadPdf(res.data, `receipt-${order.orderNumber}.pdf`);
     } catch (e) {
       console.error('Receipt download failed:', e);
+      toast.error('Unable to download receipt PDF.');
     } finally {
       setDownloading(false);
     }
@@ -65,18 +66,26 @@ export default function OrderConfirmPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-cream flex items-center justify-center">
-        <Loader2 size={32} className="animate-spin text-brew-500" />
+      <div className="min-h-screen bg-cream/90 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-12 h-12 rounded-full border-2 border-brew-500 border-t-transparent animate-spin mb-3" />
+        <p className="font-display text-lg font-bold text-espresso-950">Retrieving order details...</p>
       </div>
     );
   }
 
   if (!order) {
     return (
-      <div className="min-h-screen bg-cream flex flex-col items-center justify-center gap-4 p-8">
-        <span className="text-5xl">❓</span>
-        <p className="font-display text-xl text-espresso-900">Order not found</p>
-        <Link to="/menu" className="btn-primary">Back to Menu</Link>
+      <div className="min-h-screen bg-cream/90 flex flex-col items-center justify-center gap-4 p-8 text-center max-w-md mx-auto">
+        <div className="w-20 h-20 rounded-3xl bg-foam flex items-center justify-center text-4xl mb-2">
+          ❓
+        </div>
+        <h1 className="font-display text-2xl font-bold text-espresso-950">Order not found</h1>
+        <p className="text-espresso-500 text-sm">
+          We could not locate this order. Please verify your order link or return to the menu.
+        </p>
+        <Link to="/menu" className="btn-primary min-h-[46px] px-8 text-xs font-bold uppercase tracking-wider mt-2">
+          Back to Menu
+        </Link>
       </div>
     );
   }
@@ -84,167 +93,194 @@ export default function OrderConfirmPage() {
   const status = STATUS_CONFIG[order.orderStatus] || STATUS_CONFIG.pending;
 
   return (
-    <div className="min-h-screen bg-cream">
-      {/* Confetti header */}
-      <div className="bg-espresso-950 px-6 py-10 text-center relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10 pointer-events-none">
-          {['☕','🍕','🍔','🎉','⭐'].map((emoji, i) => (
-            <motion.span
-              key={i}
-              className="absolute text-2xl"
-              style={{ left: `${10 + i * 20}%`, top: '20%' }}
-              animate={{ y: [-10, 10, -10], rotate: [-10, 10, -10] }}
-              transition={{ duration: 3 + i, repeat: Infinity, delay: i * 0.5 }}
-            >
-              {emoji}
-            </motion.span>
-          ))}
-        </div>
+    <div className="min-h-screen bg-cream/90 pb-16">
+      {/* Celebration Header */}
+      <div className="relative bg-espresso-950 px-6 py-12 text-center overflow-hidden text-cream">
+        <div className="absolute inset-0 bg-gradient-to-t from-espresso-950 via-espresso-900/40 to-black/30 pointer-events-none" />
 
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: 'spring', damping: 15 }}
-          className="w-20 h-20 bg-brew-500/20 rounded-full flex items-center justify-center mx-auto mb-4"
+          transition={{ type: 'spring', damping: 14, stiffness: 300 }}
+          className="relative z-10 w-20 h-20 rounded-3xl bg-gradient-to-br from-brew-500 to-brew-600 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-brew-500/20 text-white"
         >
-          <CheckCircle2 size={40} className="text-brew-400" />
+          <CheckCircle2 size={42} strokeWidth={2.4} />
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.15 }}
+          className="relative z-10 max-w-lg mx-auto"
         >
-          <h1 className="font-display text-2xl font-bold text-cream">
-            {order.paymentStatus === 'paid' ? '🎉 Order Confirmed!' : '📋 Order Placed!'}
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-brew-300 border border-white/10 mb-2">
+            <Sparkles size={13} />
+            <span>{order.paymentStatus === 'paid' ? 'Payment Verified' : 'Order Placed'}</span>
+          </div>
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-white tracking-tight">
+            Order #{order.orderNumber} Confirmed!
           </h1>
-          <p className="text-brew-300 text-sm mt-1">
+          <p className="text-cream/80 text-xs sm:text-sm mt-2 leading-relaxed">
             {order.paymentMethod === 'cash'
-              ? 'Pay at the counter when you leave'
+              ? 'Your order has been sent to the kitchen. You can pay at the billing counter when leaving.'
               : order.paymentStatus === 'paid'
-                ? 'Payment received. Your order is being processed!'
-                : 'Payment submitted. We are waiting for the payment provider to confirm it.'}
+                ? 'Your payment was received successfully! The kitchen is preparing your dishes.'
+                : 'Payment submitted. We are confirming it with the payment gateway.'}
           </p>
         </motion.div>
       </div>
 
-      <div className="p-4 space-y-4">
-        {/* Order meta */}
-        <div className="card p-4">
-          <div className="grid gap-3 min-[380px]:grid-cols-2">
+      {/* Main Container */}
+      <div className="mx-auto max-w-3xl p-4 sm:p-6 space-y-4 -mt-4">
+        {/* Order Metadata Pills Card */}
+        <div className="card p-4 sm:p-5 bg-white shadow-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
               { label: 'Order #', value: order.orderNumber },
               { label: 'Table', value: `Table ${String(order.tableNumber).padStart(2, '0')}` },
-              { label: 'Payment', value: order.paymentMethod === 'razorpay' ? 'Online' : 'Cash' },
-              { label: 'Total', value: formatMoney(order.total, order.currency || tenant.currency) },
+              { label: 'Payment', value: order.paymentMethod === 'razorpay' ? 'Online' : 'Cash at Counter' },
+              { label: 'Total Paid', value: formatMoney(order.total, order.currency || tenant.currency) },
             ].map(row => (
-              <div key={row.label} className="bg-foam rounded-xl p-3">
-                <p className="text-xs text-espresso-400">{row.label}</p>
-                <p className="font-medium text-espresso-900 text-sm mt-0.5">{row.value}</p>
+              <div key={row.label} className="bg-foam/70 rounded-2xl p-3 border border-foam">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-espresso-400">{row.label}</p>
+                <p className="font-display font-bold text-espresso-950 text-sm sm:text-base mt-0.5">{row.value}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Live status */}
-        <div className={`card p-4 ${status.bg}`}>
-          <div className="flex items-center gap-3">
+        {/* Live Kitchen Preparation Progress */}
+        <div className={`card p-5 ${status.bg} border ${status.border} shadow-xs`}>
+          <div className="flex items-center gap-3.5">
             <span className="text-3xl">{status.icon}</span>
             <div className="flex-1">
-              <p className={`font-display font-bold ${status.color}`}>{status.label}</p>
-              <p className="text-espresso-500 text-xs flex items-center gap-1 mt-0.5">
-                <Clock size={11} /> Est. 15–20 minutes · Updates automatically
+              <div className="flex items-center gap-2">
+                <p className={`font-display text-lg font-bold ${status.color}`}>{status.label}</p>
+                <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              </div>
+              <p className="text-espresso-600 text-xs flex items-center gap-1.5 mt-0.5 font-medium">
+                <Clock size={12} />
+                <span>Real-time kitchen updates stream automatically</span>
               </p>
             </div>
           </div>
 
-          {/* Status progress */}
-          <div className="mt-4 flex items-center gap-1">
+          {/* Stepper Progress Bar */}
+          <div className="mt-5 flex items-center gap-1.5">
             {['received', 'preparing', 'ready', 'served'].map((s, i) => {
               const currentIdx = ({ pending: 0, confirmed: 0, preparing: 1, ready: 2, completed: 3 })[order.orderStatus] ?? 0;
               const done = i <= currentIdx;
               return (
                 <div key={s} className="flex-1 flex items-center">
-                  <div className={`flex-1 h-1.5 rounded-full transition-colors duration-500
-                    ${done ? 'bg-espresso-900' : 'bg-espresso-200'}`} />
+                  <div className={`flex-1 h-2 rounded-full transition-all duration-500 ${
+                    done ? 'bg-espresso-950' : 'bg-espresso-200/80'
+                  }`} />
                 </div>
               );
             })}
           </div>
-          <div className="flex justify-between mt-1">
-            {['Received', 'Preparing', 'Ready', 'Served'].map(label => (
-              <span key={label} className="text-[9px] text-espresso-400 flex-1 text-center">{label}</span>
-            ))}
+          <div className="flex justify-between mt-1.5">
+            {['Received', 'Preparing', 'Ready', 'Served'].map((label, i) => {
+              const currentIdx = ({ pending: 0, confirmed: 0, preparing: 1, ready: 2, completed: 3 })[order.orderStatus] ?? 0;
+              const isCurrent = i === currentIdx;
+              return (
+                <span key={label} className={`text-[10px] uppercase tracking-wider flex-1 text-center font-bold ${
+                  isCurrent ? 'text-espresso-950' : 'text-espresso-400'
+                }`}>
+                  {label}
+                </span>
+              );
+            })}
           </div>
         </div>
 
-        {/* Post-Order Notification Opt-In (Phase 27) */}
+        {/* Notification Permission Opt-In */}
         <NotificationPermissionPrompt
           customerId={order.customerId}
           phone={order.customer?.phone}
           variant="card"
         />
 
-        {/* Items */}
-        <div className="card p-4 space-y-3">
-          <h2 className="font-display font-semibold text-espresso-900">Items Ordered</h2>
-          {safeItems.map((item, i) => (
-            <div key={i} className="flex justify-between text-sm">
-              <div className="flex-1 pr-2">
-                <span className="text-espresso-800">{item.name}</span>
-                <span className="text-espresso-400 ml-1">× {item.quantity}</span>
-                {item.addons?.length > 0 && (
-                  <p className="text-xs text-espresso-400 mt-0.5">
-                    + {item.addons.map(a => a.name).join(', ')}
+        {/* Itemized Order Breakdown */}
+        <div className="card p-5 bg-white space-y-3.5 shadow-xs">
+          <div className="flex items-center justify-between border-b border-foam pb-3">
+            <h2 className="font-display text-base font-bold text-espresso-950">
+              Ordered Items
+            </h2>
+            <span className="text-xs font-semibold text-espresso-500">
+              {safeItems.length} {safeItems.length === 1 ? 'item' : 'items'}
+            </span>
+          </div>
+
+          <div className="space-y-2.5">
+            {safeItems.map((item, i) => (
+              <div key={i} className="flex justify-between items-baseline text-xs sm:text-sm">
+                <div className="flex-1 pr-3">
+                  <p className="font-semibold text-espresso-900">
+                    {item.name} <span className="text-espresso-500 font-normal">× {item.quantity}</span>
                   </p>
-                )}
+                  {item.addons?.length > 0 && (
+                    <p className="text-[11px] text-espresso-400 mt-0.5">
+                      +{item.addons.map(a => a.name).join(', ')}
+                    </p>
+                  )}
+                </div>
+                <span className="price-tag text-xs sm:text-sm font-bold text-espresso-950 flex-shrink-0">
+                  {formatMoney(item.itemTotal, order.currency || tenant.currency)}
+                </span>
               </div>
-              <span className="font-medium text-espresso-900">{formatMoney(item.itemTotal, order.currency || tenant.currency)}</span>
+            ))}
+          </div>
+
+          <div className="border-t border-foam pt-3 space-y-1.5 text-xs">
+            <div className="flex justify-between text-espresso-600">
+              <span>Subtotal</span>
+              <span className="price-tag text-xs">{formatMoney(order.subtotal, order.currency || tenant.currency)}</span>
             </div>
-          ))}
-          <div className="border-t border-foam pt-2 space-y-1">
-            <div className="flex justify-between text-sm text-espresso-500">
-              <span>Subtotal</span><span>{formatMoney(order.subtotal, order.currency || tenant.currency)}</span>
+            <div className="flex justify-between text-espresso-600">
+              <span>GST ({order.taxRate ?? tenant.taxRate}%)</span>
+              <span className="price-tag text-xs">{formatMoney(order.tax, order.currency || tenant.currency)}</span>
             </div>
-            <div className="flex justify-between text-sm text-espresso-500">
-              <span>GST ({order.taxRate ?? tenant.taxRate}%)</span><span>{formatMoney(order.tax, order.currency || tenant.currency)}</span>
-            </div>
-            <div className="flex justify-between font-display font-bold text-espresso-900">
-              <span>Total</span><span>{formatMoney(order.total, order.currency || tenant.currency)}</span>
+            <div className="flex justify-between border-t border-dashed border-espresso-200 pt-2 text-base font-bold text-espresso-950">
+              <span>Grand Total</span>
+              <span className="price-tag text-lg text-espresso-950">{formatMoney(order.total, order.currency || tenant.currency)}</span>
             </div>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="grid gap-3 pb-6 grid-cols-1 sm:grid-cols-2">
+        {/* Action Buttons */}
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 pt-2">
           <Link
             to={`/receipt/${orderId}?accessToken=${encodeURIComponent(accessToken)}`}
-            className="btn-secondary min-h-[44px] flex items-center justify-center gap-2 py-3.5 text-sm"
+            className="btn-secondary min-h-[46px] flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider"
           >
+            <Receipt size={16} />
             <span>View Receipt</span>
           </Link>
+
           <Link
             to={`/track/${orderId}?token=${encodeURIComponent(accessToken)}`}
-            className="btn-accent min-h-[44px] flex items-center justify-center gap-2 py-3.5 text-sm"
+            className="btn-accent min-h-[46px] flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider"
           >
-            <span>Track Live Status</span>
+            <Clock size={16} />
+            <span>Track Kitchen Live</span>
           </Link>
+
           {order.paymentMethod !== 'cash' && (
             <button
               type="button"
               onClick={handleDownloadReceipt}
               disabled={downloading}
-              className="btn-secondary min-h-[44px] flex items-center justify-center gap-2 py-3.5 text-sm"
+              className="btn-secondary min-h-[46px] flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider sm:col-span-2"
             >
-              {downloading
-                ? <Loader2 size={16} className="animate-spin" />
-                : <Download size={16} />}
-              <span>{downloading ? 'Generating...' : 'Download Receipt'}</span>
+              {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+              <span>{downloading ? 'Preparing Receipt PDF...' : 'Download PDF Receipt'}</span>
             </button>
           )}
+
           <Link
             to="/menu"
-            className="w-full btn-primary min-h-[44px] flex items-center justify-center gap-2 py-3.5 text-sm sm:col-span-2"
+            className="btn-primary min-h-[48px] flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider sm:col-span-2 shadow-sm"
           >
             <UtensilsCrossed size={16} />
             <span>Back to Menu</span>

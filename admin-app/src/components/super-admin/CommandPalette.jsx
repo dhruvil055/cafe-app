@@ -2,10 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Store, LayoutDashboard, CreditCard, ScrollText,
-  UserCheck, Settings, Eye, ArrowUpRight, LogOut, Sun, Moon,
+  UserCheck, Settings, Eye, ArrowUpRight, LogOut,
   RefreshCw, Smartphone, X, CornerDownLeft
 } from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
 
 export default function CommandPalette({
   isOpen,
@@ -13,12 +12,10 @@ export default function CommandPalette({
   tenants = [],
   onSelectTenant,
   onNavigateTab,
-  onToggleTheme,
   onRefresh,
   onLogout,
   onOpenUserPanels,
 }) {
-  const { isDark } = useTheme();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef(null);
@@ -48,7 +45,6 @@ export default function CommandPalette({
   items.push(
     { id: 'act-user-panels', type: 'Action', title: 'View All User Panels Workstation', subtitle: 'Responsive tablet/mobile tester', icon: Smartphone, action: onOpenUserPanels },
     { id: 'act-refresh', type: 'Action', title: 'Refresh Platform Data', subtitle: 'Reload latest metrics & tenants', icon: RefreshCw, action: onRefresh },
-    { id: 'act-theme', type: 'Action', title: `Switch to ${isDark ? 'Light' : 'Dark'} Theme`, subtitle: 'Toggle design system theme', icon: isDark ? Sun : Moon, action: onToggleTheme },
     { id: 'act-logout', type: 'Action', title: 'Sign Out of Super Admin', subtitle: 'Terminate platform session', icon: LogOut, action: onLogout }
   );
 

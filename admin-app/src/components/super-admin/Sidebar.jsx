@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Store, CreditCard, ScrollText, UserCheck,
   Settings, Smartphone, LogOut, ChevronLeft, ChevronRight,
-  ShieldCheck, Moon, Sun, X
+  ShieldCheck, X
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -24,7 +24,6 @@ export default function Sidebar({
   adminUser = null,
   onLogout,
   onOpenUserPanels,
-  onToggleTheme,
 }) {
   return (
     <>
@@ -155,33 +154,6 @@ export default function Sidebar({
             <Smartphone size={16} className="shrink-0 text-cyan-600 dark:text-cyan-400" />
             {!isCollapsed && <span className="truncate font-bold">User Panel Workstation</span>}
           </button>
-
-          {/* Theme Switcher Quick Toggle */}
-          {onToggleTheme && (
-            <button
-              onClick={onToggleTheme}
-              title={isCollapsed ? (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode') : undefined}
-              className={`w-full flex items-center gap-2.5 rounded-xl border border-[var(--sidebar-border)] bg-[var(--bg-surface)] py-2 px-3 text-xs font-semibold text-[var(--sidebar-text)] hover:border-amber-500/40 transition shadow-2xs ${
-                isCollapsed ? 'justify-center' : 'justify-between'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                {document.documentElement.getAttribute('data-theme') === 'dark' ? (
-                  <Sun size={15} className="text-amber-400 shrink-0" />
-                ) : (
-                  <Moon size={15} className="text-slate-600 shrink-0" />
-                )}
-                {!isCollapsed && (
-                  <span>{document.documentElement.getAttribute('data-theme') === 'dark' ? 'Dark Theme' : 'Light Theme'}</span>
-                )}
-              </div>
-              {!isCollapsed && (
-                <span className="text-[10px] uppercase font-bold text-[var(--sidebar-text-muted)]">
-                  Toggle
-                </span>
-              )}
-            </button>
-          )}
 
           {/* Admin User Profile Chip & Logout */}
           <div className={`pt-2 border-t border-[var(--sidebar-border)]/80 flex items-center gap-2.5 ${isCollapsed ? 'justify-center' : ''}`}>

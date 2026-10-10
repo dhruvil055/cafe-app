@@ -29,7 +29,7 @@ import UserPanelModal from '../../components/UserPanelModal';
 export default function SuperAdminDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { theme, isDark, toggleTheme, mounted } = useTheme();
+  const { mounted } = useTheme();
 
   // Navigation tab state: 'overview' | 'tenants' | 'plans' | 'audit' | 'impersonation' | 'settings'
   const activeTab = searchParams.get('tab') || 'overview';
@@ -262,8 +262,6 @@ export default function SuperAdminDashboard() {
         adminUser={adminUser}
         onLogout={handleLogout}
         onOpenUserPanels={() => setUserPanelModalCafe(tenants[0] || { slug: 'velvet', name: 'Velvet Cafe' })}
-        theme={theme}
-        onToggleTheme={toggleTheme}
       />
 
       {/* ── Main Content Area ──────────────────────────────────── */}
@@ -288,8 +286,6 @@ export default function SuperAdminDashboard() {
           onLogout={handleLogout}
           onRefresh={loadData}
           loading={loading}
-          isDark={isDark}
-          onToggleTheme={toggleTheme}
           onOpenUserPanels={() => setUserPanelModalCafe(tenants[0] || { slug: 'velvet', name: 'Velvet Cafe' })}
           activeAlertCount={(metrics?.suspendedTenants || 0) + (metrics?.paymentFailures || 0)}
         />
@@ -776,11 +772,9 @@ export default function SuperAdminDashboard() {
         tenants={tenants}
         onSelectTenant={(t) => setSelectedDrawerTenant(t)}
         onNavigateTab={(tab) => setActiveTab(tab)}
-        onToggleTheme={toggleTheme}
         onRefresh={loadData}
         onLogout={handleLogout}
         onOpenUserPanels={() => setUserPanelModalCafe(tenants[0] || { slug: 'velvet', name: 'Velvet Cafe' })}
-        isDark={isDark}
       />
 
       {/* ── Customer Ordering User Panel Simulator Modal ─────────── */}

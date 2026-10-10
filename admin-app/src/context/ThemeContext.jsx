@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useEffect, useCallback } from 'react';
 
 const ThemeContext = createContext(null);
 
@@ -6,69 +6,48 @@ const STORAGE_KEY = 'infini_theme';
 const THEME_ATTR = 'data-theme';
 
 export function ThemeProvider({ children }) {
-  // Initialize theme from localStorage or system preference
-  const [theme, setTheme] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return saved;
-      // Check system preference
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    return 'dark'; // Default for SSR
-  });
+  // Force light theme permanently across the application
+  const theme = 'light';
+  const isDark = false;
 
-  const [mounted, setMounted] = useState(false);
-
-  // Apply theme to document element
-  const applyTheme = useCallback((t) => {
+  // Apply light theme to document element immediately
+  const applyLightTheme = useCallback(() => {
     const root = document.documentElement;
-    if (t === 'dark') {
-      root.classList.add('dark');
-      root.classList.remove('light');
-      root.setAttribute(THEME_ATTR, 'dark');
-      root.style.colorScheme = 'dark';
-    } else {
-      root.classList.remove('dark');
-      root.classList.add('light');
-      root.setAttribute(THEME_ATTR, 'light');
-      root.style.colorScheme = 'light';
-    }
+    root.classList.remove('dark');
+    root.classList.add('light');
+    root.setAttribute(THEME_ATTR, 'light');
+    root.style.colorScheme = 'light';
   }, []);
 
-  // Apply on mount and theme change
+  // Apply on mount and prevent any dark mode from being applied
   useEffect(() => {
-    setMounted(true);
-    applyTheme(theme);
-  }, [theme, applyTheme]);
+    applyLightTheme();
 
-  // Listen for system theme changes
-  useEffect(() => {
+    // Clear any previously saved dark theme preference
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (_) {}
+
+    // Ensure system dark mode preference does not switch to dark
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e) => {
-      // Only auto-switch if user hasn't explicitly set a preference
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) {
-        setTheme(e.matches ? 'dark' : 'light');
-      }
+    const handleChange = () => {
+      applyLightTheme();
     };
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
+  }, [applyLightTheme]);
 
+  // Provide a no-op toggle function for backwards compatibility
   const toggleTheme = useCallback(() => {
-    setTheme(prev => {
-      const next = prev === 'dark' ? 'light' : 'dark';
-      localStorage.setItem(STORAGE_KEY, next);
-      return next;
-    });
+    console.debug('Dark mode is disabled');
   }, []);
 
   const value = {
     theme,
-    setTheme,
+    setTheme: () => {},
     toggleTheme,
-    isDark: theme === 'dark',
-    mounted,
+    isDark,
+    mounted: true,
   };
 
   return (

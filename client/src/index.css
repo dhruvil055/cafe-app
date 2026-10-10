@@ -57,33 +57,41 @@
 
 @layer components {
   .btn-primary {
-    @apply bg-espresso-900 text-cream font-body font-medium px-6 py-3 rounded-full
-           hover:bg-espresso-700 active:scale-95 transition-all duration-200
-           disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] inline-flex items-center justify-center;
+    @apply bg-espresso-900 text-cream font-body font-semibold px-6 py-3 rounded-2xl
+           hover:bg-espresso-800 active:scale-[0.98] transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] inline-flex items-center justify-center gap-2 shadow-sm;
   }
 
   .btn-secondary {
-    @apply border border-espresso-900 text-espresso-900 font-body font-medium px-6 py-3 rounded-full
-           hover:bg-espresso-900 hover:text-cream active:scale-95 transition-all duration-200 min-h-[44px] inline-flex items-center justify-center;
+    @apply border border-espresso-200/90 bg-white text-espresso-900 font-body font-semibold px-5 py-2.5 rounded-2xl
+           hover:bg-espresso-50/80 hover:border-espresso-300 active:scale-[0.98] transition-all duration-200 min-h-[44px] inline-flex items-center justify-center gap-2 shadow-xs;
   }
 
   .btn-accent {
-    @apply bg-brew-500 text-white font-body font-medium px-6 py-3 rounded-full
-           hover:bg-brew-600 active:scale-95 transition-all duration-200
-           disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] inline-flex items-center justify-center;
+    @apply bg-brew-500 text-white font-body font-semibold px-6 py-3 rounded-2xl
+           hover:bg-brew-600 active:scale-[0.98] transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] inline-flex items-center justify-center gap-2 shadow-md;
   }
 
   .card {
-    @apply bg-white rounded-2xl shadow-sm border border-foam overflow-hidden;
+    @apply bg-white rounded-2xl shadow-[0_2px_12px_-2px_rgba(26,15,8,0.06),0_1px_3px_rgba(26,15,8,0.04)] border border-foam/90 overflow-hidden transition-all duration-200;
+  }
+
+  .card-interactive {
+    @apply card hover:shadow-[0_8px_24px_-4px_rgba(26,15,8,0.09),0_2px_6px_rgba(26,15,8,0.05)] hover:border-espresso-200/80;
   }
 
   .glass {
-    @apply bg-white/80 backdrop-blur-md border border-white/50;
+    @apply bg-white/85 backdrop-blur-md border border-white/60 shadow-xs;
+  }
+
+  .glass-dark {
+    @apply bg-espresso-950/85 backdrop-blur-md border border-white/10 text-cream shadow-xl;
   }
 
   .input-field {
-    @apply w-full px-4 py-3 rounded-xl border border-foam bg-white
-           focus:outline-none focus:ring-2 focus:ring-brew-300 focus:border-brew-400
+    @apply w-full px-4 py-3 rounded-xl border border-espresso-200/70 bg-white
+           focus:outline-none focus:ring-2 focus:ring-brew-400/50 focus:border-brew-500
            placeholder:text-espresso-400 text-espresso-900 text-base sm:text-sm transition-all min-h-[44px];
   }
 }

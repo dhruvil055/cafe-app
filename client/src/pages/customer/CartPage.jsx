@@ -1,6 +1,18 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Trash2, Plus, Minus, ShoppingBag, QrCode, AlertCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  Trash2,
+  Plus,
+  Minus,
+  ShoppingBag,
+  QrCode,
+  AlertCircle,
+  CheckCircle2,
+  UtensilsCrossed,
+  ArrowRight,
+  ShieldCheck,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import useCartStore, { cartItemCount } from '../../context/cartStore';
 import { useTenant } from '../../context/TenantContext';
@@ -8,7 +20,7 @@ import { formatMoney } from '../../utils/money';
 import QrScannerModal from '../../components/ui/QrScannerModal';
 import usePageMeta from '../../hooks/usePageMeta';
 
-const FALLBACK_IMAGE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" fill="%23f5ebe1"><rect width="80" height="80" rx="12"/><text x="50%" y="54%" text-anchor="middle" font-size="28" fill="%23846358">☕</text></svg>';
+const FALLBACK_IMAGE = '/images/coffee-placeholder.svg';
 
 export default function CartPage() {
   const tenant = useTenant();
@@ -17,17 +29,17 @@ export default function CartPage() {
   const itemCount = useCartStore(cartItemCount);
 
   usePageMeta(
-    'Your Order Cart & Selected Items',
-    'Review the artisanal coffee beverages, gourmet treats, and table orders currently in your café cart before seamless digital checkout.'
+    `Your Order Cart (${itemCount}) — ${tenant.name || 'Café'}`,
+    'Review your selected dishes, beverages, and order items before table checkout.'
   );
 
   const subtotal = items.reduce((s, i) => s + i.itemTotal, 0);
-  const tax = Number((subtotal * Number(tenant.taxRate || 0) / 100).toFixed(2));
-  const total = subtotal + tax;
+  const tax = Number(((subtotal * Number(tenant.taxRate || 0)) / 100).toFixed(2));
+  const total = (subtotal + tax).toFixed(2);
 
   const handleProceedCheckout = () => {
     if (!tableNumber) {
-      toast.error('Please scan your table QR code to place your order.');
+      toast.error('Please scan your table QR code to proceed with your order.');
       openScanner();
       return;
     }
@@ -36,27 +48,34 @@ export default function CartPage() {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen bg-cream flex flex-col">
-        <div className="flex items-center gap-3 p-4 border-b border-foam bg-white">
+      <div className="min-h-screen bg-cream/90 flex flex-col">
+        {/* Simple Top Bar */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-foam bg-white">
           <button
             type="button"
-            onClick={() => navigate(-1)}
-            className="min-h-[44px] min-w-[44px] rounded-full border border-foam flex items-center justify-center text-espresso-700 hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-brew-500"
-            aria-label="Go back to previous page"
+            onClick={() => navigate('/menu')}
+            className="min-h-[40px] min-w-[40px] rounded-full border border-espresso-200/80 flex items-center justify-center text-espresso-700 hover:bg-espresso-50 transition active:scale-95"
+            aria-label="Back to Menu"
           >
-            <ArrowLeft size={18} aria-hidden="true" />
+            <ArrowLeft size={18} />
           </button>
-          <h1 className="font-display text-xl font-bold text-espresso-900">Your Cart</h1>
+          <h1 className="font-display text-lg font-bold text-espresso-950">Your Cart</h1>
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 max-w-md mx-auto text-center">
-          <span className="text-6xl" role="img" aria-label="Empty shopping cart">🛒</span>
-          <h2 className="font-display text-2xl font-bold text-espresso-900">Cart is empty</h2>
-          <p className="text-espresso-500 text-sm">Browse our artisanal menu and add your favorite beverages and snacks!</p>
+
+        {/* Empty State Body */}
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto">
+          <div className="w-20 h-20 rounded-3xl bg-foam flex items-center justify-center text-4xl mb-4 shadow-inner">
+            ☕
+          </div>
+          <h2 className="font-display text-2xl font-bold text-espresso-950">Your cart is empty</h2>
+          <p className="text-espresso-500 text-sm mt-2 leading-relaxed">
+            Discover our freshly brewed specialty coffees, artisanal bites, and comforting meals.
+          </p>
           <Link
             to="/menu"
-            className="btn-primary mt-2 min-h-[44px] inline-flex items-center justify-center px-6 py-2.5 text-sm font-semibold"
+            className="mt-6 btn-primary min-h-[46px] px-8 text-xs font-bold uppercase tracking-[0.16em]"
           >
-            Browse Menu
+            Explore Menu
           </Link>
         </div>
       </div>
@@ -64,192 +83,272 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-cream flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-foam bg-white sticky top-0 z-10">
+    <div className="min-h-screen bg-cream/90 flex flex-col">
+      {/* Top Navigation Bar */}
+      <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 border-b border-foam/90 bg-white/95 backdrop-blur-md shadow-2xs">
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate(-1)}
-            className="min-h-[44px] min-w-[44px] rounded-full border border-foam flex items-center justify-center text-espresso-700 hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-brew-500"
-            aria-label="Go back to previous page"
+            onClick={() => navigate('/menu')}
+            className="min-h-[40px] min-w-[40px] rounded-full border border-espresso-200/80 flex items-center justify-center text-espresso-800 hover:bg-espresso-50 transition active:scale-95"
+            aria-label="Back to Menu"
           >
-            <ArrowLeft size={18} aria-hidden="true" />
+            <ArrowLeft size={18} />
           </button>
-          <h1 className="font-display text-xl font-bold text-espresso-900">Your Cart</h1>
-          {itemCount > 0 && (
-            <span className="bg-brew-500 text-white text-xs font-bold px-2 py-0.5 rounded-full" aria-label={`${itemCount} items in cart`}>
-              {itemCount}
-            </span>
-          )}
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="font-display text-lg sm:text-xl font-bold text-espresso-950 leading-none">
+                Your Order
+              </h1>
+              <span className="flex h-5 items-center justify-center rounded-full bg-brew-500 px-2 text-[11px] font-bold text-white">
+                {itemCount}
+              </span>
+            </div>
+            <p className="text-[11px] text-espresso-500 mt-0.5">{tenant.name}</p>
+          </div>
         </div>
+
         <div className="flex items-center gap-2">
-          {tableNumber ? (
-            <span className="text-xs text-espresso-700 font-semibold bg-foam px-2.5 py-1 rounded-full">
-              Table {String(tableNumber).padStart(2, '0')}
-            </span>
-          ) : (
-            <button
-              type="button"
-              onClick={openScanner}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-brew-600 px-3.5 py-2 text-xs font-bold uppercase text-white shadow-sm hover:bg-brew-700 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-brew-500"
-            >
-              <QrCode size={14} aria-hidden="true" />
-              <span>Scan Table</span>
-            </button>
-          )}
           <button
             type="button"
             onClick={clearCart}
-            className="min-h-[44px] inline-flex items-center px-3 py-1 text-xs text-red-500 font-semibold hover:text-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-400 rounded-lg"
+            className="min-h-[36px] px-3 py-1 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl transition"
           >
             Clear All
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* No table warning */}
-      {!tableNumber && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center justify-between gap-3" role="status" aria-live="polite">
-          <div className="flex items-center gap-2">
-            <AlertCircle size={18} className="text-amber-700 flex-shrink-0" aria-hidden="true" />
-            <p className="text-amber-900 text-xs sm:text-sm font-medium">
-              Please scan your table QR code to place your order.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={openScanner}
-            className="min-h-[44px] inline-flex items-center rounded-full bg-brew-600 px-4 py-2 text-xs font-bold uppercase text-white shadow-sm hover:bg-brew-700 transition active:scale-95 whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-brew-500"
-          >
-            Scan QR
-          </button>
-        </div>
-      )}
-
-      {/* Items */}
-      <div className="flex-1 overflow-y-auto pb-52 sm:pb-48">
-        <div className="p-4 space-y-3 max-w-2xl mx-auto w-full">
-          <AnimatePresence>
-            {items.map(item => (
-              <motion.div
-                key={item.key}
-                layout
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="bg-white rounded-2xl p-4 border border-foam shadow-sm flex gap-3 items-center"
-              >
-                <img
-                  src={item.image || FALLBACK_IMAGE}
-                  alt={item.name}
-                  width="80"
-                  height="80"
-                  loading="lazy"
-                  className="w-20 h-20 rounded-xl object-cover flex-shrink-0 bg-stone-100"
-                  onError={e => { e.currentTarget.src = FALLBACK_IMAGE; }}
-                />
-
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-espresso-900 text-sm truncate">{item.name}</h3>
-
-                  {item.variant && (
-                    <p className="text-xs text-espresso-500 mt-0.5">Size: {item.variant.name}</p>
-                  )}
-
-                  {item.addons?.length > 0 && (
-                    <p className="text-xs text-espresso-400 mt-0.5">
-                      +{item.addons.map(a => a.name).join(', ')}
-                    </p>
-                  )}
-
-                  {item.specialInstructions && (
-                    <p className="text-xs text-espresso-400 italic mt-0.5 truncate">
-                      &quot;{item.specialInstructions}&quot;
-                    </p>
-                  )}
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
-                    <div className="flex items-center bg-cream rounded-full p-0.5 border border-foam">
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.key, item.quantity - 1)}
-                        className="min-h-[44px] min-w-[44px] rounded-full flex items-center justify-center text-espresso-600 hover:text-espresso-900 hover:bg-stone-200/50 transition-colors focus:outline-none focus:ring-2 focus:ring-brew-500"
-                        aria-label={`Decrease quantity of ${item.name}`}
-                      >
-                        <Minus size={14} aria-hidden="true" />
-                      </button>
-                      <span className="text-xs font-bold text-espresso-900 min-w-[20px] text-center px-1">
-                        {item.quantity}
+      {/* Main Content Layout (2-Column on Desktop) */}
+      <main className="flex-1 mx-auto max-w-6xl w-full p-4 sm:p-6 lg:p-8 pb-36 lg:pb-12">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Column: Table Status & Cart Items */}
+          <div className="lg:col-span-7 space-y-4">
+            {/* Table Identification Card */}
+            <div className={`rounded-2xl p-4 border transition-all ${
+              tableNumber
+                ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950 shadow-2xs'
+                : 'bg-amber-50/90 border-amber-300 text-amber-950 shadow-xs'
+            }`}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-xl font-bold ${
+                    tableNumber
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-amber-500 text-white'
+                  }`}>
+                    {tableNumber ? (
+                      <span className="font-display text-base font-bold">
+                        {String(tableNumber).padStart(2, '0')}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.key, item.quantity + 1)}
-                        className="min-h-[44px] min-w-[44px] rounded-full flex items-center justify-center text-espresso-600 hover:text-espresso-900 hover:bg-stone-200/50 transition-colors focus:outline-none focus:ring-2 focus:ring-brew-500"
-                        aria-label={`Increase quantity of ${item.name}`}
-                      >
-                        <Plus size={14} aria-hidden="true" />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="price-tag text-sm font-semibold">
-                        {formatMoney(item.itemTotal, tenant.currency)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => removeItem(item.key)}
-                        className="min-h-[44px] min-w-[44px] rounded-full text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
-                        aria-label={`Remove ${item.name} from cart`}
-                      >
-                        <Trash2 size={16} aria-hidden="true" />
-                      </button>
-                    </div>
+                    ) : (
+                      <QrCode size={20} />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider opacity-75">
+                      {tableNumber ? 'Connected Table' : 'Table Required to Order'}
+                    </p>
+                    <p className="font-display text-base font-bold">
+                      {tableNumber ? `Table ${String(tableNumber).padStart(2, '0')}` : 'Please scan your table QR'}
+                    </p>
                   </div>
                 </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-      </div>
 
-      {/* Bill summary + checkout */}
-      <div className="bottom-safe fixed bottom-0 left-0 right-0 bg-white border-t border-foam p-4 space-y-3 shadow-2xl z-10">
-        <div className="max-w-2xl mx-auto w-full space-y-2">
-          <div className="space-y-1">
-            <div className="flex justify-between text-sm text-espresso-600">
-              <span>Subtotal</span>
-              <span className="price-tag text-sm">{formatMoney(subtotal, tenant.currency)}</span>
+                <button
+                  type="button"
+                  onClick={openScanner}
+                  className={`min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition active:scale-95 shadow-xs ${
+                    tableNumber
+                      ? 'bg-white hover:bg-emerald-100/60 text-emerald-900 border border-emerald-200'
+                      : 'bg-amber-600 hover:bg-amber-700 text-white'
+                  }`}
+                >
+                  {tableNumber ? 'Switch Table' : 'Scan QR'}
+                </button>
+              </div>
             </div>
-            <div className="flex justify-between text-sm text-espresso-600">
-              <span>GST ({tenant.taxRate}%)</span>
-              <span className="price-tag text-sm">{formatMoney(tax, tenant.currency)}</span>
-            </div>
-            <div className="flex justify-between font-bold text-espresso-900 text-base pt-1 border-t border-foam">
-              <span>Total</span>
-              <span className="price-tag text-base">{formatMoney(total, tenant.currency)}</span>
+
+            {/* Items Card List */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1 text-xs font-bold uppercase tracking-wider text-espresso-500">
+                <span>Selected Items ({items.length})</span>
+                <Link to="/menu" className="text-brew-700 hover:text-espresso-950 font-semibold transition">
+                  + Add more items
+                </Link>
+              </div>
+
+              <AnimatePresence initial={false}>
+                {items.map((item) => (
+                  <motion.article
+                    key={item.key}
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="card p-3.5 sm:p-4 flex gap-3.5 items-center bg-white shadow-2xs hover:shadow-xs transition-shadow"
+                  >
+                    {/* Item Thumbnail */}
+                    <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-2xl bg-foam">
+                      <img
+                        src={item.image || FALLBACK_IMAGE}
+                        alt={item.name}
+                        width="80"
+                        height="80"
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                        onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+                      />
+                    </div>
+
+                    {/* Item Details */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <h2 className="font-display text-base font-bold text-espresso-950 leading-tight truncate">
+                          {item.name}
+                        </h2>
+                        <button
+                          type="button"
+                          onClick={() => removeItem(item.key)}
+                          aria-label={`Remove ${item.name} from cart`}
+                          className="min-h-[36px] min-w-[36px] flex items-center justify-center text-espresso-400 hover:text-red-600 transition rounded-lg"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+
+                      {/* Variant and Add-ons */}
+                      <div className="mt-1 flex flex-wrap gap-1 text-xs">
+                        {item.variant && (
+                          <span className="rounded-md bg-espresso-100/70 px-1.5 py-0.5 text-[11px] font-semibold text-espresso-800">
+                            Size: {item.variant.name}
+                          </span>
+                        )}
+                        {item.addons?.length > 0 && (
+                          <span className="text-espresso-500 text-[11px]">
+                            +{item.addons.map(a => a.name).join(', ')}
+                          </span>
+                        )}
+                      </div>
+
+                      {item.specialInstructions && (
+                        <p className="mt-1 text-[11px] italic text-brew-700 truncate">
+                          &ldquo;{item.specialInstructions}&rdquo;
+                        </p>
+                      )}
+
+                      {/* Quantity Stepper & Price */}
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <div className="inline-flex items-center rounded-xl bg-cream border border-espresso-200/80 p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item.key, item.quantity - 1)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso-700 hover:bg-espresso-900 hover:text-white transition active:scale-90"
+                            aria-label={`Decrease quantity of ${item.name}`}
+                          >
+                            <Minus size={13} strokeWidth={2.5} />
+                          </button>
+                          <span className="w-7 text-center font-mono text-xs font-bold text-espresso-950">
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item.key, item.quantity + 1)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso-700 hover:bg-espresso-900 hover:text-white transition active:scale-90"
+                            aria-label={`Increase quantity of ${item.name}`}
+                          >
+                            <Plus size={13} strokeWidth={2.5} />
+                          </button>
+                        </div>
+
+                        <span className="price-tag text-base font-bold text-espresso-950">
+                          {formatMoney(item.itemTotal, tenant.currency)}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.article>
+                ))}
+              </AnimatePresence>
             </div>
           </div>
 
+          {/* Right Column: Order Bill Summary & Checkout Action */}
+          <div className="lg:col-span-5">
+            <div className="card p-5 sm:p-6 space-y-5 bg-white shadow-xs sticky top-24">
+              <h2 className="font-display text-lg font-bold text-espresso-950 border-b border-foam pb-3">
+                Order Summary
+              </h2>
+
+              {/* Cost Breakdown */}
+              <div className="space-y-2.5 text-sm">
+                <div className="flex justify-between text-espresso-600">
+                  <span>Items Subtotal</span>
+                  <span className="price-tag text-sm">{formatMoney(subtotal, tenant.currency)}</span>
+                </div>
+                <div className="flex justify-between text-espresso-600">
+                  <span>Taxes &amp; GST ({tenant.taxRate}%)</span>
+                  <span className="price-tag text-sm">{formatMoney(tax, tenant.currency)}</span>
+                </div>
+                <div className="flex justify-between border-t border-dashed border-espresso-200 pt-3 text-base font-bold text-espresso-950">
+                  <span>Total Payable</span>
+                  <span className="price-tag text-xl text-espresso-950">{formatMoney(total, tenant.currency)}</span>
+                </div>
+              </div>
+
+              {/* Trust Badge */}
+              <div className="flex items-center gap-2 rounded-xl bg-foam/60 p-3 text-xs text-espresso-600">
+                <ShieldCheck size={16} className="text-emerald-700 shrink-0" />
+                <span>Orders are prepared fresh by {tenant.name} upon placement.</span>
+              </div>
+
+              {/* Checkout Button */}
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.985 }}
+                onClick={handleProceedCheckout}
+                className="w-full min-h-[50px] btn-primary flex items-center justify-between px-6 py-3.5 text-sm font-bold shadow-md uppercase tracking-wider"
+              >
+                <div className="flex items-center gap-2">
+                  <ShoppingBag size={18} />
+                  <span>Proceed to Checkout</span>
+                </div>
+                <span className="price-tag text-base text-brew-200">{formatMoney(total, tenant.currency)}</span>
+              </motion.button>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Floating Bottom Bar for Mobile Viewports */}
+      <div className="lg:hidden bottom-safe fixed bottom-0 left-0 right-0 p-3.5 bg-white/95 backdrop-blur-xl border-t border-foam shadow-2xl z-20">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] text-espresso-500 uppercase tracking-wider font-semibold">Total Amount</p>
+            <p className="price-tag text-lg font-bold text-espresso-950">{formatMoney(total, tenant.currency)}</p>
+          </div>
           <motion.button
             type="button"
             whileTap={{ scale: 0.98 }}
             onClick={handleProceedCheckout}
-            className="w-full min-h-[48px] flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl font-semibold text-sm transition-all btn-primary focus:outline-none focus:ring-2 focus:ring-brew-500"
+            className="flex-1 min-h-[48px] btn-primary flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider"
           >
-            <ShoppingBag size={18} aria-hidden="true" />
-            Proceed to Checkout
+            <ShoppingBag size={16} />
+            <span>Checkout ({itemCount})</span>
           </motion.button>
         </div>
       </div>
 
-      {/* QR Scanner modal if customer didn't scan table before checkout */}
+      {/* Table QR Scanner Modal */}
       <AnimatePresence>
         {isScannerOpen && (
           <QrScannerModal
             onClose={closeScanner}
-            onTableFound={(num) => {
+            onTableFound={(num, token) => {
               closeScanner();
+              if (token) {
+                navigate(`/cart?tableToken=${encodeURIComponent(token)}`, { replace: true });
+              }
             }}
           />
         )}

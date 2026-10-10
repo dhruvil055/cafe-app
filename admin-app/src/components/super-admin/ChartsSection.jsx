@@ -11,7 +11,6 @@ import {
   Cell,
 } from 'recharts';
 import { AlertTriangle, Store, ArrowUpRight, ShieldAlert, CheckCircle2, CreditCard } from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
 
 const PLAN_COLORS = {
   starter: '#9a6f46',
@@ -25,7 +24,6 @@ export default function ChartsSection({
   onOpenTenant,
   onNavigateTab,
 }) {
-  const { isDark } = useTheme();
   const [timeRange, setTimeRange] = useState('30d'); // '7d' | '30d'
 
   // Realistic mock trend data for Orders + GMV over time (TODO: replace with /platform/admin/metrics/trends endpoint once available)

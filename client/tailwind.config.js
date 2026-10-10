@@ -31,11 +31,21 @@ export default {
         },
         cream: '#FAF6F0',
         foam: '#F0E8D8',
+        sand: {
+          50: '#FAF6F0',
+          100: '#F0E8D8',
+          200: '#E6D9C5',
+          300: '#D5C3A8',
+        },
       },
       fontFamily: {
         display: ['Cormorant Garamond', 'Georgia', 'serif'],
         body: ['Manrope', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
+      },
+      boxShadow: {
+        '2xs': '0 1px 2px 0 rgba(26, 15, 8, 0.03)',
+        'xs': '0 1px 2px 0 rgba(26, 15, 8, 0.05)',
       },
       animation: {
         'float': 'float 6s ease-in-out infinite',

@@ -55,38 +55,40 @@ export default function Navbar({ variant = 'default' }) {
 
   return (
     <header
-      className={`sticky top-0 z-40 w-full transition-colors duration-300 ${
+      className={`sticky top-0 z-40 w-full transition-all duration-300 ${
         isDark
-          ? 'bg-[#120804]/90 text-cream border-b border-espresso-800/80 backdrop-blur-md'
-          : 'bg-white/95 text-espresso-950 border-b border-foam backdrop-blur-md shadow-xs'
+          ? 'bg-[#140b07]/92 text-cream border-b border-espresso-800/80 backdrop-blur-xl shadow-md'
+          : 'bg-white/92 text-espresso-950 border-b border-foam/80 backdrop-blur-xl shadow-xs'
       }`}
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-3.5 py-2.5 sm:px-6 sm:py-3 lg:px-8">
         {/* Brand Logo & Name */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           <Link
             to="/"
             aria-label={`${tenant.name} - Homepage`}
-            className="flex items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brew-500"
+            className="group flex items-center gap-2.5 rounded-xl transition-transform active:scale-98 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brew-500"
           >
             {tenant.logoUrl ? (
               <img
                 src={tenant.logoUrl}
                 alt={`${tenant.name} Logo`}
-                className="h-9 w-auto max-w-[140px] object-contain"
-                width={140}
+                className="h-9 w-auto max-w-[130px] sm:max-w-[160px] object-contain transition-transform group-hover:scale-102"
+                width={150}
                 height={36}
               />
             ) : (
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brew-500 text-espresso-950 shadow-xs">
+              <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brew-500 to-brew-600 text-white shadow-sm shadow-brew-500/20">
                 <Coffee size={20} className="stroke-[2.2]" />
               </div>
             )}
             <div className="flex flex-col">
-              <span className={`font-display text-lg font-bold tracking-[0.06em] leading-tight ${isDark ? 'text-cream' : 'text-espresso-950'}`}>
+              <span className={`font-display text-base sm:text-lg font-bold tracking-[0.04em] leading-tight transition-colors ${
+                isDark ? 'text-cream group-hover:text-brew-200' : 'text-espresso-950 group-hover:text-brew-700'
+              }`}>
                 {tenant.name}
               </span>
-              <span className="text-[10px] uppercase tracking-[0.2em] text-brew-400 font-semibold leading-none">
+              <span className="text-[10px] uppercase tracking-[0.18em] text-brew-500/90 font-semibold leading-none">
                 {tenant.tagline || 'Artisanal Café'}
               </span>
             </div>
@@ -94,28 +96,28 @@ export default function Navbar({ variant = 'default' }) {
         </div>
 
         {/* Desktop Navigation */}
-        <nav aria-label="Main Navigation" className="hidden lg:flex items-center gap-1 xl:gap-2">
+        <nav aria-label="Main Navigation" className="hidden lg:flex items-center gap-1 xl:gap-1.5">
           {NAV_LINKS.map((link) => {
             const isActive = location.pathname === link.to;
             return (
               <Link
                 key={link.to}
                 to={link.to}
-                className={`relative px-3 py-2 text-sm font-medium rounded-full transition-colors ${
+                className={`relative px-3.5 py-2 text-sm font-medium rounded-full transition-all duration-200 ${
                   isActive
                     ? isDark
-                      ? 'text-brew-300 bg-white/10'
-                      : 'text-brew-700 bg-espresso-50 font-semibold'
+                      ? 'text-brew-200 bg-white/10 font-semibold shadow-inner'
+                      : 'text-espresso-950 bg-foam/90 font-semibold shadow-2xs'
                     : isDark
-                    ? 'text-cream/80 hover:text-cream hover:bg-white/5'
-                    : 'text-espresso-700 hover:text-espresso-950 hover:bg-espresso-50/60'
+                    ? 'text-cream/75 hover:text-cream hover:bg-white/5'
+                    : 'text-espresso-700 hover:text-espresso-950 hover:bg-espresso-50/70'
                 }`}
               >
                 {link.label}
                 {isActive && (
                   <motion.div
                     layoutId="activeNavIndicator"
-                    className="absolute bottom-0 left-3 right-3 h-0.5 bg-brew-500 rounded-full"
+                    className="absolute bottom-1 left-4 right-4 h-0.5 bg-brew-500 rounded-full"
                     transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                   />
                 )}
@@ -124,52 +126,70 @@ export default function Navbar({ variant = 'default' }) {
           })}
         </nav>
 
-        {/* Quick Actions (Scan QR, Cart, Mobile Hamburger) */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Table indicator or scan button — visible on all screen sizes */}
+        {/* Quick Actions (Table status, Cart button, Mobile drawer toggle) */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Table indicator or scan button */}
           {tableNumber ? (
-            <div className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold border ${
-              isDark ? 'bg-brew-500/15 border-brew-400/40 text-brew-200' : 'bg-brew-50 border-brew-200 text-brew-800'
-            }`}>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Table {String(tableNumber).padStart(2, '0')}</span>
-            </div>
+            <button
+              type="button"
+              onClick={openScanner}
+              title="Tap to change table"
+              className={`inline-flex min-h-[40px] items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all active:scale-95 ${
+                isDark
+                  ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200 hover:bg-emerald-900/40'
+                  : 'bg-emerald-50/90 border-emerald-200 text-emerald-900 hover:bg-emerald-100/80 shadow-2xs'
+              }`}
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="tracking-wide">Table {String(tableNumber).padStart(2, '0')}</span>
+            </button>
           ) : (
             <button
               type="button"
               onClick={openScanner}
               aria-label="Scan Table QR Code"
-              className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition active:scale-95 ${
+              className={`min-h-[40px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all active:scale-95 ${
                 isDark
-                  ? 'border-brew-400/50 bg-brew-500/20 text-cream hover:bg-brew-500/30'
-                  : 'border-espresso-200 bg-white text-espresso-800 hover:bg-espresso-50 shadow-xs'
+                  ? 'border-brew-400/40 bg-brew-500/15 text-cream hover:bg-brew-500/25'
+                  : 'border-espresso-200/80 bg-white text-espresso-800 hover:bg-espresso-50 shadow-2xs'
               }`}
             >
-              <ScanLine size={15} className="text-brew-400" />
-              <span className="hidden sm:inline">Scan QR</span>
+              <ScanLine size={15} className="text-brew-500" />
+              <span className="hidden sm:inline">Scan Table</span>
             </button>
           )}
 
-          {/* Quick Cart Button */}
-          <button
-            type="button"
-            onClick={openQuickCart}
+          {/* Cart Icon Link with reactive bounce */}
+          <Link
+            to="/cart"
             aria-label={`Open Cart (${itemCount} items)`}
-            className={`relative min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full border transition active:scale-95 ${
+            className={`relative min-h-[40px] min-w-[40px] flex items-center justify-center rounded-full border transition-all active:scale-95 ${
               isDark
-                ? 'border-white/20 bg-white/10 text-cream hover:bg-white/20'
-                : 'border-espresso-200 bg-white text-espresso-900 hover:bg-espresso-50 shadow-xs'
+                ? 'border-white/15 bg-white/10 text-cream hover:bg-white/20'
+                : 'border-espresso-200/80 bg-white text-espresso-900 hover:bg-espresso-50/80 shadow-2xs'
             }`}
           >
-            <ShoppingBag size={18} />
-            {itemCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-brew-500 text-[11px] font-bold text-white shadow-xs">
-                {itemCount}
-              </span>
-            )}
-          </button>
+            <ShoppingBag size={18} className="stroke-[2.1]" />
+            <AnimatePresence>
+              {itemCount > 0 && (
+                <motion.span
+                  key={itemCount}
+                  initial={{ scale: 0.4, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.4, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                  className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-brew-500 text-[11px] font-bold text-white shadow-sm ring-2 ring-white"
+                >
+                  {itemCount}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </Link>
 
-          {/* Mobile Hamburger Toggle Button */}
+          {/* Mobile Hamburger Button */}
           <button
             ref={menuButtonRef}
             type="button"
@@ -177,13 +197,13 @@ export default function Navbar({ variant = 'default' }) {
             aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-nav-drawer"
-            className={`lg:hidden min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full border transition active:scale-95 ${
+            className={`lg:hidden min-h-[40px] min-w-[40px] flex items-center justify-center rounded-full border transition-all active:scale-95 ${
               isDark
-                ? 'border-white/20 bg-white/10 text-cream hover:bg-white/20'
-                : 'border-espresso-200 bg-white text-espresso-900 hover:bg-espresso-50 shadow-xs'
+                ? 'border-white/15 bg-white/10 text-cream hover:bg-white/20'
+                : 'border-espresso-200/80 bg-white text-espresso-900 hover:bg-espresso-50/80 shadow-2xs'
             }`}
           >
-            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            {mobileMenuOpen ? <X size={19} /> : <Menu size={19} />}
           </button>
         </div>
       </div>

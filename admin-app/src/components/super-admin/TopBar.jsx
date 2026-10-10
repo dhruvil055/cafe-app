@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import {
-  Menu, Search, RefreshCw, Sun, Moon, Bell, ShieldCheck,
+  Menu, Search, RefreshCw, Bell, ShieldCheck,
   LogOut, Smartphone, CheckCircle2, ChevronDown, Sparkles
 } from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
 
 export default function TopBar({
   onOpenMobileSidebar,
@@ -13,18 +12,11 @@ export default function TopBar({
   onLogout,
   onRefresh,
   loading = false,
-  onToggleTheme,
   onOpenUserPanels,
   activeAlertCount = 0,
 }) {
-  const { isDark, toggleTheme } = useTheme();
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
-
-  const handleThemeToggle = () => {
-    if (onToggleTheme) onToggleTheme();
-    else toggleTheme();
-  };
 
   return (
     <header className="sticky top-0 z-30 h-16 border-b border-[var(--header-border)] bg-[var(--header-bg)] backdrop-blur-md px-4 sm:px-6 transition-colors duration-200">
@@ -42,8 +34,8 @@ export default function TopBar({
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-[var(--header-text)] tracking-tight">{activeTabTitle}</h1>
               {/* Environment badge */}
-              <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
+              <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 Live Production
               </span>
             </div>
@@ -88,15 +80,6 @@ export default function TopBar({
             title="Refresh Platform Telemetry"
           >
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-          </button>
-
-          {/* Theme Toggle (Dark / Light) */}
-          <button
-            onClick={handleThemeToggle}
-            className="rounded-xl border border-[var(--border-primary)] bg-[var(--hover-bg)] p-2 text-[var(--header-text-muted)] hover:text-amber-600 dark:hover:text-amber-400 hover:bg-[var(--hover-bg)] transition"
-            title={`Switch to ${isDark ? 'Light' : 'Dark'} theme`}
-          >
-            {isDark ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-slate-700" />}
           </button>
 
           {/* Notifications Popover */}
