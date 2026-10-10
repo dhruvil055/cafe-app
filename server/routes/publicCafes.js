@@ -262,6 +262,11 @@ router.get('/cafes/:cafeId/menu', async (req, res, next) => {
         image: prod.image || '',
         available: prod.available !== false,
         isVeg: prod.isVeg !== false,
+        variants: prod.variants || [],
+        addons: prod.addons || [],
+        popular: Boolean(prod.popular),
+        prepTime: prod.prepTime,
+        rating: prod.rating,
       };
       if (catId && categoryMap.has(catId)) {
         categoryMap.get(catId).items.push(item);

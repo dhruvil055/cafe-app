@@ -39,8 +39,8 @@ export default {
         },
       },
       fontFamily: {
-        display: ['Cormorant Garamond', 'Georgia', 'serif'],
-        body: ['Manrope', 'system-ui', 'sans-serif'],
+        display: ['Sora', 'Cormorant Garamond', 'Georgia', 'serif'],
+        body: ['Inter', 'Manrope', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
       boxShadow: {
